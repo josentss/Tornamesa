@@ -1,6 +1,6 @@
-// src/lib/api.js
+import { supabase } from '@/lib/supabase';
 
-// 🔧 FUNCIONES AUXILIARES
+// funciones auxiliares
 const handleResponse = async (response) => {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -11,7 +11,7 @@ const handleResponse = async (response) => {
 
 const fetchApi = async (endpoint, options = {}) => {
   try {
-    const response = await fetch(endpoint, {          // ← sin API_URL
+    const response = await fetch(endpoint, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
@@ -25,17 +25,17 @@ const fetchApi = async (endpoint, options = {}) => {
   }
 };
 
-// ==================== API METHODS ====================
+// api endpoints
 
 export const api = {
-  // 🔍 BÚSQUEDA Y DETALLES
+  // buscar y obtener detalles
   searchAlbums: (query, type = 'album') =>
     fetchApi(`/api/search?q=${encodeURIComponent(query)}&type=${type}`),
 
   getAlbumDetails: (id) =>
     fetchApi(`/api/albums/${id}`),
 
-  // 🎵 ESCUCHAS
+  // escuchas (registro y manejo)
   registerListen: (albumId, userId, rating, review) =>
     fetchApi('/api/listen', {
       method: 'POST',
@@ -45,7 +45,7 @@ export const api = {
   getUserHistory: (userId, limit = 50, offset = 0) =>
     fetchApi(`/api/users/${userId}/history?limit=${limit}&offset=${offset}`),
 
-  // 👤 PERFIL
+  // profile
   getUserProfile: (userId) =>
     fetchApi(`/api/users/${userId}?_t=${Date.now()}`, { cache: 'no-store' }),
 
@@ -55,7 +55,7 @@ export const api = {
       body: JSON.stringify(profileData),
     }),
 
-  // 👤 PERFILES PÚBLICOS
+  // public profiles
   getPublicProfile: (username, currentUserId = null) => {
     const url = currentUserId
       ? `/api/profiles/username/${username}?currentUserId=${currentUserId}`
@@ -66,7 +66,7 @@ export const api = {
   getPublicHistory: (username, limit = 20) =>
     fetchApi(`/api/profiles/${username}/history?limit=${limit}`),
 
-  // 👥 SISTEMA SOCIAL
+  // funciones sociales
   followUser: (userId, targetId) =>
     fetchApi(`/api/users/${userId}/follow`, {
       method: 'POST',
@@ -79,14 +79,34 @@ export const api = {
   getFriendsFeed: (userId) =>
     fetchApi(`/api/users/${userId}/feed`),
 
-  // 📊 RESÚMENES
+  // sacar reseñas de un álbum
+  getAlbumReviews: (albumId) =>
+    fetchApi(`/api/albums/${albumId}/reviews`),
+
+  // crear o actualizar reseña (con sesión)
+  createReview: async (albumId, rating, reviewText) => {
+    // sacar el token actual del cliente de supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Debes iniciar sesión');
+
+    return fetchApi(`/api/albums/${albumId}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ rating, review_text: reviewText }),
+      });
+    },
+
+  // resumenes
   generateMonthlySummary: (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {
       method: 'POST',
       body: JSON.stringify({ year, month }),
     }),
 
-  // ❤️ HEALTH
+  // health endp
   checkHealth: () =>
     fetchApi('/api/health').catch(() => ({ status: 'offline' })),
 };

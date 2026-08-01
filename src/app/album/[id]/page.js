@@ -9,7 +9,6 @@ import Image from "next/image";
 export default function AlbumPage({ params }) {
   const { user } = useAuth();
 
-  // Next.js 15+: params puede ser un Promise
   const rawId = typeof params?.then === "function" ? null : params?.id;
   const [id, setId] = useState(rawId);
 
@@ -17,13 +16,17 @@ export default function AlbumPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Estados del formulario de escucha
+  // reviews
+  const [reviews, setReviews] = useState([]);
+  const [userReview, setUserReview] = useState(null); // review del usuario actual
+
+  // estados del form reseña
   const [rating, setRating] = useState("");
-  const [review, setReview] = useState("");
+  const [reviewText, setReviewText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
-  // Resolver params si es Promise
+  // solve params (si es promise)
   useEffect(() => {
     if (params && typeof params.then === "function") {
       params.then((p) => setId(p.id));
@@ -32,12 +35,13 @@ export default function AlbumPage({ params }) {
     }
   }, [params]);
 
+  // load album and reviews (si hay id)
   useEffect(() => {
     if (!id) return;
 
     let cancelled = false;
 
-    const fetchAlbumData = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -51,19 +55,55 @@ export default function AlbumPage({ params }) {
       }
     };
 
-    fetchAlbumData();
+    fetchData();
 
     return () => {
       cancelled = true;
     };
   }, [id]);
 
-  const handleRegisterListen = async (e) => {
+  // load album reviews
+  useEffect(() => {
+    if (!id) return;
+
+    let cancelled = false;
+
+    const fetchReviews = async () => {
+      try {
+        const data = await api.getAlbumReviews(id);
+        if (!cancelled) {
+          setReviews(data.reviews || []);
+          // buscando la reseña del usuario con la sesión iniciada
+          if (user) {
+            const myReview = data.reviews?.find((r) => r.user.id === user.id) || null;
+            setUserReview(myReview);
+            if (myReview) {
+              setRating(myReview.rating.toString());
+              setReviewText(myReview.reviewText || "");
+            } else {
+              setRating("");
+              setReviewText("");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error al cargar reseñas:", err);
+      }
+    };
+
+    fetchReviews();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user]);
+
+  const handleSubmitReview = async (e) => {
     e.preventDefault();
     if (!user || !album) return;
 
-    const numericRating = rating ? Number(rating) : null;
-    if (numericRating !== null && (numericRating < 1 || numericRating > 5)) {
+    const numericRating = Number(rating);
+    if (!rating || numericRating < 1 || numericRating > 5) {
       setStatusMsg({ type: "error", text: "La calificación debe estar entre 1 y 5." });
       return;
     }
@@ -72,21 +112,31 @@ export default function AlbumPage({ params }) {
     setStatusMsg(null);
 
     try {
-      await api.registerListen(
-        album.id,
-        user.id,
-        numericRating,
-        review.trim() || null
-      );
-      setStatusMsg({ type: "success", text: "¡Disco registrado en tu historial!" });
-      setRating("");
-      setReview("");
+      await api.createReview(album.id, numericRating, reviewText.trim() || null);
+      setStatusMsg({ type: "success", text: "¡Reseña guardada!" });
+      // refresh reseñas
+      const updated = await api.getAlbumReviews(album.id);
+      setReviews(updated.reviews || []);
+      const myNew = updated.reviews?.find((r) => r.user.id === user.id) || null;
+      setUserReview(myNew);
       setTimeout(() => setStatusMsg(null), 3000);
     } catch (err) {
       console.error(err);
-      setStatusMsg({ type: "error", text: "Error al registrar la escucha." });
+      setStatusMsg({ type: "error", text: "Error al guardar la reseña." });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // registrar solo escucha (no reseñar)
+  const handleRegisterListen = async () => {
+    if (!user || !album) return;
+    try {
+      await api.registerListen(album.id, user.id, null, null);
+      alert("Escucha registrada en tu historial");
+    } catch (err) {
+      console.error(err);
+      alert("Error al registrar escucha");
     }
   };
 
@@ -117,7 +167,6 @@ export default function AlbumPage({ params }) {
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff] relative overflow-x-hidden">
       <Header user={user} />
 
-      {/* Banner de fondo */}
       {album.coverUrl && (
         <div className="absolute top-0 left-0 right-0 h-[450px] pointer-events-none overflow-hidden z-0 select-none">
           <div
@@ -129,7 +178,7 @@ export default function AlbumPage({ params }) {
       )}
 
       <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 md:px-6 pt-8 md:pt-16 pb-12 flex flex-col md:flex-row gap-8">
-        {/* Columna izquierda */}
+        {/* columna izquierda */}
         <div className="w-full md:w-1/3 flex flex-col gap-6">
           <div className="aspect-square bg-[#131b26] border border-[#1e293b] rounded-lg overflow-hidden shadow-2xl relative">
             {album.coverUrl ? (
@@ -148,11 +197,14 @@ export default function AlbumPage({ params }) {
             )}
           </div>
 
+          {/* reseña personal */}
           <div className="bg-[#131b26]/90 backdrop-blur-md p-5 rounded-lg border border-[#1e293b]">
-            <h3 className="font-bold mb-4 text-[#87ceeb]">Registrar Escucha</h3>
+            <h3 className="font-bold mb-4 text-[#87ceeb]">
+              {userReview ? "Editar tu reseña" : "Escribe una reseña"}
+            </h3>
 
             {user ? (
-              <form onSubmit={handleRegisterListen}>
+              <form onSubmit={handleSubmitReview}>
                 <div className="mb-4">
                   <label className="text-sm text-stone-400 block mb-2">
                     Calificación (1-5)
@@ -166,16 +218,17 @@ export default function AlbumPage({ params }) {
                     className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-2 text-white focus:outline-none focus:border-[#87ceeb]"
                     placeholder="Ej: 4"
                     disabled={isSubmitting}
+                    required
                   />
                 </div>
 
                 <div className="mb-4">
                   <label className="text-sm text-stone-400 block mb-2">
-                    Reseña (opcional)
+                    Comentario (opcional)
                   </label>
                   <textarea
-                    value={review}
-                    onChange={(e) => setReview(e.target.value)}
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value)}
                     className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-2 text-white h-24 resize-none focus:outline-none focus:border-[#87ceeb]"
                     placeholder="¿Qué te pareció el disco?"
                     disabled={isSubmitting}
@@ -199,18 +252,27 @@ export default function AlbumPage({ params }) {
                   disabled={isSubmitting}
                   className="w-full bg-[#87ceeb] text-[#0a0f16] py-2 font-bold rounded hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting ? "Guardando..." : "Guardar en mi historial"}
+                  {isSubmitting ? "Guardando..." : userReview ? "Actualizar reseña" : "Publicar reseña"}
+                </button>
+
+                {/* btn de registro escucha*/}
+                <button
+                  type="button"
+                  onClick={handleRegisterListen}
+                  className="w-full mt-3 text-sm text-stone-400 hover:text-white transition-colors"
+                >
+                  Solo marcar como escuchado
                 </button>
               </form>
             ) : (
               <div className="text-center text-sm text-stone-400 py-4">
-                Inicia sesión para registrar este disco en tu historial.
+                Inicia sesión para dejar tu reseña.
               </div>
             )}
           </div>
         </div>
 
-        {/* Columna derecha */}
+        {/* columna derecha */}
         <div className="w-full md:w-2/3 flex flex-col pt-2">
           <h1 className="text-3xl md:text-5xl font-bold mb-2 drop-shadow-md">
             {album.title}
@@ -245,7 +307,7 @@ export default function AlbumPage({ params }) {
             Lista de Canciones
           </h3>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 mb-10">
             {album.tracks?.map((track, index) => (
               <div
                 key={index}
@@ -261,6 +323,57 @@ export default function AlbumPage({ params }) {
               </div>
             ))}
           </div>
+
+          {/* reviews section */}
+          <section>
+            <h3 className="text-lg font-bold mb-6 border-l-4 border-[#87ceeb] pl-3">
+              Reseñas ({reviews.length})
+            </h3>
+
+            {reviews.length === 0 ? (
+              <p className="text-stone-500 text-sm italic">Nadie ha reseñado este álbum aún.</p>
+            ) : (
+              <div className="flex flex-col gap-6">
+                {reviews.map((review) => (
+                  <div key={review.id} className="bg-[#131b26]/60 border border-[#1e293b] rounded-lg p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-stone-700 overflow-hidden relative">
+                        {review.user.avatarUrl ? (
+                          <Image
+                            src={review.user.avatarUrl}
+                            alt={review.user.username}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-stone-400 text-xs">
+                            {review.user.username?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <span className="font-medium text-white">
+                          {review.user.username}
+                        </span>
+                        <div className="flex text-yellow-400 text-sm">
+                          {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                        </div>
+                      </div>
+                    </div>
+                    {review.reviewText && (
+                      <p className="text-stone-300 text-sm whitespace-pre-line">
+                        {review.reviewText}
+                      </p>
+                    )}
+                    <p className="text-stone-500 text-xs mt-2">
+                      {new Date(review.createdAt).toLocaleDateString()}
+                      {review.updatedAt !== review.createdAt && " (editado)"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </main>
 
