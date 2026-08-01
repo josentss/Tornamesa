@@ -184,7 +184,7 @@ export default function AlbumPage({ params }) {
 
           <div className="bg-[#131e2c]/80 backdrop-blur-xl p-5 rounded-xl border border-[#2a3645] shadow-lg">
             <h3 className="font-semibold text-[#7cc7e8] mb-4 text-base tracking-wide uppercase">
-              {userReview ? "Tu reseña" : "Escribí una reseña"}
+              {userReview ? "Tu reseña" : "Escribir una reseña"}
             </h3>
 
             {user ? (
