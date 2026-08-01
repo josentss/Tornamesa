@@ -16,17 +16,14 @@ export default function AlbumPage({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // reviews
   const [reviews, setReviews] = useState([]);
-  const [userReview, setUserReview] = useState(null); // review del usuario actual
+  const [userReview, setUserReview] = useState(null);
 
-  // estados del form reseña
   const [rating, setRating] = useState("");
   const [reviewText, setReviewText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState(null);
 
-  // solve params (si es promise)
   useEffect(() => {
     if (params && typeof params.then === "function") {
       params.then((p) => setId(p.id));
@@ -35,12 +32,9 @@ export default function AlbumPage({ params }) {
     }
   }, [params]);
 
-  // load album and reviews (si hay id)
   useEffect(() => {
     if (!id) return;
-
     let cancelled = false;
-
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -54,26 +48,18 @@ export default function AlbumPage({ params }) {
         if (!cancelled) setLoading(false);
       }
     };
-
     fetchData();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
-  // load album reviews
   useEffect(() => {
     if (!id) return;
-
     let cancelled = false;
-
     const fetchReviews = async () => {
       try {
         const data = await api.getAlbumReviews(id);
         if (!cancelled) {
           setReviews(data.reviews || []);
-          // buscando la reseña del usuario con la sesión iniciada
           if (user) {
             const myReview = data.reviews?.find((r) => r.user.id === user.id) || null;
             setUserReview(myReview);
@@ -90,12 +76,8 @@ export default function AlbumPage({ params }) {
         console.error("Error al cargar reseñas:", err);
       }
     };
-
     fetchReviews();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id, user]);
 
   const handleSubmitReview = async (e) => {
@@ -103,8 +85,8 @@ export default function AlbumPage({ params }) {
     if (!user || !album) return;
 
     const numericRating = Number(rating);
-    if (!rating || numericRating < 1 || numericRating > 5) {
-      setStatusMsg({ type: "error", text: "La calificación debe estar entre 1 y 5." });
+    if (!rating || numericRating < 1 || numericRating > 10) {
+      setStatusMsg({ type: "error", text: "La calificación debe estar entre 1 y 10." });
       return;
     }
 
@@ -114,7 +96,6 @@ export default function AlbumPage({ params }) {
     try {
       await api.createReview(album.id, numericRating, reviewText.trim() || null);
       setStatusMsg({ type: "success", text: "¡Reseña guardada!" });
-      // refresh reseñas
       const updated = await api.getAlbumReviews(album.id);
       setReviews(updated.reviews || []);
       const myNew = updated.reviews?.find((r) => r.user.id === user.id) || null;
@@ -128,7 +109,6 @@ export default function AlbumPage({ params }) {
     }
   };
 
-  // registrar solo escucha (no reseñar)
   const handleRegisterListen = async () => {
     if (!user || !album) return;
     try {
@@ -163,6 +143,11 @@ export default function AlbumPage({ params }) {
     );
   }
 
+  const averageRating =
+    reviews.length > 0
+      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+      : null;
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff] relative overflow-x-hidden">
       <Header user={user} />
@@ -170,24 +155,24 @@ export default function AlbumPage({ params }) {
       {album.coverUrl && (
         <div className="absolute top-0 left-0 right-0 h-[450px] pointer-events-none overflow-hidden z-0 select-none">
           <div
-            className="w-full h-full bg-cover bg-center opacity-25 scale-125 blur-2xl"
+            className="w-full h-full bg-cover bg-center opacity-20 scale-125 blur-3xl"
             style={{ backgroundImage: `url(${album.coverUrl})` }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f16]/30 via-[#0a0f16]/70 to-[#0a0f16]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f16]/20 via-[#0a0f16]/80 to-[#0a0f16]" />
         </div>
       )}
 
-      <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 md:px-6 pt-8 md:pt-16 pb-12 flex flex-col md:flex-row gap-8">
-        {/* columna izquierda */}
-        <div className="w-full md:w-1/3 flex flex-col gap-6">
-          <div className="aspect-square bg-[#131b26] border border-[#1e293b] rounded-lg overflow-hidden shadow-2xl relative">
+      <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto px-4 md:px-8 pt-12 md:pt-24 pb-16 flex flex-col md:flex-row gap-10">
+        {/* Columna izquierda – portada y acciones */}
+        <div className="w-full md:w-[300px] flex flex-col gap-6 md:sticky md:top-24 self-start">
+          <div className="aspect-square bg-gradient-to-br from-[#1a2332] to-[#0f1721] border border-[#2a3645] rounded-xl overflow-hidden shadow-2xl shadow-black/40 group">
             {album.coverUrl ? (
               <Image
                 src={album.coverUrl}
                 alt={album.title}
-                width={500}
-                height={500}
-                className="w-full h-full object-cover"
+                width={600}
+                height={600}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 priority
               />
             ) : (
@@ -197,50 +182,50 @@ export default function AlbumPage({ params }) {
             )}
           </div>
 
-          {/* reseña personal */}
-          <div className="bg-[#131b26]/90 backdrop-blur-md p-5 rounded-lg border border-[#1e293b]">
-            <h3 className="font-bold mb-4 text-[#87ceeb]">
-              {userReview ? "Editar tu reseña" : "Escribe una reseña"}
+          <div className="bg-[#131e2c]/80 backdrop-blur-xl p-5 rounded-xl border border-[#2a3645] shadow-lg">
+            <h3 className="font-semibold text-[#7cc7e8] mb-4 text-base tracking-wide uppercase">
+              {userReview ? "Tu reseña" : "Escribí una reseña"}
             </h3>
 
             {user ? (
-              <form onSubmit={handleSubmitReview}>
-                <div className="mb-4">
-                  <label className="text-sm text-stone-400 block mb-2">
-                    Calificación (1-5)
+              <form onSubmit={handleSubmitReview} className="space-y-4">
+                <div>
+                  <label className="text-xs text-stone-400 block mb-1.5 uppercase tracking-wider">
+                    Puntuación (1‑10)
                   </label>
                   <input
                     type="number"
                     min="1"
-                    max="5"
+                    max="10"
                     value={rating}
                     onChange={(e) => setRating(e.target.value)}
-                    className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-2 text-white focus:outline-none focus:border-[#87ceeb]"
-                    placeholder="Ej: 4"
+                    className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-white focus:outline-none focus:border-[#7cc7e8] focus:ring-1 focus:ring-[#7cc7e8] transition-all"
+                    placeholder="Ej: 8"
                     disabled={isSubmitting}
                     required
                   />
                 </div>
 
-                <div className="mb-4">
-                  <label className="text-sm text-stone-400 block mb-2">
-                    Comentario (opcional)
+                <div>
+                  <label className="text-xs text-stone-400 block mb-1.5 uppercase tracking-wider">
+                    Comentario
                   </label>
                   <textarea
                     value={reviewText}
                     onChange={(e) => setReviewText(e.target.value)}
-                    className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-2 text-white h-24 resize-none focus:outline-none focus:border-[#87ceeb]"
-                    placeholder="¿Qué te pareció el disco?"
+                    rows={4}
+                    className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-white resize-none focus:outline-none focus:border-[#7cc7e8] focus:ring-1 focus:ring-[#7cc7e8] transition-all"
+                    placeholder="¿Qué te pareció este disco?"
                     disabled={isSubmitting}
                   />
                 </div>
 
                 {statusMsg && (
                   <div
-                    className={`mb-4 text-sm p-2 rounded border ${
+                    className={`text-sm px-3 py-2 rounded-lg border ${
                       statusMsg.type === "success"
-                        ? "bg-green-900/20 text-green-400 border-green-900/50"
-                        : "bg-red-900/20 text-red-400 border-red-900/50"
+                        ? "bg-green-900/30 text-green-300 border-green-800"
+                        : "bg-red-900/30 text-red-300 border-red-800"
                     }`}
                   >
                     {statusMsg.text}
@@ -250,94 +235,111 @@ export default function AlbumPage({ params }) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-[#87ceeb] text-[#0a0f16] py-2 font-bold rounded hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#7cc7e8] text-[#0a121c] py-2.5 font-bold rounded-lg hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-xl"
                 >
-                  {isSubmitting ? "Guardando..." : userReview ? "Actualizar reseña" : "Publicar reseña"}
+                  {isSubmitting ? "Guardando..." : userReview ? "Actualizar" : "Publicar reseña"}
                 </button>
 
-                {/* btn de registro escucha*/}
                 <button
                   type="button"
                   onClick={handleRegisterListen}
-                  className="w-full mt-3 text-sm text-stone-400 hover:text-white transition-colors"
+                  className="w-full text-sm text-stone-400 hover:text-stone-200 transition-colors py-1"
                 >
                   Solo marcar como escuchado
                 </button>
               </form>
             ) : (
-              <div className="text-center text-sm text-stone-400 py-4">
-                Inicia sesión para dejar tu reseña.
+              <div className="text-center text-sm text-stone-400 py-6">
+                Iniciá sesión para dejar tu reseña.
               </div>
             )}
           </div>
         </div>
 
-        {/* columna derecha */}
-        <div className="w-full md:w-2/3 flex flex-col pt-2">
-          <h1 className="text-3xl md:text-5xl font-bold mb-2 drop-shadow-md">
-            {album.title}
-          </h1>
-          <h2 className="text-xl md:text-2xl text-stone-300 font-medium mb-4">
-            {album.artist}
-          </h2>
+        {/* Columna derecha – info + canciones + reseñas */}
+        <div className="flex-1 min-w-0">
+          <div className="mb-8">
+            <h1 className="text-4xl md:text-6xl font-extrabold leading-tight tracking-tight">
+              {album.title}
+            </h1>
+            <h2 className="text-xl md:text-2xl text-stone-300 font-light mt-2">
+              {album.artist}
+            </h2>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs md:text-sm text-stone-400 mb-8 border-b border-[#1e293b]/80 pb-6">
-            <span>{album.releaseDate}</span>
-            <span>•</span>
-            <span>{album.totalDuration}</span>
-
-            {album.genres?.length > 0 && (
-              <>
-                <span>•</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {album.genres.map((genre, idx) => (
-                    <span
-                      key={idx}
-                      className="bg-[#1e293b]/60 border border-[#1e293b] text-stone-300 px-2 py-0.5 rounded-full text-[11px] capitalize"
-                    >
-                      {genre}
-                    </span>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          <h3 className="text-lg font-bold mb-4 border-l-4 border-[#87ceeb] pl-3">
-            Lista de Canciones
-          </h3>
-
-          <div className="flex flex-col gap-1 mb-10">
-            {album.tracks?.map((track, index) => (
-              <div
-                key={index}
-                className="flex justify-between items-center p-3 hover:bg-[#131b26]/70 rounded transition-colors border border-transparent hover:border-[#1e293b]"
-              >
-                <div className="flex gap-4 items-center">
-                  <span className="text-stone-500 text-sm w-4 text-right">
-                    {index + 1}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 text-sm text-stone-400">
+              <span>{album.releaseDate}</span>
+              <span className="text-stone-600">•</span>
+              <span>{album.totalDuration}</span>
+              {album.genres?.length > 0 && (
+                <>
+                  <span className="text-stone-600">•</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {album.genres.map((genre, idx) => (
+                      <span
+                        key={idx}
+                        className="bg-[#1f2b3a]/70 border border-[#2a3645] text-stone-200 px-2.5 py-0.5 rounded-full text-xs capitalize"
+                      >
+                        {genre}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+              {averageRating && (
+                <>
+                  <span className="text-stone-600">•</span>
+                  <span className="text-yellow-300 font-medium">
+                    {averageRating} / 10
                   </span>
-                  <span className="font-medium text-stone-200">{track.name}</span>
-                </div>
-                <span className="text-stone-400 text-sm">{track.duration}</span>
-              </div>
-            ))}
+                </>
+              )}
+            </div>
           </div>
 
-          {/* reviews section */}
+          {/* Lista de canciones */}
+          <div className="mb-12">
+            <h3 className="text-base font-semibold uppercase tracking-widest text-stone-400 mb-4 border-b border-[#2a3645] pb-2">
+              Canciones
+            </h3>
+            <div className="flex flex-col gap-0.5">
+              {album.tracks?.map((track, index) => (
+                <div
+                  key={index}
+                  className="flex justify-between items-center py-3 px-3 rounded-lg hover:bg-white/5 transition-colors group"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="text-stone-500 text-sm w-5 text-right font-mono">
+                      {index + 1}
+                    </span>
+                    <span className="font-medium text-stone-200 group-hover:text-white transition-colors">
+                      {track.name}
+                    </span>
+                  </div>
+                  <span className="text-stone-500 text-sm">{track.duration}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Reseñas */}
           <section>
-            <h3 className="text-lg font-bold mb-6 border-l-4 border-[#87ceeb] pl-3">
+            <h3 className="text-base font-semibold uppercase tracking-widest text-stone-400 mb-6 border-b border-[#2a3645] pb-2">
               Reseñas ({reviews.length})
             </h3>
 
             {reviews.length === 0 ? (
-              <p className="text-stone-500 text-sm italic">Nadie ha reseñado este álbum aún.</p>
+              <div className="bg-[#131e2c]/40 border border-[#2a3645] rounded-xl p-6 text-center text-stone-500">
+                Sé el primero en reseñar este álbum.
+              </div>
             ) : (
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-5">
                 {reviews.map((review) => (
-                  <div key={review.id} className="bg-[#131b26]/60 border border-[#1e293b] rounded-lg p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-stone-700 overflow-hidden relative">
+                  <div
+                    key={review.id}
+                    className="bg-[#131e2c]/50 backdrop-blur-sm border border-[#2a3645] rounded-xl p-5 hover:border-[#3d5068] transition-all shadow-sm"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-11 h-11 rounded-full bg-[#1f2b3a] border border-[#2a3645] overflow-hidden flex-shrink-0 relative">
                         {review.user.avatarUrl ? (
                           <Image
                             src={review.user.avatarUrl}
@@ -346,29 +348,37 @@ export default function AlbumPage({ params }) {
                             className="object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-stone-400 text-xs">
+                          <div className="w-full h-full flex items-center justify-center text-stone-400 text-sm font-bold">
                             {review.user.username?.charAt(0).toUpperCase()}
                           </div>
                         )}
                       </div>
-                      <div>
-                        <span className="font-medium text-white">
-                          {review.user.username}
-                        </span>
-                        <div className="flex text-yellow-400 text-sm">
-                          {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-semibold text-white">
+                            {review.user.username}
+                          </span>
+                          <span className="text-yellow-300 font-bold text-lg">
+                            {review.rating}/10
+                          </span>
                         </div>
+                        {review.reviewText && (
+                          <p className="text-stone-300 text-sm mt-2 leading-relaxed whitespace-pre-line">
+                            {review.reviewText}
+                          </p>
+                        )}
+                        <p className="text-stone-500 text-xs mt-3">
+                          {new Date(review.createdAt).toLocaleDateString("es-ES", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                          {review.updatedAt !== review.createdAt && (
+                            <span className="italic ml-2">(editado)</span>
+                          )}
+                        </p>
                       </div>
                     </div>
-                    {review.reviewText && (
-                      <p className="text-stone-300 text-sm whitespace-pre-line">
-                        {review.reviewText}
-                      </p>
-                    )}
-                    <p className="text-stone-500 text-xs mt-2">
-                      {new Date(review.createdAt).toLocaleDateString()}
-                      {review.updatedAt !== review.createdAt && " (editado)"}
-                    </p>
                   </div>
                 ))}
               </div>

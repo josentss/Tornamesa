@@ -85,7 +85,6 @@ export const api = {
 
   // crear o actualizar reseña (con sesión)
   createReview: async (albumId, rating, reviewText) => {
-    // sacar el token actual del cliente de supabase
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Debes iniciar sesión');
 
@@ -93,11 +92,11 @@ export const api = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ rating, review_text: reviewText }),
-      });
-    },
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ rating, review_text: reviewText }),
+    });
+  },
 
   // resumenes
   generateMonthlySummary: (userId, year, month) =>
