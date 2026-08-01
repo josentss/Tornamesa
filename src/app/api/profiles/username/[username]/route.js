@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { getUserSpotifyToken } from '@/lib/spotify';
+import { getLastFmNowPlaying, getLastFmUsername } from '@/lib/lastfm';
 
 export async function GET(request, { params }) {
   const { username } = params;
@@ -12,7 +12,9 @@ export async function GET(request, { params }) {
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at')
+      .select(
+        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at'
+      )
       .eq('username', username.toLowerCase())
       .single();
 
@@ -21,8 +23,14 @@ export async function GET(request, { params }) {
     }
 
     const [{ count: followers }, { count: following }] = await Promise.all([
-      supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profile.id),
-      supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profile.id),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', profile.id),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', profile.id),
     ]);
 
     let isFollowing = false;
@@ -38,15 +46,20 @@ export async function GET(request, { params }) {
 
     const { data: listensData, error: listensError } = await supabase
       .from('listens')
-      .select(`
+      .select(
+        `
         id, rating, review, created_at,
         albums (spotify_id, title, artist, cover_url)
-      `)
+      `
+      )
       .eq('user_id', profile.id)
       .order('created_at', { ascending: false });
 
     if (listensError) {
-      return NextResponse.json({ error: 'Error al obtener el historial' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Error al obtener el historial' },
+        { status: 500 }
+      );
     }
 
     const listens = (listensData || []).map((item) => ({
@@ -60,31 +73,25 @@ export async function GET(request, { params }) {
       album_cover: item.albums?.cover_url || null,
     }));
 
+    // Last.fm Now Playing
     let nowPlaying = null;
     try {
-      const userAccessToken = await getUserSpotifyToken(profile.id);
-      if (userAccessToken) {
-        const playerResponse = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-          headers: { Authorization: `Bearer ${userAccessToken}` },
-        });
-        if (playerResponse.status === 200) {
-          const playerData = await playerResponse.json();
-          if (playerData?.is_playing && playerData.item) {
-            nowPlaying = {
-              isPlaying: true,
-              title: playerData.item.name,
-              artist: playerData.item.artists.map((a) => a.name).join(', '),
-              spotifyUrl: playerData.item.external_urls.spotify,
-            };
-          }
-        }
+      const lastfmUser = await getLastFmUsername(profile.id);
+      if (lastfmUser) {
+        nowPlaying = await getLastFmNowPlaying(lastfmUser);
       }
     } catch (err) {
-      console.error('Error Now Playing:', err.message);
+      console.error('Error Now Playing Last.fm:', err.message);
     }
 
     return NextResponse.json({
-      profile: { ...profile, followers, following, isFollowing, nowPlaying },
+      profile: {
+        ...profile,
+        followers,
+        following,
+        isFollowing,
+        nowPlaying,
+      },
       listens,
     });
   } catch (error) {

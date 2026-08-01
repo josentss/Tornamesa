@@ -232,7 +232,7 @@ export default function UserProfilePage({ params }) {
               {/* Now Playing */}
               {profileData.nowPlaying?.isPlaying && (
                 <a
-                  href={profileData.nowPlaying.spotifyUrl}
+                  href={profileData.nowPlaying.url || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-3 bg-[#0a0f16] border border-[#1e293b] hover:border-[#1db954] transition-colors rounded-full px-4 py-2 mt-4 cursor-pointer"
