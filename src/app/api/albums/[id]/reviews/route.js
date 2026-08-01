@@ -2,30 +2,39 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 
 export async function GET(request, { params }) {
-  const { id } = params;
+  const { id: albumId } = params;
   const supabase = createSupabaseServer();
 
   try {
-    const { data, error } = await supabase
+    // 1. Obtener las reseñas
+    const { data: reviewsData, error: reviewsError } = await supabase
       .from('reviews')
-      .select(`
-        id,
-        rating,
-        review_text,
-        created_at,
-        updated_at,
-        user_id,
-        profiles:user_id (
-          username,
-          avatar_url
-        )
-      `)
-      .eq('album_id', id)
+      .select('*')
+      .eq('album_id', albumId)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (reviewsError) throw reviewsError;
 
-    const reviews = data.map((r) => ({
+    if (!reviewsData || reviewsData.length === 0) {
+      return NextResponse.json({ reviews: [] });
+    }
+
+    // 2. Obtener los perfiles de los autores
+    const userIds = [...new Set(reviewsData.map((r) => r.user_id))];
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .in('id', userIds);
+
+    if (profilesError) throw profilesError;
+
+    const profileMap = {};
+    (profiles || []).forEach((p) => {
+      profileMap[p.id] = p;
+    });
+
+    // 3. Armar la respuesta combinada
+    const reviews = reviewsData.map((r) => ({
       id: r.id,
       rating: r.rating,
       reviewText: r.review_text,
@@ -33,8 +42,8 @@ export async function GET(request, { params }) {
       updatedAt: r.updated_at,
       user: {
         id: r.user_id,
-        username: r.profiles?.username ?? 'desconocido',
-        avatarUrl: r.profiles?.avatar_url ?? null,
+        username: profileMap[r.user_id]?.username ?? 'desconocido',
+        avatarUrl: profileMap[r.user_id]?.avatar_url ?? null,
       },
     }));
 
