@@ -347,25 +347,30 @@ export default function AlbumPage({ params }) {
                     className="bg-[#131e2c]/50 backdrop-blur-sm border border-[#2a3645] rounded-xl p-5 hover:border-[#3d5068] transition-all shadow-sm"
                   >
                     <div className="flex items-start gap-4">
-                      <div className="w-11 h-11 rounded-full bg-[#1f2b3a] border border-[#2a3645] overflow-hidden flex-shrink-0 relative">
-                        {review.user.avatarUrl ? (
-                          <Image
-                            src={review.user.avatarUrl}
-                            alt={review.user.username}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-stone-400 text-sm font-bold">
-                            {review.user.username?.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
+                      <a href={`/${review.user.username}`} className="flex-shrink-0">
+                        <div className="w-11 h-11 rounded-full bg-[#1f2b3a] border border-[#2a3645] overflow-hidden relative hover:border-[#7cc7e8] transition-colors">
+                          {review.user.avatarUrl ? (
+                            <Image
+                              src={review.user.avatarUrl}
+                              alt={review.user.username}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-stone-400 text-sm font-bold">
+                              {review.user.username?.charAt(0).toUpperCase() || '?'}
+                            </div>
+                          )}
+                        </div>
+                      </a>
                       <div className="flex-1">
                         <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="font-semibold text-white">
+                          <a
+                            href={`/${review.user.username}`}
+                            className="font-semibold text-white hover:text-[#7cc7e8] transition-colors"
+                          >
                             {review.user.username}
-                          </span>
+                          </a>
                           <span className="text-yellow-300 font-bold text-lg">
                             {review.rating}/10
                           </span>

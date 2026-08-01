@@ -1,36 +1,22 @@
 import { NextResponse } from 'next/server';
+import { createSupabaseServer } from '@/lib/supabase-server';
 
-// force ruta dinámica y nunca se cachee
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request, { params }) {
   const { id: albumId } = params;
+  const supabase = createSupabaseServer();
 
   try {
-    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // 1. Obtener reseñas
+    const { data: reviewsData, error: reviewsError } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('album_id', albumId)
+      .order('created_at', { ascending: false });
 
-    // 1. Obtener reseñas (sin caché)
-    const reviewsRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/reviews?album_id=eq.${albumId}&order=created_at.desc`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SERVICE_KEY,
-          Authorization: `Bearer ${SERVICE_KEY}`,
-          'Cache-Control': 'no-cache',
-        },
-        cache: 'no-store',
-      }
-    );
-
-    if (!reviewsRes.ok) {
-      const err = await reviewsRes.json().catch(() => ({}));
-      throw new Error(err.message || 'Error fetching reviews');
-    }
-
-    const reviewsData = await reviewsRes.json();
+    if (reviewsError) throw reviewsError;
 
     if (!reviewsData || reviewsData.length === 0) {
       return NextResponse.json(
@@ -43,32 +29,33 @@ export async function GET(request, { params }) {
       );
     }
 
-    // 2. Obtener los perfiles de los autores
+    // 2. Obtener los IDs únicos de usuarios
     const userIds = [...new Set(reviewsData.map((r) => r.user_id))];
-    const idsQuery = userIds.map((id) => `id=eq.${id}`).join('&');
-    const profilesRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/profiles?${idsQuery}&select=id,username,avatar_url`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: SERVICE_KEY,
-          Authorization: `Bearer ${SERVICE_KEY}`,
-        },
-        cache: 'no-store',
-      }
-    );
 
-    let profiles = [];
-    if (profilesRes.ok) {
-      profiles = await profilesRes.json();
+    // 3. Obtener perfiles uno por uno para evitar problemas con la consulta in
+    const profiles = [];
+    for (const userId of userIds) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .eq('id', userId)
+        .single();
+
+      if (!profileError && profile) {
+        profiles.push(profile);
+      }
     }
 
+    // 4. Crear mapa de perfiles
     const profileMap = {};
     profiles.forEach((p) => {
-      profileMap[p.id] = p;
+      profileMap[p.id] = {
+        username: p.username || 'unknown',
+        avatarUrl: p.avatar_url || null,
+      };
     });
 
-    // 3. Armar la respuesta
+    // 5. Armar la respuesta final
     const reviews = reviewsData.map((r) => ({
       id: r.id,
       rating: r.rating,
@@ -77,8 +64,8 @@ export async function GET(request, { params }) {
       updatedAt: r.updated_at,
       user: {
         id: r.user_id,
-        username: profileMap[r.user_id]?.username ?? 'unknown',
-        avatarUrl: profileMap[r.user_id]?.avatar_url ?? null,
+        username: profileMap[r.user_id]?.username || 'unknown',
+        avatarUrl: profileMap[r.user_id]?.avatarUrl || null,
       },
     }));
 
