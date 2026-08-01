@@ -88,7 +88,7 @@ export const api = {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Debes iniciar sesión');
 
-    return fetchApi(`/api/albums/${albumId}/review`, {
+    const res = await fetchApi(`/api/albums/${albumId}/review`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -96,6 +96,8 @@ export const api = {
       },
       body: JSON.stringify({ rating, review_text: reviewText }),
     });
+
+    return res;
   },
 
   // resumenes

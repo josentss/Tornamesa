@@ -42,8 +42,8 @@ export default function AlbumPage({ params }) {
         const data = await api.getAlbumDetails(id);
         if (!cancelled) setAlbum(data);
       } catch (err) {
-        console.error("Error al cargar el álbum:", err);
-        if (!cancelled) setError("No se pudo cargar el álbum.");
+        console.error("Error loading album:", err);
+        if (!cancelled) setError("Could not load album.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -73,7 +73,7 @@ export default function AlbumPage({ params }) {
           }
         }
       } catch (err) {
-        console.error("Error al cargar reseñas:", err);
+        console.error("Error loading reviews:", err);
       }
     };
     fetchReviews();
@@ -86,7 +86,7 @@ export default function AlbumPage({ params }) {
 
     const numericRating = Number(rating);
     if (!rating || numericRating < 1 || numericRating > 10) {
-      setStatusMsg({ type: "error", text: "La calificación debe estar entre 1 y 10." });
+      setStatusMsg({ type: "error", text: "Rating must be between 1 and 10." });
       return;
     }
 
@@ -94,16 +94,24 @@ export default function AlbumPage({ params }) {
     setStatusMsg(null);
 
     try {
-      await api.createReview(album.id, numericRating, reviewText.trim() || null);
-      setStatusMsg({ type: "success", text: "¡Reseña guardada!" });
-      const updated = await api.getAlbumReviews(album.id);
-      setReviews(updated.reviews || []);
-      const myNew = updated.reviews?.find((r) => r.user.id === user.id) || null;
-      setUserReview(myNew);
+      const result = await api.createReview(album.id, numericRating, reviewText.trim() || null);
+      const newReview = result.review;
+
+      setStatusMsg({ type: "success", text: "Review saved!" });
+
+      // Update reviews list locally without refetching
+      setReviews(prev => {
+        const filtered = prev.filter(r => r.user.id !== user.id);
+        return [newReview, ...filtered];
+      });
+
+      setUserReview(newReview);
+      setRating(newReview.rating.toString());
+      setReviewText(newReview.reviewText || "");
       setTimeout(() => setStatusMsg(null), 3000);
     } catch (err) {
       console.error(err);
-      setStatusMsg({ type: "error", text: "Error al guardar la reseña." });
+      setStatusMsg({ type: "error", text: err.message || "Error saving review." });
     } finally {
       setIsSubmitting(false);
     }
@@ -113,10 +121,10 @@ export default function AlbumPage({ params }) {
     if (!user || !album) return;
     try {
       await api.registerListen(album.id, user.id, null, null);
-      alert("Escucha registrada en tu historial");
+      alert("Listen registered in your history");
     } catch (err) {
       console.error(err);
-      alert("Error al registrar escucha");
+      alert("Error registering listen");
     }
   };
 
@@ -125,7 +133,7 @@ export default function AlbumPage({ params }) {
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
         <Header user={user} />
         <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner message="Cargando disco..." />
+          <LoadingSpinner message="Loading album..." />
         </div>
       </div>
     );
@@ -136,7 +144,7 @@ export default function AlbumPage({ params }) {
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
         <Header user={user} />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-12">
-          <ErrorMessage message={error || "Álbum no encontrado"} />
+          <ErrorMessage message={error || "Album not found"} />
         </main>
         <Footer />
       </div>
@@ -163,7 +171,7 @@ export default function AlbumPage({ params }) {
       )}
 
       <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto px-4 md:px-8 pt-12 md:pt-24 pb-16 flex flex-col md:flex-row gap-10">
-        {/* Columna izquierda – portada y acciones */}
+        {/* Left column – cover and actions */}
         <div className="w-full md:w-[300px] flex flex-col gap-6 md:sticky md:top-24 self-start">
           <div className="aspect-square bg-gradient-to-br from-[#1a2332] to-[#0f1721] border border-[#2a3645] rounded-xl overflow-hidden shadow-2xl shadow-black/40 group">
             {album.coverUrl ? (
@@ -177,21 +185,21 @@ export default function AlbumPage({ params }) {
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-stone-600">
-                Sin portada
+                No cover
               </div>
             )}
           </div>
 
           <div className="bg-[#131e2c]/80 backdrop-blur-xl p-5 rounded-xl border border-[#2a3645] shadow-lg">
             <h3 className="font-semibold text-[#7cc7e8] mb-4 text-base tracking-wide uppercase">
-              {userReview ? "Tu reseña" : "Escribir una reseña"}
+              {userReview ? "Your review" : "Write a review"}
             </h3>
 
             {user ? (
               <form onSubmit={handleSubmitReview} className="space-y-4">
                 <div>
                   <label className="text-xs text-stone-400 block mb-1.5 uppercase tracking-wider">
-                    Puntuación (1‑10)
+                    Rating (1‑10)
                   </label>
                   <input
                     type="number"
@@ -200,7 +208,7 @@ export default function AlbumPage({ params }) {
                     value={rating}
                     onChange={(e) => setRating(e.target.value)}
                     className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-white focus:outline-none focus:border-[#7cc7e8] focus:ring-1 focus:ring-[#7cc7e8] transition-all"
-                    placeholder="Ej: 8"
+                    placeholder="e.g. 8"
                     disabled={isSubmitting}
                     required
                   />
@@ -208,14 +216,14 @@ export default function AlbumPage({ params }) {
 
                 <div>
                   <label className="text-xs text-stone-400 block mb-1.5 uppercase tracking-wider">
-                    Comentario
+                    Comment
                   </label>
                   <textarea
                     value={reviewText}
                     onChange={(e) => setReviewText(e.target.value)}
                     rows={4}
                     className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-white resize-none focus:outline-none focus:border-[#7cc7e8] focus:ring-1 focus:ring-[#7cc7e8] transition-all"
-                    placeholder="¿Qué te pareció este disco?"
+                    placeholder="What did you think of this album?"
                     disabled={isSubmitting}
                   />
                 </div>
@@ -237,7 +245,7 @@ export default function AlbumPage({ params }) {
                   disabled={isSubmitting}
                   className="w-full bg-[#7cc7e8] text-[#0a121c] py-2.5 font-bold rounded-lg hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-xl"
                 >
-                  {isSubmitting ? "Guardando..." : userReview ? "Actualizar" : "Publicar reseña"}
+                  {isSubmitting ? "Saving..." : userReview ? "Update" : "Publish review"}
                 </button>
 
                 <button
@@ -245,18 +253,18 @@ export default function AlbumPage({ params }) {
                   onClick={handleRegisterListen}
                   className="w-full text-sm text-stone-400 hover:text-stone-200 transition-colors py-1"
                 >
-                  Solo marcar como escuchado
+                  Just mark as listened
                 </button>
               </form>
             ) : (
               <div className="text-center text-sm text-stone-400 py-6">
-                Iniciá sesión para dejar tu reseña.
+                Log in to leave a review.
               </div>
             )}
           </div>
         </div>
 
-        {/* Columna derecha – info + canciones + reseñas */}
+        {/* Right column – info + tracks + reviews */}
         <div className="flex-1 min-w-0">
           <div className="mb-8">
             <h1 className="text-4xl md:text-6xl font-extrabold leading-tight tracking-tight">
@@ -296,10 +304,10 @@ export default function AlbumPage({ params }) {
             </div>
           </div>
 
-          {/* Lista de canciones */}
+          {/* Tracklist */}
           <div className="mb-12">
             <h3 className="text-base font-semibold uppercase tracking-widest text-stone-400 mb-4 border-b border-[#2a3645] pb-2">
-              Canciones
+              Tracklist
             </h3>
             <div className="flex flex-col gap-0.5">
               {album.tracks?.map((track, index) => (
@@ -321,15 +329,15 @@ export default function AlbumPage({ params }) {
             </div>
           </div>
 
-          {/* Reseñas */}
+          {/* Reviews */}
           <section>
             <h3 className="text-base font-semibold uppercase tracking-widest text-stone-400 mb-6 border-b border-[#2a3645] pb-2">
-              Reseñas ({reviews.length})
+              Reviews ({reviews.length})
             </h3>
 
             {reviews.length === 0 ? (
               <div className="bg-[#131e2c]/40 border border-[#2a3645] rounded-xl p-6 text-center text-stone-500">
-                Sé el primero en reseñar este álbum.
+                Be the first to review this album.
               </div>
             ) : (
               <div className="flex flex-col gap-5">
@@ -368,13 +376,13 @@ export default function AlbumPage({ params }) {
                           </p>
                         )}
                         <p className="text-stone-500 text-xs mt-3">
-                          {new Date(review.createdAt).toLocaleDateString("es-ES", {
+                          {new Date(review.createdAt).toLocaleDateString("en-US", {
                             year: "numeric",
                             month: "short",
                             day: "numeric",
                           })}
                           {review.updatedAt !== review.createdAt && (
-                            <span className="italic ml-2">(editado)</span>
+                            <span className="italic ml-2">(edited)</span>
                           )}
                         </p>
                       </div>

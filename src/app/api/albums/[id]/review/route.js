@@ -30,7 +30,8 @@ export async function POST(request, { params }) {
 
     const supabaseAdmin = createSupabaseServer();
 
-    const { data, error } = await supabaseAdmin
+    // Upsert de la reseña
+    const { data: reviewData, error } = await supabaseAdmin
       .from('reviews')
       .upsert(
         {
@@ -47,20 +48,33 @@ export async function POST(request, { params }) {
 
     if (error) throw error;
 
+    // Insertar escucha
     await supabaseAdmin.from('listens').insert({
       user_id: user.id,
       album_id: albumId,
       listened_at: new Date().toISOString(),
     });
 
+    // Obtener datos del perfil para devolverlos al frontend
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('id', user.id)
+      .single();
+
     return NextResponse.json({
       success: true,
       review: {
-        id: data.id,
-        rating: data.rating,
-        reviewText: data.review_text,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
+        id: reviewData.id,
+        rating: reviewData.rating,
+        reviewText: reviewData.review_text,
+        createdAt: reviewData.created_at,
+        updatedAt: reviewData.updated_at,
+        user: {
+          id: user.id,
+          username: profile?.username ?? 'desconocido',
+          avatarUrl: profile?.avatar_url ?? null,
+        },
       },
     });
   } catch (err) {
