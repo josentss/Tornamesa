@@ -6,7 +6,6 @@ export async function GET(request, { params }) {
   const supabase = createSupabaseServer();
 
   try {
-    // reseñas del disco con datos del autor
     const { data, error } = await supabase
       .from('reviews')
       .select(`
@@ -26,7 +25,6 @@ export async function GET(request, { params }) {
 
     if (error) throw error;
 
-    // mapeo para manejar la estructura
     const reviews = data.map((r) => ({
       id: r.id,
       rating: r.rating,
@@ -35,7 +33,7 @@ export async function GET(request, { params }) {
       updatedAt: r.updated_at,
       user: {
         id: r.user_id,
-        username: r.profiles?.username ?? 'unknown',
+        username: r.profiles?.username ?? 'desconocido',
         avatarUrl: r.profiles?.avatar_url ?? null,
       },
     }));
