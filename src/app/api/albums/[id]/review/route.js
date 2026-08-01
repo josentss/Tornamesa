@@ -11,7 +11,6 @@ export async function POST(request, { params }) {
   const { id: albumId } = params;
 
   try {
-    // 1. Autenticar usuario
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -31,8 +30,8 @@ export async function POST(request, { params }) {
 
     const supabaseAdmin = createSupabaseServer();
 
-    // 2. Buscar si ya existe una reseña del usuario para este álbum
-    const { data: existingReview } = await supabaseAdmin
+    // Buscar si ya existe una reseña
+    const { data: existing } = await supabaseAdmin
       .from('reviews')
       .select('id')
       .eq('user_id', user.id)
@@ -41,8 +40,8 @@ export async function POST(request, { params }) {
 
     let review;
 
-    if (existingReview) {
-      // Actualizar reseña existente
+    if (existing) {
+      // Actualizar
       const { data: updated, error: updateError } = await supabaseAdmin
         .from('reviews')
         .update({
@@ -50,14 +49,14 @@ export async function POST(request, { params }) {
           review_text: review_text || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', existingReview.id)
+        .eq('id', existing.id)
         .select()
         .single();
 
       if (updateError) throw updateError;
       review = updated;
     } else {
-      // Insertar nueva reseña
+      // Insertar
       const { data: inserted, error: insertError } = await supabaseAdmin
         .from('reviews')
         .insert({
@@ -73,14 +72,14 @@ export async function POST(request, { params }) {
       review = inserted;
     }
 
-    // 3. Registrar escucha (opcional)
+    // Registrar escucha (opcional)
     await supabaseAdmin.from('listens').insert({
       user_id: user.id,
       album_id: albumId,
       listened_at: new Date().toISOString(),
     });
 
-    // 4. Obtener perfil del autor
+    // Obtener perfil para devolverlo al frontend
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('username, avatar_url')
@@ -103,7 +102,7 @@ export async function POST(request, { params }) {
       },
     });
   } catch (err) {
-    console.error('Error al guardar reseña:', err);
+    console.error('POST review error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
