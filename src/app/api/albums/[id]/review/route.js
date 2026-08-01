@@ -11,6 +11,7 @@ export async function POST(request, { params }) {
   const { id: albumId } = params;
 
   try {
+    // 1. Autenticar usuario
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -30,32 +31,56 @@ export async function POST(request, { params }) {
 
     const supabaseAdmin = createSupabaseServer();
 
-    // Upsert de la reseña
-    const { data: reviewData, error } = await supabaseAdmin
+    // 2. Buscar si ya existe una reseña del usuario para este álbum
+    const { data: existingReview } = await supabaseAdmin
       .from('reviews')
-      .upsert(
-        {
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('album_id', albumId)
+      .single();
+
+    let review;
+
+    if (existingReview) {
+      // Actualizar reseña existente
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from('reviews')
+        .update({
+          rating: numericRating,
+          review_text: review_text || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingReview.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+      review = updated;
+    } else {
+      // Insertar nueva reseña
+      const { data: inserted, error: insertError } = await supabaseAdmin
+        .from('reviews')
+        .insert({
           user_id: user.id,
           album_id: albumId,
           rating: numericRating,
           review_text: review_text || null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id, album_id' }
-      )
-      .select()
-      .single();
+        })
+        .select()
+        .single();
 
-    if (error) throw error;
+      if (insertError) throw insertError;
+      review = inserted;
+    }
 
-    // Insertar escucha
+    // 3. Registrar escucha (opcional)
     await supabaseAdmin.from('listens').insert({
       user_id: user.id,
       album_id: albumId,
       listened_at: new Date().toISOString(),
     });
 
-    // Obtener datos del perfil para devolverlos al frontend
+    // 4. Obtener perfil del autor
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('username, avatar_url')
@@ -65,14 +90,14 @@ export async function POST(request, { params }) {
     return NextResponse.json({
       success: true,
       review: {
-        id: reviewData.id,
-        rating: reviewData.rating,
-        reviewText: reviewData.review_text,
-        createdAt: reviewData.created_at,
-        updatedAt: reviewData.updated_at,
+        id: review.id,
+        rating: review.rating,
+        reviewText: review.review_text,
+        createdAt: review.created_at,
+        updatedAt: review.updated_at,
         user: {
           id: user.id,
-          username: profile?.username ?? 'desconocido',
+          username: profile?.username ?? 'unknown',
           avatarUrl: profile?.avatar_url ?? null,
         },
       },

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request, { params }) {
   const { id: albumId } = params;
   const supabase = createSupabaseServer();
