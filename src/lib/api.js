@@ -81,7 +81,7 @@ export const api = {
 
   // sacar reseñas de un álbum
   getAlbumReviews: (albumId) =>
-    fetchApi(`/api/albums/${albumId}/reviews`),
+    fetchApi(`/api/albums/${albumId}/reviews?_t=${Date.now()}`, { cache: 'no-store' }),
 
   // crear o actualizar reseña (con sesión)
   createReview: async (albumId, rating, reviewText) => {
