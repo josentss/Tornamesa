@@ -1,12 +1,7 @@
-import { createSupabaseServer } from './supabase-server';
-
-let spotifyToken = '';
+let cachedToken = null;
 let tokenExpiry = 0;
 
-export async function getSpotifyToken() {
-  const now = Date.now();
-  if (spotifyToken && now < tokenExpiry) return spotifyToken;
-
+async function fetchNewToken() {
   const credentials = Buffer.from(
     `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
   ).toString('base64');
@@ -20,15 +15,30 @@ export async function getSpotifyToken() {
     body: 'grant_type=client_credentials',
   });
 
-  if (!response.ok) throw new Error('Spotify token request failed');
+  if (!response.ok) {
+    throw new Error(`Spotify token request failed with status ${response.status}`);
+  }
 
   const data = await response.json();
-  spotifyToken = data.access_token;
-  tokenExpiry = now + (data.expires_in - 60) * 1000;
-  return spotifyToken;
+  return {
+    token: data.access_token,
+    expiry: Date.now() + (data.expires_in - 60) * 1000,
+  };
+}
+
+export async function getSpotifyToken(forceNew = false) {
+  if (!forceNew && cachedToken && Date.now() < tokenExpiry) {
+    return cachedToken;
+  }
+
+  const { token, expiry } = await fetchNewToken();
+  cachedToken = token;
+  tokenExpiry = expiry;
+  return token;
 }
 
 export async function getUserSpotifyToken(userId) {
+  const { createSupabaseServer } = await import('./supabase-server');
   const supabase = createSupabaseServer();
 
   const { data: connection, error } = await supabase

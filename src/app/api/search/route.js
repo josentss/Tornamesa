@@ -2,38 +2,42 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getSpotifyToken } from '@/lib/spotify';
 
-async function searchSpotify(query, retryOnAuthError = true) {
-  const token = await getSpotifyToken();
-  const response = await fetch(
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=10`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+async function searchSpotify(query) {
+  let token = await getSpotifyToken();
 
-  if (response.ok) {
-    const data = await response.json();
-    return data.albums.items.map((album) => ({
-      id: album.id,
-      title: album.name,
-      artist: album.artists[0]?.name || 'Unknown',
-      coverUrl: album.images[0]?.url || null,
-      releaseDate: album.release_date,
-      spotifyLink: album.external_urls.spotify,
-    }));
-  }
+  const doFetch = async (accessToken) => {
+    return fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=10`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+  };
 
-  if (response.status === 401 && retryOnAuthError) {
-    console.warn('Spotify token expired, forcing new token and retrying...');
-    return searchSpotify(query, false);
+  let response = await doFetch(token);
+
+  if (response.status === 401) {
+    token = await getSpotifyToken(true);
+    response = await doFetch(token);
   }
 
   if (response.status === 429) {
-    const retryAfter = response.headers.get('Retry-After') || 2;
-    console.warn(`Spotify rate limited, waiting ${retryAfter}s`);
-    await new Promise((resolve) => setTimeout(resolve, Number(retryAfter) * 1000));
-    return searchSpotify(query, false);
+    console.warn('Spotify rate limited');
+    return [];
   }
 
-  throw new Error(`Spotify search failed with status ${response.status}`);
+  if (!response.ok) {
+    console.error(`Spotify search failed with status ${response.status}`);
+    return [];
+  }
+
+  const data = await response.json();
+  return (data.albums?.items || []).map((album) => ({
+    id: album.id,
+    title: album.name,
+    artist: album.artists?.[0]?.name || 'Unknown',
+    coverUrl: album.images?.[0]?.url || null,
+    releaseDate: album.release_date || 'N/A',
+    spotifyLink: album.external_urls?.spotify || '',
+  }));
 }
 
 export async function GET(request) {
@@ -42,7 +46,10 @@ export async function GET(request) {
   const type = searchParams.get('type') || 'album';
 
   if (!q || q.trim().length < 2) {
-    return NextResponse.json({ error: 'Search must be at least 2 characters' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Search must be at least 2 characters' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -63,7 +70,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Search error:', error.message);
     return NextResponse.json(
-      { error: 'Search temporarily unavailable. Please try again in a moment.' },
+      { error: 'Search temporarily unavailable' },
       { status: 503 }
     );
   }
