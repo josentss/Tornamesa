@@ -90,12 +90,28 @@ export default function UserProfilePage({ params }) {
     }
   };
 
+  // ========== SKELETON ==========
   if (loading || !resolvedUsername) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
         <Header user={currentUser} />
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner message="Loading profile..." />
+        <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-pulse">
+          <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 px-5 sm:px-6 md:px-10">
+            <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full bg-[#1f2b3a] border-[4px] sm:border-[5px] border-[#131e2c]" />
+            </div>
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <div className="h-7 w-48 bg-[#1f2b3a] rounded" />
+              <div className="h-4 w-28 bg-[#1f2b3a] rounded" />
+              <div className="h-4 w-40 bg-[#1f2b3a] rounded mt-2" />
+              <div className="h-16 w-full max-w-md bg-[#1f2b3a] rounded mt-4" />
+            </div>
+          </div>
+          <div className="mt-14 flex justify-center gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="w-24 h-24 sm:w-28 sm:h-28 bg-[#1f2b3a] rounded-xl" />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -118,18 +134,22 @@ export default function UserProfilePage({ params }) {
       <Header user={currentUser} />
 
       {/* ========== PROFILE HEADER ========== */}
-      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20">
+      <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
         <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 sm:pb-9 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
 
           {/* Avatar */}
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
-              <div className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full border-[4px] sm:border-[5px] border-[#131e2c] bg-[#0a121c] overflow-hidden shadow-2xl ring-2 ring-[#7cc7e8]/50">
+              <div
+                className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full border-[4px] sm:border-[5px] border-[#131e2c] bg-[#0a121c] overflow-hidden shadow-2xl ring-2 ring-[#7cc7e8]/50"
+                role="img"
+                aria-label={`Avatar de ${profileData.username}`}
+              >
                 {profileData.avatar_url ? (
                   <Image
                     src={profileData.avatar_url}
-                    alt={profileData.username}
+                    alt={`Avatar de ${profileData.username}`}
                     width={144}
                     height={144}
                     className="object-cover w-full h-full"
@@ -144,13 +164,10 @@ export default function UserProfilePage({ params }) {
             </div>
           </div>
 
-          {/* Contenido */}
           <div className="flex flex-col gap-6 sm:gap-8">
-
-            {/* Fila superior: Info + Botón (móvil) / Stats + Info + Botón (desktop) */}
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 lg:gap-10">
 
-              {/* STATS - En móvil se muestran en fila horizontal debajo del nombre */}
+              {/* STATS desktop */}
               <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
                 <div className="space-y-5 text-left">
                   <div className="group cursor-default">
@@ -180,7 +197,7 @@ export default function UserProfilePage({ params }) {
                 </div>
               </div>
 
-              {/* INFO USUARIO */}
+              {/* INFO */}
               <div className="flex-1 text-center order-1 md:order-2 w-full">
                 <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
@@ -223,19 +240,20 @@ export default function UserProfilePage({ params }) {
                     href={profileData.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block mt-3 sm:mt-4 text-xs text-[#7cc7e8] hover:text-white hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645] transition-colors"
+                    className="inline-block mt-3 sm:mt-4 text-xs text-[#7cc7e8] hover:text-white hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645] transition-colors focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/50"
+                    aria-label={`Sitio web de ${profileData.username}`}
                   >
                     {profileData.website.replace(/^https?:\/\//, "")}
                   </a>
                 )}
 
-                {/* Now Playing */}
                 {profileData.nowPlaying?.isPlaying && (
                   <a
                     href={profileData.nowPlaying.url || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954]/60 transition-all rounded-full px-4 py-2.5 mt-4 sm:mt-5 group max-w-full"
+                    className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954]/60 transition-all rounded-full px-4 py-2.5 mt-4 sm:mt-5 group max-w-full focus:outline-none focus:ring-2 focus:ring-[#1db954]/40"
+                    aria-label="Escuchando ahora"
                   >
                     <div className="text-[#1db954] group-hover:scale-110 transition-transform flex-shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -265,7 +283,8 @@ export default function UserProfilePage({ params }) {
                 {isOwner ? (
                   <button
                     onClick={() => router.push("/settings")}
-                    className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068]"
+                    className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068] focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40"
+                    aria-label="Editar perfil"
                   >
                     Edit Profile
                   </button>
@@ -273,11 +292,12 @@ export default function UserProfilePage({ params }) {
                   <button
                     onClick={handleFollowToggle}
                     disabled={actionLoading}
-                    className={`w-full sm:w-auto text-sm font-semibold px-6 py-2.5 rounded-lg border transition-all ${
+                    className={`w-full sm:w-auto text-sm font-semibold px-6 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40 ${
                       profileData.isFollowing
                         ? "bg-transparent border-[#2a3645] text-white hover:bg-red-950/30 hover:border-red-800/40"
                         : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-[#a5d8f0] shadow-lg shadow-[#7cc7e8]/20"
                     }`}
+                    aria-label={profileData.isFollowing ? "Dejar de seguir" : "Seguir"}
                   >
                     {actionLoading ? "..." : profileData.isFollowing ? "Following" : "Follow"}
                   </button>
@@ -285,7 +305,7 @@ export default function UserProfilePage({ params }) {
               </div>
             </div>
 
-            {/* STATS en móvil (fila horizontal) */}
+            {/* STATS móvil */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
               <div className="text-center">
                 <p className="text-xl font-bold text-white">{stats?.yearlyListens || 0}</p>
@@ -306,13 +326,18 @@ export default function UserProfilePage({ params }) {
 
       {/* ========== FAVORITE ALBUMS ========== */}
       {profileData.favorite_albums?.length > 0 && (
-        <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14">
+        <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14 animate-in fade-in duration-700">
           <h2 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-5 sm:mb-6 text-center">
             Favorite Albums
           </h2>
           <div className="grid grid-cols-3 gap-3 sm:gap-5 max-w-xs sm:max-w-md mx-auto">
             {profileData.favorite_albums.map((fav, idx) => (
-              <a key={idx} href={`/album/${fav.id}`} className="block group">
+              <a
+                key={idx}
+                href={`/album/${fav.id}`}
+                className="block group focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40 rounded-xl"
+                aria-label={`${fav.title} de ${fav.artist}`}
+              >
                 <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] group-hover:border-[#7cc7e8]/50 transition-all duration-300 shadow-md group-hover:shadow-[#7cc7e8]/10 group-hover:-translate-y-0.5 sm:group-hover:-translate-y-1">
                   {fav.coverUrl ? (
                     <Image
@@ -341,30 +366,28 @@ export default function UserProfilePage({ params }) {
       )}
 
       {/* ========== SECCIÓN DETALLADA ========== */}
-      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-12 sm:mt-16 flex-1 pb-16 sm:pb-20">
-        {/* Tabs */}
+      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-12 sm:mt-16 flex-1 pb-16 sm:pb-20 animate-in fade-in duration-700">
         <div className="flex border-b border-[#2a3645] mb-6 sm:mb-8 overflow-x-auto">
           <button
             onClick={() => setActiveTab("activity")}
-            className={`pb-3 sm:pb-3.5 px-4 sm:px-5 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap ${
+            className={`pb-3 sm:pb-3.5 px-4 sm:px-5 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap focus:outline-none ${
               activeTab === "activity"
                 ? "border-[#7cc7e8] text-[#7cc7e8]"
                 : "border-transparent text-stone-400 hover:text-white"
             }`}
+            aria-selected={activeTab === "activity"}
           >
             Recent Activity
           </button>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
-          {/* Columna principal */}
           <div className="flex-1 min-w-0">
             {activeTab === "activity" && (
               <ActivityFeed activities={stats?.recentActivity || []} />
             )}
           </div>
 
-          {/* Sidebar */}
           <div className="w-full lg:w-72 space-y-5 sm:space-y-6 flex-shrink-0">
             <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors">
               <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
