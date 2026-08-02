@@ -95,11 +95,23 @@ export default function UserProfileClient({ params }) {
     }
   };
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/${profileData.username}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast({ message: "Profile link copied!", type: "success" });
+    } catch (err) {
+      setToast({ message: "Could not copy link", type: "error" });
+    }
+  };
+
+  // ========== FULL SKELETON ==========
   if (loading || !resolvedUsername) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
         <Header user={currentUser} />
         <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-pulse">
+          {/* Profile card skeleton */}
           <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 px-5 sm:px-6 md:px-10">
             <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
               <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full bg-[#1f2b3a] border-[4px] sm:border-[5px] border-[#131e2c]" />
@@ -111,10 +123,26 @@ export default function UserProfileClient({ params }) {
               <div className="h-16 w-full max-w-md bg-[#1f2b3a] rounded mt-4" />
             </div>
           </div>
+
+          {/* Favorites skeleton */}
           <div className="mt-14 flex justify-center gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="w-24 h-24 sm:w-28 sm:h-28 bg-[#1f2b3a] rounded-xl" />
             ))}
+          </div>
+
+          {/* Content + Sidebar skeleton */}
+          <div className="mt-16 flex flex-col lg:flex-row gap-8">
+            <div className="flex-1 space-y-4">
+              <div className="h-10 w-48 bg-[#1f2b3a] rounded mb-6" />
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-20 bg-[#1f2b3a] rounded-lg" />
+              ))}
+            </div>
+            <div className="w-full lg:w-72 space-y-5">
+              <div className="h-48 bg-[#1f2b3a] rounded-xl" />
+              <div className="h-48 bg-[#1f2b3a] rounded-xl" />
+            </div>
           </div>
         </div>
       </div>
@@ -152,11 +180,7 @@ export default function UserProfileClient({ params }) {
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
-              <div
-                className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full border-[4px] sm:border-[5px] border-[#131e2c] bg-[#0a121c] overflow-hidden shadow-2xl ring-2 ring-[#7cc7e8]/50"
-                role="img"
-                aria-label={`Avatar of ${profileData.username}`}
-              >
+              <div className="relative w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full border-[4px] sm:border-[5px] border-[#131e2c] bg-[#0a121c] overflow-hidden shadow-2xl ring-2 ring-[#7cc7e8]/50">
                 {profileData.avatar_url ? (
                   <Image
                     src={profileData.avatar_url}
@@ -251,7 +275,7 @@ export default function UserProfileClient({ params }) {
                     href={profileData.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block mt-3 sm:mt-4 text-xs text-[#7cc7e8] hover:text-white hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645] transition-colors focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/50"
+                    className="inline-block mt-3 sm:mt-4 text-xs text-[#7cc7e8] hover:text-white hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645] transition-colors"
                   >
                     {profileData.website.replace(/^https?:\/\//, "")}
                   </a>
@@ -262,7 +286,7 @@ export default function UserProfileClient({ params }) {
                     href={profileData.nowPlaying.url || "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954]/60 transition-all rounded-full px-4 py-2.5 mt-4 sm:mt-5 group max-w-full focus:outline-none focus:ring-2 focus:ring-[#1db954]/40"
+                    className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954]/60 transition-all rounded-full px-4 py-2.5 mt-4 sm:mt-5 group max-w-full"
                   >
                     <div className="text-[#1db954] group-hover:scale-110 transition-transform flex-shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -287,12 +311,28 @@ export default function UserProfileClient({ params }) {
                 )}
               </div>
 
-              {/* Action Button */}
-              <div className="w-full md:w-36 lg:w-40 flex-shrink-0 flex justify-center md:justify-end order-3">
+              {/* Action Buttons */}
+              <div className="w-full md:w-auto flex-shrink-0 flex flex-col sm:flex-row items-center justify-center md:justify-end gap-3 order-3">
+                {/* Share button */}
+                <button
+                  onClick={handleShare}
+                  className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-4 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068] flex items-center justify-center gap-2"
+                  aria-label="Share profile"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="18" cy="5" r="3" />
+                    <circle cx="6" cy="12" r="3" />
+                    <circle cx="18" cy="19" r="3" />
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                  </svg>
+                  Share
+                </button>
+
                 {isOwner ? (
                   <button
                     onClick={() => router.push("/settings")}
-                    className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068] focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40"
+                    className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068]"
                   >
                     Edit Profile
                   </button>
@@ -300,7 +340,7 @@ export default function UserProfileClient({ params }) {
                   <button
                     onClick={handleFollowToggle}
                     disabled={actionLoading}
-                    className={`w-full sm:w-auto text-sm font-semibold px-6 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40 ${
+                    className={`w-full sm:w-auto text-sm font-semibold px-6 py-2.5 rounded-lg border transition-all ${
                       profileData.isFollowing
                         ? "bg-transparent border-[#2a3645] text-white hover:bg-red-950/30 hover:border-red-800/40"
                         : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-[#a5d8f0] shadow-lg shadow-[#7cc7e8]/20"
@@ -394,7 +434,6 @@ export default function UserProfileClient({ params }) {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
-          {/* Main content */}
           <div className="flex-1 min-w-0">
             {activeTab === "activity" && (
               <ActivityFeed activities={stats?.recentActivity || []} />
@@ -422,7 +461,7 @@ export default function UserProfileClient({ params }) {
             )}
           </div>
 
-          {/* Sidebar - Lists removed */}
+          {/* Sidebar */}
           <div className="w-full lg:w-72 space-y-5 sm:space-y-6 flex-shrink-0">
             <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors">
               <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">

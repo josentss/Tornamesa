@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function ActivityFeed({ activities }) {
   if (!activities || activities.length === 0) {
@@ -33,9 +34,10 @@ export default function ActivityFeed({ activities }) {
   return (
     <div className="space-y-3">
       {activities.map((act, idx) => (
-        <div
+        <Link
           key={idx}
-          className="flex items-center gap-4 bg-[#131e2c]/60 border border-[#2a3645] rounded-lg p-3 hover:border-[#3d5068] transition-colors"
+          href={`/album/${act.album.id}`}
+          className="flex items-center gap-4 bg-[#131e2c]/60 border border-[#2a3645] rounded-lg p-3 hover:border-[#3d5068] transition-colors group"
         >
           <div className="w-12 h-12 rounded overflow-hidden bg-[#1f2b3a] flex-shrink-0">
             {act.album.cover && (
@@ -44,12 +46,14 @@ export default function ActivityFeed({ activities }) {
                 alt={act.album.title}
                 width={48}
                 height={48}
-                className="object-cover w-full h-full"
+                className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
               />
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{act.album.title}</p>
+            <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
+              {act.album.title}
+            </p>
             <p className="text-xs text-stone-400 truncate">{act.album.artist}</p>
             {act.album.rating && (
               <span className="text-xs text-yellow-400 mt-1 inline-block">
@@ -62,7 +66,7 @@ export default function ActivityFeed({ activities }) {
               x{act.count}
             </span>
           )}
-        </div>
+        </Link>
       ))}
     </div>
   );
