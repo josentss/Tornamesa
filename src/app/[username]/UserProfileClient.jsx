@@ -25,6 +25,7 @@ export default function UserProfileClient({ params }) {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("activity");
   const [toast, setToast] = useState(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
     if (params && typeof params.then === "function") {
@@ -99,7 +100,9 @@ export default function UserProfileClient({ params }) {
     const url = `${window.location.origin}/${profileData.username}`;
     try {
       await navigator.clipboard.writeText(url);
+      setShareCopied(true);
       setToast({ message: "Profile link copied!", type: "success" });
+      setTimeout(() => setShareCopied(false), 2000);
     } catch (err) {
       setToast({ message: "Could not copy link", type: "error" });
     }
@@ -203,7 +206,7 @@ export default function UserProfileClient({ params }) {
               {/* Stats Desktop */}
               <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
                 <div className="space-y-5 text-left">
-                  <button className="group text-left w-full focus:outline-none">
+                  <button className="group text-left w-full focus:outline-none" title="Albums logged this year">
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.yearlyListens || 0}
                     </p>
@@ -211,7 +214,7 @@ export default function UserProfileClient({ params }) {
                       This Year
                     </p>
                   </button>
-                  <button className="group text-left w-full focus:outline-none">
+                  <button className="group text-left w-full focus:outline-none" title="Albums logged this month">
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.monthlyListens || 0}
                     </p>
@@ -219,7 +222,7 @@ export default function UserProfileClient({ params }) {
                       This Month
                     </p>
                   </button>
-                  <button className="group text-left w-full focus:outline-none">
+                  <button className="group text-left w-full focus:outline-none" title="Albums marked to listen">
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       0
                     </p>
@@ -309,21 +312,36 @@ export default function UserProfileClient({ params }) {
                 )}
               </div>
 
-              {/* Action Buttons - Balanced width */}
+              {/* Action Buttons */}
               <div className="w-full md:w-40 lg:w-44 flex-shrink-0 flex flex-col items-center md:items-end gap-3 order-3">
                 <button
                   onClick={handleShare}
-                  className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-4 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068] flex items-center justify-center gap-2"
+                  className={`w-full sm:w-auto text-sm font-semibold px-4 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 ${
+                    shareCopied
+                      ? "bg-[#7cc7e8]/10 border-[#7cc7e8]/50 text-[#7cc7e8]"
+                      : "bg-[#1f2b3a] hover:bg-[#2a3645] border-[#2a3645] hover:border-[#3d5068]"
+                  }`}
                   aria-label="Share profile"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="18" cy="5" r="3" />
-                    <circle cx="6" cy="12" r="3" />
-                    <circle cx="18" cy="19" r="3" />
-                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                  </svg>
-                  Share
+                  {shareCopied ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                      </svg>
+                      Share
+                    </>
+                  )}
                 </button>
 
                 {isOwner ? (
@@ -351,15 +369,15 @@ export default function UserProfileClient({ params }) {
 
             {/* Stats Mobile */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
-              <button className="text-center focus:outline-none">
+              <button className="text-center focus:outline-none" title="Albums logged this year">
                 <p className="text-xl font-bold text-white">{stats?.yearlyListens || 0}</p>
                 <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Year</p>
               </button>
-              <button className="text-center focus:outline-none">
+              <button className="text-center focus:outline-none" title="Albums logged this month">
                 <p className="text-xl font-bold text-white">{stats?.monthlyListens || 0}</p>
                 <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Month</p>
               </button>
-              <button className="text-center focus:outline-none">
+              <button className="text-center focus:outline-none" title="Albums marked to listen">
                 <p className="text-xl font-bold text-white">0</p>
                 <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">To Listen</p>
               </button>
@@ -452,8 +470,48 @@ export default function UserProfileClient({ params }) {
             )}
 
             {activeTab === "lists" && (
-              <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5">
-                <ListsPreview lists={stats?.lists || []} />
+              <div className="space-y-4">
+                {stats?.lists && stats.lists.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {stats.lists.map((list, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5 hover:border-[#3d5068] transition-colors cursor-pointer group"
+                        >
+                          <h4 className="text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors">
+                            {list.name}
+                          </h4>
+                          <p className="text-xs text-stone-400 mt-1">
+                            {list.count} album{list.count !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-2">
+                      <button className="text-xs text-[#7cc7e8] hover:underline">
+                        View all lists
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-16 h-16 rounded-full bg-[#1f2b3a] flex items-center justify-center mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-stone-500">
+                        <path d="M8 6h13" />
+                        <path d="M8 12h13" />
+                        <path d="M8 18h13" />
+                        <path d="M3 6h.01" />
+                        <path d="M3 12h.01" />
+                        <path d="M3 18h.01" />
+                      </svg>
+                    </div>
+                    <p className="text-stone-400 text-sm font-medium">No lists yet</p>
+                    <p className="text-stone-500 text-xs mt-1 max-w-[220px]">
+                      Lists created by this user will appear here.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
