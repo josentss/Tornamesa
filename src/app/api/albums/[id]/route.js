@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { spotifyFetch } from '@/lib/spotify';
+import { spotifyFetch, getSpotifyToken } from '@/lib/spotify';
 
 export async function GET(request, { params }) {
   const { id } = params;
@@ -9,41 +9,55 @@ export async function GET(request, { params }) {
   }
 
   try {
-    const albumResponse = await spotifyFetch(
-      `https://api.spotify.com/v1/albums/${id}`
-    );
-
-    if (albumResponse.status === 404) {
-      return NextResponse.json({ error: 'Album not found on Spotify' }, { status: 404 });
-    }
-
-    if (albumResponse.status === 401 || albumResponse.status === 403) {
-      console.error('Spotify auth error:', albumResponse.status);
+    // Diagnóstico: intentar obtener token primero
+    let token;
+    try {
+      token = await getSpotifyToken(true); // forzamos token nuevo
+    } catch (tokenError) {
+      console.error('Token error:', tokenError.message);
       return NextResponse.json(
-        { error: 'Spotify authentication failed' },
+        {
+          error: 'Failed to get Spotify token',
+          details: tokenError.message,
+          hasClientId: !!process.env.SPOTIFY_CLIENT_ID,
+          hasClientSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
+        },
         { status: 503 }
       );
     }
 
+    const albumResponse = await fetch(
+      `https://api.spotify.com/v1/albums/${id}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
     if (!albumResponse.ok) {
-      console.error('Spotify album error:', albumResponse.status);
+      const errorBody = await albumResponse.text();
+      console.error('Spotify album response:', albumResponse.status, errorBody);
+
       return NextResponse.json(
-        { error: 'Failed to fetch album from Spotify' },
-        { status: 502 }
+        {
+          error: 'Spotify request failed',
+          status: albumResponse.status,
+          details: errorBody,
+          albumId: id,
+        },
+        { status: albumResponse.status === 404 ? 404 : 503 }
       );
     }
 
     const albumData = await albumResponse.json();
 
-    // Genres from primary artist
+    // Genres
     let genres = [];
     const artistId = albumData.artists?.[0]?.id;
-
     if (artistId) {
-      const artistResponse = await spotifyFetch(
-        `https://api.spotify.com/v1/artists/${artistId}`
+      const artistResponse = await fetch(
+        `https://api.spotify.com/v1/artists/${artistId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
       if (artistResponse.ok) {
         const artistData = await artistResponse.json();
         genres = artistData.genres || [];
