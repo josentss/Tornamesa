@@ -1,63 +1,39 @@
 export default function RatingChart({ distribution }) {
-  const entries = Object.entries(distribution)
-    .map(([rating, count]) => [Number(rating), count])
-    .sort(([a], [b]) => a - b);
+  // Forzamos escala 1-10
+  const ratings = Array.from({ length: 10 }, (_, i) => i + 1);
+  const maxCount = Math.max(...ratings.map((r) => distribution[r] || 0), 1);
 
-  const ratings = entries.map(([r]) => r);
-  const counts = entries.map(([, c]) => c);
-
-  const minX = Math.min(...ratings, 1);
-  const maxX = Math.max(...ratings, 5);
-  const maxY = Math.max(...counts, 1);
-
-  // Escala de la cuadrícula (redondeamos el máximo de Y hacia arriba a un valor “bonito”)
-  const yTicks = Array.from({ length: maxY + 1 }, (_, i) => i);
-  const xTicks = Array.from({ length: maxX - minX + 1 }, (_, i) => minX + i);
-
-  const chartHeight = 160; // px
-  const chartWidth = 280;  // px
-  const paddingLeft = 36;
-  const paddingBottom = 28;
-  const paddingTop = 12;
-  const paddingRight = 12;
+  const chartHeight = 140;
+  const chartWidth = 260;
+  const paddingLeft = 28;
+  const paddingBottom = 24;
+  const paddingTop = 10;
+  const paddingRight = 10;
 
   const plotWidth = chartWidth - paddingLeft - paddingRight;
   const plotHeight = chartHeight - paddingTop - paddingBottom;
 
-  const xScale = (x) => paddingLeft + ((x - minX) / (maxX - minX || 1)) * plotWidth;
-  const yScale = (y) => paddingTop + plotHeight - (y / maxY) * plotHeight;
+  const xScale = (x) => paddingLeft + ((x - 1) / 9) * plotWidth;
+  const yScale = (y) => paddingTop + plotHeight - (y / maxCount) * plotHeight;
 
-  const barWidth = Math.min(28, plotWidth / (ratings.length + 1) * 0.6);
+  const barWidth = Math.min(18, plotWidth / 12);
 
   return (
     <svg
-      width={chartWidth}
+      width="100%"
       height={chartHeight}
       viewBox={`0 0 ${chartWidth} ${chartHeight}`}
       className="overflow-visible"
     >
       {/* Cuadrícula horizontal */}
-      {yTicks.map((y) => (
+      {Array.from({ length: maxCount + 1 }, (_, i) => (
         <line
-          key={`h-${y}`}
+          key={`h-${i}`}
           x1={paddingLeft}
-          y1={yScale(y)}
+          y1={yScale(i)}
           x2={chartWidth - paddingRight}
-          y2={yScale(y)}
-          stroke="#e5e5e5"
-          strokeWidth={1}
-        />
-      ))}
-
-      {/* Cuadrícula vertical */}
-      {xTicks.map((x) => (
-        <line
-          key={`v-${x}`}
-          x1={xScale(x)}
-          y1={paddingTop}
-          x2={xScale(x)}
-          y2={chartHeight - paddingBottom}
-          stroke="#e5e5e5"
+          y2={yScale(i)}
+          stroke="#2a3645"
           strokeWidth={1}
         />
       ))}
@@ -67,91 +43,62 @@ export default function RatingChart({ distribution }) {
         x1={paddingLeft}
         y1={chartHeight - paddingBottom}
         x2={paddingLeft}
-        y2={paddingTop - 8}
-        stroke="#222"
+        y2={paddingTop - 6}
+        stroke="#7cc7e8"
         strokeWidth={1.5}
       />
-      {/* Flecha Y */}
       <polygon
-        points={`
-          ${paddingLeft},${paddingTop - 10}
-          ${paddingLeft - 4},${paddingTop}
-          ${paddingLeft + 4},${paddingTop}
-        `}
-        fill="#222"
+        points={`${paddingLeft},${paddingTop - 8} ${paddingLeft - 3.5},${paddingTop} ${paddingLeft + 3.5},${paddingTop}`}
+        fill="#7cc7e8"
       />
 
       {/* Eje X */}
       <line
         x1={paddingLeft}
         y1={chartHeight - paddingBottom}
-        x2={chartWidth - paddingRight + 8}
+        x2={chartWidth - paddingRight + 6}
         y2={chartHeight - paddingBottom}
-        stroke="#222"
+        stroke="#7cc7e8"
         strokeWidth={1.5}
       />
-      {/* Flecha X */}
       <polygon
-        points={`
-          ${chartWidth - paddingRight + 10},${chartHeight - paddingBottom}
-          ${chartWidth - paddingRight},${chartHeight - paddingBottom - 4}
-          ${chartWidth - paddingRight},${chartHeight - paddingBottom + 4}
-        `}
-        fill="#222"
+        points={`${chartWidth - paddingRight + 8},${chartHeight - paddingBottom} ${chartWidth - paddingRight},${chartHeight - paddingBottom - 3.5} ${chartWidth - paddingRight},${chartHeight - paddingBottom + 3.5}`}
+        fill="#7cc7e8"
       />
 
-      {/* Etiquetas del eje Y */}
-      {yTicks.map((y) => (
+      {/* Labels Y */}
+      {Array.from({ length: maxCount + 1 }, (_, i) => (
         <text
-          key={`yl-${y}`}
-          x={paddingLeft - 8}
-          y={yScale(y) + 3}
+          key={`yl-${i}`}
+          x={paddingLeft - 6}
+          y={yScale(i) + 3}
           textAnchor="end"
-          fontSize={10}
-          fill="#555"
+          fontSize={9}
+          fill="#94a3b8"
         >
-          {y}
+          {i}
         </text>
       ))}
 
-      {/* Etiqueta “Y” */}
-      <text
-        x={paddingLeft - 18}
-        y={paddingTop - 2}
-        fontSize={12}
-        fontWeight="bold"
-        fill="#222"
-      >
-        Y
-      </text>
-
-      {/* Etiquetas del eje X */}
-      {xTicks.map((x) => (
+      {/* Labels X (1-10) */}
+      {ratings.map((r) => (
         <text
-          key={`xl-${x}`}
-          x={xScale(x)}
+          key={`xl-${r}`}
+          x={xScale(r)}
           y={chartHeight - paddingBottom + 14}
           textAnchor="middle"
-          fontSize={10}
-          fill="#555"
+          fontSize={9}
+          fill="#94a3b8"
         >
-          {x}
+          {r}
         </text>
       ))}
 
-      {/* Etiqueta “X” */}
-      <text
-        x={chartWidth - paddingRight + 4}
-        y={chartHeight - paddingBottom + 18}
-        fontSize={12}
-        fontWeight="bold"
-        fill="#222"
-      >
-        X
-      </text>
-
       {/* Barras */}
-      {entries.map(([rating, count]) => {
+      {ratings.map((rating) => {
+        const count = distribution[rating] || 0;
+        if (count === 0) return null;
+
         const x = xScale(rating);
         const y = yScale(count);
         const height = yScale(0) - y;
@@ -165,14 +112,14 @@ export default function RatingChart({ distribution }) {
               height={height}
               fill="#7cc7e8"
               rx={2}
+              className="cursor-pointer hover:fill-[#a5d8f0] transition-colors"
             />
-            {/* Valor encima de la barra */}
             <text
               x={x}
-              y={y - 4}
+              y={y - 3}
               textAnchor="middle"
-              fontSize={10}
-              fill="#666"
+              fontSize={9}
+              fill="#cbd5e1"
             >
               {count}
             </text>
