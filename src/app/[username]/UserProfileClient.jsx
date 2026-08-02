@@ -312,7 +312,7 @@ export default function UserProfileClient({ params }) {
               </div>
 
               {/* Action Buttons */}
-              <div className="w-full md:w-auto flex-shrink-0 flex flex-col sm:flex-row items-center justify-center md:justify-end gap-3 order-3">
+              <div className="w-full md:w-40 lg:w-44 flex-shrink-0 flex flex-col items-center md:items-end gap-3 order-3">
                 {/* Share button */}
                 <button
                   onClick={handleShare}
@@ -350,7 +350,6 @@ export default function UserProfileClient({ params }) {
                   </button>
                 )}
               </div>
-            </div>
 
             {/* Stats Mobile */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
