@@ -22,9 +22,9 @@ export default function ActivityFeed({ activities }) {
             <circle cx="18" cy="16" r="3" />
           </svg>
         </div>
-        <p className="text-stone-400 text-sm font-medium">No hay actividad reciente</p>
+        <p className="text-stone-400 text-sm font-medium">No recent activity</p>
         <p className="text-stone-500 text-xs mt-1 max-w-[220px]">
-          Cuando registres álbumes aparecerán aquí.
+          Albums you log will appear here.
         </p>
       </div>
     );

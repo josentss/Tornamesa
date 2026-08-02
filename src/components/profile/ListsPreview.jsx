@@ -2,9 +2,9 @@ export default function ListsPreview({ lists }) {
   if (!lists || lists.length === 0) {
     return (
       <div className="text-center py-6">
-        <p className="text-xs text-stone-500 mb-2">Aún no hay listas</p>
+        <p className="text-xs text-stone-500 mb-2">No lists yet</p>
         <button className="text-xs text-[#7cc7e8] hover:underline">
-          Crear una lista
+          Create a list
         </button>
       </div>
     );

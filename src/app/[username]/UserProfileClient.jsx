@@ -95,7 +95,6 @@ export default function UserProfileClient({ params }) {
     }
   };
 
-  // ========== SKELETON ==========
   if (loading || !resolvedUsername) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
@@ -138,7 +137,6 @@ export default function UserProfileClient({ params }) {
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={currentUser} />
 
-      {/* Toast */}
       {toast && (
         <Toast
           message={toast.message}
@@ -147,11 +145,10 @@ export default function UserProfileClient({ params }) {
         />
       )}
 
-      {/* ========== PROFILE HEADER ========== */}
+      {/* PROFILE HEADER */}
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
         <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 sm:pb-9 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
 
-          {/* Avatar */}
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
@@ -181,13 +178,10 @@ export default function UserProfileClient({ params }) {
           <div className="flex flex-col gap-6 sm:gap-8">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 lg:gap-10">
 
-              {/* STATS - Desktop (clickable) */}
+              {/* Stats Desktop */}
               <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
                 <div className="space-y-5 text-left">
-                  <button
-                    onClick={() => {}}
-                    className="group text-left w-full focus:outline-none"
-                  >
+                  <button className="group text-left w-full focus:outline-none">
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.yearlyListens || 0}
                     </p>
@@ -195,10 +189,7 @@ export default function UserProfileClient({ params }) {
                       This Year
                     </p>
                   </button>
-                  <button
-                    onClick={() => {}}
-                    className="group text-left w-full focus:outline-none"
-                  >
+                  <button className="group text-left w-full focus:outline-none">
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.monthlyListens || 0}
                     </p>
@@ -206,10 +197,7 @@ export default function UserProfileClient({ params }) {
                       This Month
                     </p>
                   </button>
-                  <button
-                    onClick={() => {}}
-                    className="group text-left w-full focus:outline-none"
-                  >
+                  <button className="group text-left w-full focus:outline-none">
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       0
                     </p>
@@ -220,7 +208,7 @@ export default function UserProfileClient({ params }) {
                 </div>
               </div>
 
-              {/* INFO */}
+              {/* User Info */}
               <div className="flex-1 text-center order-1 md:order-2 w-full">
                 <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
@@ -264,7 +252,6 @@ export default function UserProfileClient({ params }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block mt-3 sm:mt-4 text-xs text-[#7cc7e8] hover:text-white hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645] transition-colors focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/50"
-                    aria-label={`Website of ${profileData.username}`}
                   >
                     {profileData.website.replace(/^https?:\/\//, "")}
                   </a>
@@ -276,7 +263,6 @@ export default function UserProfileClient({ params }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954]/60 transition-all rounded-full px-4 py-2.5 mt-4 sm:mt-5 group max-w-full focus:outline-none focus:ring-2 focus:ring-[#1db954]/40"
-                    aria-label="Currently listening"
                   >
                     <div className="text-[#1db954] group-hover:scale-110 transition-transform flex-shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -301,13 +287,12 @@ export default function UserProfileClient({ params }) {
                 )}
               </div>
 
-              {/* BUTTON */}
+              {/* Action Button */}
               <div className="w-full md:w-36 lg:w-40 flex-shrink-0 flex justify-center md:justify-end order-3">
                 {isOwner ? (
                   <button
                     onClick={() => router.push("/settings")}
                     className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068] focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40"
-                    aria-label="Edit profile"
                   >
                     Edit Profile
                   </button>
@@ -320,7 +305,6 @@ export default function UserProfileClient({ params }) {
                         ? "bg-transparent border-[#2a3645] text-white hover:bg-red-950/30 hover:border-red-800/40"
                         : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-[#a5d8f0] shadow-lg shadow-[#7cc7e8]/20"
                     }`}
-                    aria-label={profileData.isFollowing ? "Unfollow" : "Follow"}
                   >
                     {actionLoading ? "..." : profileData.isFollowing ? "Following" : "Follow"}
                   </button>
@@ -328,7 +312,7 @@ export default function UserProfileClient({ params }) {
               </div>
             </div>
 
-            {/* STATS - Mobile (clickable) */}
+            {/* Stats Mobile */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
               <button className="text-center focus:outline-none">
                 <p className="text-xl font-bold text-white">{stats?.yearlyListens || 0}</p>
@@ -347,7 +331,7 @@ export default function UserProfileClient({ params }) {
         </div>
       </div>
 
-      {/* ========== FAVORITE ALBUMS ========== */}
+      {/* FAVORITE ALBUMS */}
       {profileData.favorite_albums?.length > 0 && (
         <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14 animate-in fade-in duration-700">
           <h2 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-5 sm:mb-6 text-center">
@@ -359,7 +343,6 @@ export default function UserProfileClient({ params }) {
                 key={idx}
                 href={`/album/${fav.id}`}
                 className="block group focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40 rounded-xl"
-                aria-label={`${fav.title} by ${fav.artist}`}
               >
                 <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] group-hover:border-[#7cc7e8]/50 transition-all duration-300 shadow-md group-hover:shadow-[#7cc7e8]/10 group-hover:-translate-y-0.5 sm:group-hover:-translate-y-1">
                   {fav.coverUrl ? (
@@ -388,9 +371,8 @@ export default function UserProfileClient({ params }) {
         </section>
       )}
 
-      {/* ========== DETAILED SECTION WITH TABS ========== */}
+      {/* DETAILED SECTION */}
       <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-12 sm:mt-16 flex-1 pb-16 sm:pb-20 animate-in fade-in duration-700">
-        {/* Tabs */}
         <div className="flex border-b border-[#2a3645] mb-6 sm:mb-8 overflow-x-auto scrollbar-hide">
           {[
             { id: "activity", label: "Recent Activity" },
@@ -405,7 +387,6 @@ export default function UserProfileClient({ params }) {
                   ? "border-[#7cc7e8] text-[#7cc7e8]"
                   : "border-transparent text-stone-400 hover:text-white"
               }`}
-              aria-selected={activeTab === tab.id}
             >
               {tab.label}
             </button>
@@ -441,7 +422,7 @@ export default function UserProfileClient({ params }) {
             )}
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - Lists removed */}
           <div className="w-full lg:w-72 space-y-5 sm:space-y-6 flex-shrink-0">
             <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors">
               <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
@@ -457,13 +438,6 @@ export default function UserProfileClient({ params }) {
               <div className="overflow-x-auto">
                 <RatingChart distribution={stats?.ratingDistribution || {}} />
               </div>
-            </div>
-
-            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors">
-              <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
-                Lists
-              </h3>
-              <ListsPreview lists={stats?.lists || []} />
             </div>
           </div>
         </div>

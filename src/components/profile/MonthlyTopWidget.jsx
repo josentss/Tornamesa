@@ -4,7 +4,7 @@ export default function MonthlyTopWidget({ albums }) {
   if (!albums || albums.length === 0) {
     return (
       <div className="text-center py-6">
-        <p className="text-xs text-stone-500">Sin datos este mes</p>
+        <p className="text-xs text-stone-500">No data this month</p>
       </div>
     );
   }

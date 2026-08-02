@@ -29,9 +29,8 @@ export default function RatingChart({ distribution }) {
         viewBox={`0 0 ${chartWidth} ${chartHeight}`}
         className="overflow-visible"
         role="img"
-        aria-label="Distribución de calificaciones del 1 al 10"
+        aria-label="Rating distribution from 1 to 10"
       >
-        {/* Cuadrícula */}
         {Array.from({ length: maxCount + 1 }, (_, i) => (
           <line
             key={`h-${i}`}
@@ -44,7 +43,6 @@ export default function RatingChart({ distribution }) {
           />
         ))}
 
-        {/* Ejes */}
         <line
           x1={paddingLeft}
           y1={chartHeight - paddingBottom}
@@ -70,7 +68,6 @@ export default function RatingChart({ distribution }) {
           fill="#7cc7e8"
         />
 
-        {/* Labels Y */}
         {Array.from({ length: maxCount + 1 }, (_, i) => (
           <text
             key={`yl-${i}`}
@@ -84,7 +81,6 @@ export default function RatingChart({ distribution }) {
           </text>
         ))}
 
-        {/* Labels X */}
         {ratings.map((r) => (
           <text
             key={`xl-${r}`}
@@ -98,7 +94,6 @@ export default function RatingChart({ distribution }) {
           </text>
         ))}
 
-        {/* Barras */}
         {ratings.map((rating) => {
           const count = distribution[rating] || 0;
           if (count === 0) return null;
@@ -137,11 +132,10 @@ export default function RatingChart({ distribution }) {
         })}
       </svg>
 
-      {/* Tooltip */}
       {hovered !== null && (
         <div className="absolute left-1/2 -translate-x-1/2 -top-2 bg-[#0a121c] border border-[#2a3645] text-xs text-stone-200 px-3 py-1.5 rounded-lg shadow-lg pointer-events-none z-10 whitespace-nowrap">
-          <span className="font-semibold text-[#7cc7e8]">{distribution[hovered] || 0}</span> álbum
-          {(distribution[hovered] || 0) !== 1 ? "es" : ""} con nota{" "}
+          <span className="font-semibold text-[#7cc7e8]">{distribution[hovered] || 0}</span>{" "}
+          album{(distribution[hovered] || 0) !== 1 ? "s" : ""} rated{" "}
           <span className="font-semibold">{hovered}</span>
         </div>
       )}
