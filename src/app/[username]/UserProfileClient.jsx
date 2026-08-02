@@ -111,7 +111,6 @@ export default function UserProfileClient({ params }) {
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
         <Header user={currentUser} />
         <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-pulse">
-          {/* Profile card skeleton */}
           <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 px-5 sm:px-6 md:px-10">
             <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
               <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full bg-[#1f2b3a] border-[4px] sm:border-[5px] border-[#131e2c]" />
@@ -124,14 +123,12 @@ export default function UserProfileClient({ params }) {
             </div>
           </div>
 
-          {/* Favorites skeleton */}
           <div className="mt-14 flex justify-center gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="w-24 h-24 sm:w-28 sm:h-28 bg-[#1f2b3a] rounded-xl" />
             ))}
           </div>
 
-          {/* Content + Sidebar skeleton */}
           <div className="mt-16 flex flex-col lg:flex-row gap-8">
             <div className="flex-1 space-y-4">
               <div className="h-10 w-48 bg-[#1f2b3a] rounded mb-6" />
@@ -177,6 +174,7 @@ export default function UserProfileClient({ params }) {
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
         <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 sm:pb-9 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
 
+          {/* Avatar */}
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
@@ -311,9 +309,8 @@ export default function UserProfileClient({ params }) {
                 )}
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons - Balanced width */}
               <div className="w-full md:w-40 lg:w-44 flex-shrink-0 flex flex-col items-center md:items-end gap-3 order-3">
-                {/* Share button */}
                 <button
                   onClick={handleShare}
                   className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-4 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068] flex items-center justify-center gap-2"
@@ -350,6 +347,7 @@ export default function UserProfileClient({ params }) {
                   </button>
                 )}
               </div>
+            </div>
 
             {/* Stats Mobile */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
