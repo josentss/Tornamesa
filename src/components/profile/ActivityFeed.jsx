@@ -17,6 +17,9 @@ export default function ActivityFeed({ activities }) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">{act.album.title}</p>
             <p className="text-xs text-stone-400 truncate">{act.album.artist}</p>
+            {act.album.rating && (
+              <span className="text-xs text-yellow-400 mt-1 inline-block">★ {act.album.rating}/10</span>
+            )}
           </div>
           {act.count > 1 && (
             <span className="text-xs font-bold text-[#7cc7e8] bg-[#0a121c] px-2 py-1 rounded border border-[#2a3645]">

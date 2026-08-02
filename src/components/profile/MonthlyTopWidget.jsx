@@ -8,7 +8,7 @@ export default function MonthlyTopWidget({ albums }) {
   return (
     <div className="space-y-3">
       {albums.map((album, i) => (
-        <div key={i} className="flex items-center gap-3">
+        <div key={i} className="flex items-center gap-3 cursor-pointer hover:bg-white/5 rounded p-1 -mx-1 transition-colors">
           <span className="text-sm font-bold text-[#7cc7e8] w-4">{i + 1}</span>
           <div className="w-8 h-8 rounded overflow-hidden bg-[#1f2b3a] flex-shrink-0">
             {album.cover && (
@@ -21,6 +21,7 @@ export default function MonthlyTopWidget({ albums }) {
           </div>
         </div>
       ))}
+      <button className="text-xs text-[#7cc7e8] hover:underline mt-2 w-full text-left">View full top</button>
     </div>
   );
 }

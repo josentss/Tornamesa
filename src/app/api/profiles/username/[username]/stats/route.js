@@ -53,6 +53,43 @@ export async function GET(request, { params }) {
       }
     });
 
+    // Obtener reseñas para cruzar ratings
+    const { data: userReviews, error: reviewsErr } = await supabase
+      .from('reviews')
+      .select('album_id, rating')
+      .eq('user_id', userId);
+
+    if (reviewsErr) throw reviewsErr;
+
+    // Crear mapa de rating por álbum
+    const ratingMap = {};
+    userReviews.forEach(r => {
+      ratingMap[r.album_id] = r.rating;
+    });
+
+    // Al agrupar, añadir el rating
+    const grouped = {};
+    recentListens.forEach((item) => {
+      const day = item.listened_at.split('T')[0];
+      const album = item.albums;
+      if (!album) return;
+      const key = `${day}_${album.spotify_id}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          date: day,
+          album: {
+            id: album.spotify_id,
+            title: album.title,
+            artist: album.artist,
+            cover: album.cover_url,
+            rating: ratingMap[album.spotify_id] || null,  // <-- añadir rating
+          },
+          count: 0,
+        };
+      }
+      grouped[key].count++;
+    });
+
     const monthlyTop = Object.values(albumCounts)
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);

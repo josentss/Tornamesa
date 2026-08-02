@@ -22,7 +22,7 @@ export default function UserProfilePage({ params }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState("activity"); // 'activity' | 'stats'
+  const [activeTab, setActiveTab] = useState("activity");
 
   useEffect(() => {
     if (params && typeof params.then === "function") {
@@ -100,99 +100,129 @@ export default function UserProfilePage({ params }) {
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={currentUser} />
 
-      {/* === CABECERA CON AVATAR E INFO === */}
-      <section className="relative w-full bg-[#131e2c] border-b border-[#2a3645] pt-12 pb-8 px-4 md:px-8">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center md:items-start gap-8">
-          {/* Avatar grande */}
-          <div className="w-28 h-28 md:w-32 md:h-32 rounded-full border-2 border-[#7cc7e8] bg-[#0a121c] overflow-hidden shadow-lg flex-shrink-0">
-            {profileData.avatar_url ? (
-              <Image src={profileData.avatar_url} alt={profileData.username} width={128} height={128} className="object-cover w-full h-full" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-stone-400">
-                {profileData.username?.charAt(0).toUpperCase()}
-              </div>
-            )}
-          </div>
+      {/* CONTENEDOR PRINCIPAL CON AVATAR SOBRESALIENDO */}
+      <div className="relative w-full max-w-5xl mx-auto px-4 md:px-8 mt-12">
+        {/* Fondo decorativo detrás del avatar (opcional) */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full bg-[#0a0f16] border-4 border-[#2a3645] z-10 overflow-hidden">
+          {profileData.avatar_url ? (
+            <Image
+              src={profileData.avatar_url}
+              alt={profileData.username}
+              width={128}
+              height={128}
+              className="object-cover w-full h-full"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-stone-400">
+              {profileData.username?.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
 
-          {/* Info del perfil */}
-          <div className="flex-1 text-center md:text-left">
-            <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
-              <h1 className="text-3xl font-bold">{profileData.full_name || profileData.username}</h1>
-              {profileData.pronouns && (
-                <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-[#7cc7e8] px-2 py-0.5 rounded border border-[#2a3645]">
-                  {profileData.pronouns}
-                </span>
+        {/* CARD PRINCIPAL DE INFORMACIÓN */}
+        <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl pt-20 pb-6 px-6 shadow-2xl">
+          <div className="flex flex-col md:flex-row items-start gap-6">
+            {/* ESTADÍSTICAS (izquierda) */}
+            <div className="flex flex-col gap-3 w-full md:w-40">
+              <div className="bg-[#0a121c]/80 border border-[#2a3645] rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-white">{stats?.yearlyListens || 0}</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider">This Year</p>
+              </div>
+              <div className="bg-[#0a121c]/80 border border-[#2a3645] rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-white">{stats?.monthlyListens || 0}</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider">This Month</p>
+              </div>
+              <div className="bg-[#0a121c]/80 border border-[#2a3645] rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-stone-500">0</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider">To Listen</p>
+              </div>
+            </div>
+
+            {/* INFORMACIÓN CENTRAL */}
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold">{profileData.full_name || profileData.username}</h1>
+                {profileData.pronouns && (
+                  <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-[#7cc7e8] px-2 py-0.5 rounded border border-[#2a3645]">
+                    {profileData.pronouns}
+                  </span>
+                )}
+              </div>
+              <p className="text-stone-400 text-sm mt-1">@{profileData.username}</p>
+              <div className="flex justify-center md:justify-start gap-6 mt-3 text-sm">
+                <span><strong className="text-white">{profileData.followers || 0}</strong> Followers</span>
+                <span><strong className="text-white">{profileData.following || 0}</strong> Following</span>
+              </div>
+              {profileData.bio && (
+                <p className="text-stone-300 text-sm mt-4 leading-relaxed border-l-2 border-[#2a3645] pl-4 max-w-md">
+                  {profileData.bio}
+                </p>
+              )}
+              {profileData.website && (
+                <a
+                  href={profileData.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-3 text-xs text-[#7cc7e8] hover:underline bg-[#0a121c] px-3 py-1 rounded-full border border-[#2a3645]"
+                >
+                  {profileData.website.replace(/^https?:\/\//, '')}
+                </a>
               )}
             </div>
-            <p className="text-stone-400 text-sm mt-1">@{profileData.username}</p>
-            <div className="flex justify-center md:justify-start gap-6 mt-3 text-sm">
-              <span><strong className="text-white">{profileData.followers || 0}</strong> Followers</span>
-              <span><strong className="text-white">{profileData.following || 0}</strong> Following</span>
+
+            {/* BOTÓN ACCIÓN (derecha) */}
+            <div className="w-full md:w-auto flex justify-center md:justify-end">
+              {isOwner ? (
+                <button
+                  onClick={() => router.push('/settings')}
+                  className="bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-5 py-2 rounded border border-[#2a3645] transition-colors"
+                >
+                  Edit Profile
+                </button>
+              ) : (
+                <button
+                  onClick={handleFollowToggle}
+                  disabled={actionLoading}
+                  className={`text-sm font-semibold px-5 py-2 rounded border transition-colors ${
+                    profileData.isFollowing
+                      ? "bg-transparent border-[#2a3645] text-white hover:bg-red-900/30 hover:border-red-900/50"
+                      : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-white"
+                  }`}
+                >
+                  {profileData.isFollowing ? "Following" : "Follow"}
+                </button>
+              )}
             </div>
-            {profileData.bio && (
-              <p className="text-stone-300 text-sm mt-4 max-w-xl leading-relaxed border-l-2 border-[#2a3645] pl-4 mx-auto md:mx-0">
-                {profileData.bio}
-              </p>
-            )}
-            {profileData.website && (
-              <a href={profileData.website} target="_blank" rel="noopener noreferrer"
-                className="inline-block mt-3 text-xs text-[#7cc7e8] hover:underline bg-[#0a121c] px-3 py-1 rounded-full border border-[#2a3645]">
-                {profileData.website.replace(/^https?:\/\//, '')}
-              </a>
-            )}
-          </div>
-
-          {/* Botón acción */}
-          <div className="flex-shrink-0">
-            {isOwner ? (
-              <button onClick={() => router.push('/settings')}
-                className="bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-5 py-2 rounded border border-[#2a3645] transition-colors">
-                Edit Profile
-              </button>
-            ) : (
-              <button onClick={handleFollowToggle} disabled={actionLoading}
-                className={`text-sm font-semibold px-5 py-2 rounded border transition-colors ${
-                  profileData.isFollowing
-                    ? "bg-transparent border-[#2a3645] text-white hover:bg-red-900/30 hover:border-red-900/50"
-                    : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-white"
-                }`}>
-                {profileData.isFollowing ? "Following" : "Follow"}
-              </button>
-            )}
           </div>
         </div>
+      </div>
 
-        {/* Estadísticas principales */}
-        <div className="max-w-5xl mx-auto mt-8 grid grid-cols-3 gap-4">
-          <div className="bg-[#0a121c]/60 border border-[#2a3645] rounded-lg p-4 text-center">
-            <p className="text-2xl font-bold text-white">{stats?.yearlyListens || 0}</p>
-            <p className="text-xs text-stone-400 uppercase tracking-wider mt-1">This Year</p>
-          </div>
-          <div className="bg-[#0a121c]/60 border border-[#2a3645] rounded-lg p-4 text-center">
-            <p className="text-2xl font-bold text-white">{stats?.monthlyListens || 0}</p>
-            <p className="text-xs text-stone-400 uppercase tracking-wider mt-1">This Month</p>
-          </div>
-          <div className="bg-[#0a121c]/60 border border-[#2a3645] rounded-lg p-4 text-center">
-            <p className="text-2xl font-bold text-stone-500">0</p>
-            <p className="text-xs text-stone-400 uppercase tracking-wider mt-1">To Listen</p>
-          </div>
-        </div>
-      </section>
-
-      {/* === FAVORITOS === */}
+      {/* FAVORITOS CENTRADOS */}
       {profileData.favorite_albums?.length > 0 && (
-        <section className="max-w-5xl mx-auto w-full px-4 md:px-8 mt-8">
-          <h2 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-4 border-l-2 border-[#7cc7e8] pl-3">
+        <section className="max-w-5xl mx-auto w-full px-4 md:px-8 mt-10">
+          <h2 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-4 text-center border-b border-[#2a3645] pb-2">
             Favorite Albums
           </h2>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
             {profileData.favorite_albums.map((fav, idx) => (
-              <a key={idx} href={`/album/${fav.id}`} className="block bg-[#131e2c] border border-[#2a3645] rounded-lg p-3 hover:border-[#7cc7e8]/30 transition-colors group">
-                <div className="aspect-square rounded overflow-hidden mb-3">
+              <a
+                key={idx}
+                href={`/album/${fav.id}`}
+                className="block bg-[#131e2c] border border-[#2a3645] rounded-lg p-3 hover:border-[#7cc7e8]/30 transition-colors group"
+              >
+                <div className="aspect-square rounded overflow-hidden mb-2">
                   {fav.coverUrl ? (
-                    <Image src={fav.coverUrl} alt={fav.title} width={300} height={300} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
+                    <Image
+                      src={fav.coverUrl}
+                      alt={fav.title}
+                      width={160}
+                      height={160}
+                      className="object-cover w-full h-full group-hover:scale-105 transition-transform"
+                    />
                   ) : (
-                    <div className="w-full h-full bg-[#1f2b3a] flex items-center justify-center text-stone-600">No cover</div>
+                    <div className="w-full h-full bg-[#1f2b3a] flex items-center justify-center text-stone-600 text-xs">
+                      No cover
+                    </div>
                   )}
                 </div>
                 <p className="text-xs font-bold truncate">{fav.title}</p>
@@ -203,49 +233,51 @@ export default function UserProfilePage({ params }) {
         </section>
       )}
 
-      {/* === TABS Y CONTENIDO === */}
+      {/* SECCIÓN DETALLADA CON TABS Y WIDGETS */}
       <section className="max-w-5xl mx-auto w-full px-4 md:px-8 mt-10 flex-1">
-        {/* Pestañas */}
+        {/* Tabs */}
         <div className="flex border-b border-[#2a3645] mb-6">
           <button
             onClick={() => setActiveTab("activity")}
             className={`pb-3 px-4 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 ${
               activeTab === "activity" ? "border-[#7cc7e8] text-[#7cc7e8]" : "border-transparent text-stone-400 hover:text-white"
-            }`}>
+            }`}
+          >
             Recent Activity
           </button>
-          <button
-            onClick={() => setActiveTab("stats")}
-            className={`pb-3 px-4 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 ${
-              activeTab === "stats" ? "border-[#7cc7e8] text-[#7cc7e8]" : "border-transparent text-stone-400 hover:text-white"
-            }`}>
-            Statistics
-          </button>
+          {/* Puedes añadir más tabs aquí en el futuro */}
         </div>
 
-        {activeTab === "activity" ? (
-          <ActivityFeed activities={stats?.recentActivity || []} />
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5 mb-6">
-                <h3 className="text-sm font-bold text-stone-300 uppercase tracking-wider mb-4">Monthly Top</h3>
-                <MonthlyTopWidget albums={stats?.monthlyTop || []} />
-                <button className="mt-4 text-xs text-[#7cc7e8] hover:underline">View full top</button>
-              </div>
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Columna principal: Actividad (tab actual) */}
+          <div className="flex-1">
+            {activeTab === "activity" && (
+              <ActivityFeed activities={stats?.recentActivity || []} />
+            )}
+          </div>
+
+          {/* Columna lateral derecha: widgets siempre visibles */}
+          <div className="w-full lg:w-72 space-y-6">
+            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5">
+              <h3 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-4 border-b border-[#2a3645] pb-2">
+                Monthly Top
+              </h3>
+              <MonthlyTopWidget albums={stats?.monthlyTop || []} />
             </div>
-            <div className="space-y-6">
-              <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5">
-                <h3 className="text-sm font-bold text-stone-300 uppercase tracking-wider mb-4">Rating Distribution</h3>
-                <RatingChart distribution={stats?.ratingDistribution || {}} />
-              </div>
-              <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5">
-                <h3 className="text-sm font-bold text-stone-300 uppercase tracking-wider mb-4">Lists</h3>
-                <ListsPreview lists={stats?.lists || []} />
-              </div>
+            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5">
+              <h3 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-4 border-b border-[#2a3645] pb-2">
+                Rating Distribution
+              </h3>
+              <RatingChart distribution={stats?.ratingDistribution || {}} />
+            </div>
+            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5">
+              <h3 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-4 border-b border-[#2a3645] pb-2">
+                Lists
+              </h3>
+              <ListsPreview lists={stats?.lists || []} />
             </div>
           </div>
-        )}
+        </div>
       </section>
 
       <Footer />
