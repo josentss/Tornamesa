@@ -8,7 +8,7 @@ export async function GET(request, { params }) {
   const supabase = createSupabaseServer();
 
   try {
-    // Obtener perfil
+    // 1. Obtener perfil
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at')
@@ -25,13 +25,13 @@ export async function GET(request, { params }) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-    // Conteos anual y mensual
+    // 2. Conteos anual y mensual
     const [{ count: yearlyListens }, { count: monthlyListens }] = await Promise.all([
       supabase.from('listens').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('listened_at', startOfYear),
       supabase.from('listens').select('*', { count: 'exact', head: true }).eq('user_id', userId).gte('listened_at', startOfMonth),
     ]);
 
-    // Monthly top 5 álbumes
+    // 3. Monthly top 5 álbumes
     const { data: monthlyData, error: monthlyError } = await supabase
       .from('listens')
       .select('album_id, albums!inner(spotify_id, title, artist, cover_url)')
@@ -53,7 +53,11 @@ export async function GET(request, { params }) {
       }
     });
 
-    // Obtener reseñas para cruzar ratings
+    const monthlyTop = Object.values(albumCounts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    // 4. Obtener reseñas para distribución de ratings y para el mapa de actividad
     const { data: userReviews, error: reviewsErr } = await supabase
       .from('reviews')
       .select('album_id, rating')
@@ -61,13 +65,28 @@ export async function GET(request, { params }) {
 
     if (reviewsErr) throw reviewsErr;
 
-    // Crear mapa de rating por álbum
+    const ratingDistribution = {};
+    for (let i = 1; i <= 10; i++) ratingDistribution[i] = 0;
+
     const ratingMap = {};
-    userReviews.forEach(r => {
+    userReviews.forEach((r) => {
+      if (ratingDistribution[r.rating] !== undefined) {
+        ratingDistribution[r.rating]++;
+      }
       ratingMap[r.album_id] = r.rating;
     });
 
-    // Al agrupar, añadir el rating
+    // 5. Actividad reciente agrupada (últimos 50 listens para agrupar)
+    const { data: recentListens, error: recentError } = await supabase
+      .from('listens')
+      .select('album_id, listened_at, albums!inner(spotify_id, title, artist, cover_url)')
+      .eq('user_id', userId)
+      .order('listened_at', { ascending: false })
+      .limit(50);
+
+    if (recentError) throw recentError;
+
+    // Agrupar por día y álbum, incluyendo el rating
     const grouped = {};
     recentListens.forEach((item) => {
       const day = item.listened_at.split('T')[0];
@@ -82,7 +101,7 @@ export async function GET(request, { params }) {
             title: album.title,
             artist: album.artist,
             cover: album.cover_url,
-            rating: ratingMap[album.spotify_id] || null,  // <-- añadir rating
+            rating: ratingMap[album.spotify_id] || null,
           },
           count: 0,
         };
@@ -90,63 +109,12 @@ export async function GET(request, { params }) {
       grouped[key].count++;
     });
 
-    const monthlyTop = Object.values(albumCounts)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    // Distribución de ratings (1-10) desde reviews
-    const { data: reviewsData, error: reviewsError } = await supabase
-      .from('reviews')
-      .select('rating')
-      .eq('user_id', userId);
-
-    if (reviewsError) throw reviewsError;
-
-    const ratingDistribution = {};
-    for (let i = 1; i <= 10; i++) ratingDistribution[i] = 0;
-    reviewsData.forEach((r) => {
-      if (ratingDistribution[r.rating] !== undefined) ratingDistribution[r.rating]++;
-    });
-
-    // Actividad reciente agrupada (últimos 10 discos únicos con multiplicador diario)
-    const { data: recentListens, error: recentError } = await supabase
-      .from('listens')
-      .select('album_id, listened_at, albums!inner(spotify_id, title, artist, cover_url)')
-      .eq('user_id', userId)
-      .order('listened_at', { ascending: false })
-      .limit(50); // Tomamos más para agrupar
-
-    if (recentError) throw recentError;
-
-    // Agrupar por día y álbum
-    const grouped = {};
-    recentListens.forEach((item) => {
-      const day = item.listened_at.split('T')[0]; // YYYY-MM-DD
-      const album = item.albums;
-      if (!album) return;
-      const key = `${day}_${album.spotify_id}`;
-      if (!grouped[key]) {
-        grouped[key] = {
-          date: day,
-          album: {
-            id: album.spotify_id,
-            title: album.title,
-            artist: album.artist,
-            cover: album.cover_url,
-          },
-          count: 0,
-        };
-      }
-      grouped[key].count++;
-    });
-
-    // Ordenar por fecha descendente y tomar los 10 más recientes
     const recentActivity = Object.values(grouped)
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 10);
 
     // Listas (placeholder)
-    const lists = []; // TODO: implementar tablas de listas
+    const lists = [];
 
     return NextResponse.json({
       yearlyListens,
