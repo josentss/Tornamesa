@@ -1,28 +1,49 @@
 import { NextResponse } from 'next/server';
-import { getSpotifyToken } from '@/lib/spotify';
+import { spotifyFetch } from '@/lib/spotify';
 
 export async function GET(request, { params }) {
   const { id } = params;
 
-  try {
-    const token = await getSpotifyToken();
+  if (!id) {
+    return NextResponse.json({ error: 'Album ID is required' }, { status: 400 });
+  }
 
-    const albumResponse = await fetch(`https://api.spotify.com/v1/albums/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  try {
+    const albumResponse = await spotifyFetch(
+      `https://api.spotify.com/v1/albums/${id}`
+    );
+
+    if (albumResponse.status === 404) {
+      return NextResponse.json({ error: 'Album not found on Spotify' }, { status: 404 });
+    }
+
+    if (albumResponse.status === 401 || albumResponse.status === 403) {
+      console.error('Spotify auth error:', albumResponse.status);
+      return NextResponse.json(
+        { error: 'Spotify authentication failed' },
+        { status: 503 }
+      );
+    }
 
     if (!albumResponse.ok) {
-      return NextResponse.json({ error: 'Álbum no encontrado en Spotify' }, { status: 404 });
+      console.error('Spotify album error:', albumResponse.status);
+      return NextResponse.json(
+        { error: 'Failed to fetch album from Spotify' },
+        { status: 502 }
+      );
     }
 
     const albumData = await albumResponse.json();
 
+    // Genres from primary artist
     let genres = [];
-    const artistId = albumData.artists[0]?.id;
+    const artistId = albumData.artists?.[0]?.id;
+
     if (artistId) {
-      const artistResponse = await fetch(`https://api.spotify.com/v1/artists/${artistId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const artistResponse = await spotifyFetch(
+        `https://api.spotify.com/v1/artists/${artistId}`
+      );
+
       if (artistResponse.ok) {
         const artistData = await artistResponse.json();
         genres = artistData.genres || [];
@@ -30,13 +51,13 @@ export async function GET(request, { params }) {
     }
 
     let totalMs = 0;
-    const tracks = albumData.tracks.items.map((track) => {
-      totalMs += track.duration_ms;
-      const minutes = Math.floor(track.duration_ms / 60000);
-      const seconds = ((track.duration_ms % 60000) / 1000).toFixed(0);
+    const tracks = (albumData.tracks?.items || []).map((track) => {
+      totalMs += track.duration_ms || 0;
+      const minutes = Math.floor((track.duration_ms || 0) / 60000);
+      const seconds = Math.floor(((track.duration_ms || 0) % 60000) / 1000);
       return {
         name: track.name,
-        duration: `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`,
+        duration: `${minutes}:${seconds.toString().padStart(2, '0')}`,
       };
     });
 
@@ -45,15 +66,21 @@ export async function GET(request, { params }) {
     return NextResponse.json({
       id: albumData.id,
       title: albumData.name,
-      artist: albumData.artists[0]?.name || 'Unknown',
+      artist: albumData.artists?.[0]?.name || 'Unknown',
       genres: genres.slice(0, 4),
-      coverUrl: albumData.images[0]?.url || null,
-      releaseDate: albumData.release_date ? albumData.release_date.split('-')[0] : 'N/A',
+      coverUrl: albumData.images?.[0]?.url || null,
+      releaseDate: albumData.release_date
+        ? albumData.release_date.split('-')[0]
+        : 'N/A',
       totalDuration: `${totalMinutes} min`,
       tracks,
+      spotifyUrl: albumData.external_urls?.spotify || null,
     });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Album route error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

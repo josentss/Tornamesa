@@ -1,23 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { getSpotifyToken } from '@/lib/spotify';
+import { spotifyFetch } from '@/lib/spotify';
 
 async function searchSpotify(query) {
-  let token = await getSpotifyToken();
-
-  const doFetch = async (accessToken) => {
-    return fetch(
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=10`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-  };
-
-  let response = await doFetch(token);
-
-  if (response.status === 401) {
-    token = await getSpotifyToken(true);
-    response = await doFetch(token);
-  }
+  const response = await spotifyFetch(
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=10`
+  );
 
   if (response.status === 429) {
     console.warn('Spotify rate limited');
@@ -30,6 +18,7 @@ async function searchSpotify(query) {
   }
 
   const data = await response.json();
+
   return (data.albums?.items || []).map((album) => ({
     id: album.id,
     title: album.name,
