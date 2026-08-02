@@ -100,47 +100,45 @@ export default function UserProfilePage({ params }) {
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={currentUser} />
 
-      {/* CONTENEDOR PRINCIPAL CON AVATAR SOBRESALIENDO */}
-      <div className="relative w-full max-w-5xl mx-auto px-4 md:px-8 mt-12">
-        {/* Fondo decorativo detrás del avatar (opcional) */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full bg-[#0a0f16] border-4 border-[#2a3645] z-10 overflow-hidden">
-          {profileData.avatar_url ? (
-            <Image
-              src={profileData.avatar_url}
-              alt={profileData.username}
-              width={128}
-              height={128}
-              className="object-cover w-full h-full"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-stone-400">
-              {profileData.username?.charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
-
-        {/* CARD PRINCIPAL DE INFORMACIÓN */}
-        <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl pt-20 pb-6 px-6 shadow-2xl">
-          <div className="flex flex-col md:flex-row items-start gap-6">
-            {/* ESTADÍSTICAS (izquierda) */}
-            <div className="flex flex-col gap-3 w-full md:w-40">
-              <div className="bg-[#0a121c]/80 border border-[#2a3645] rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-white">{stats?.yearlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider">This Year</p>
+      {/* CONTENEDOR PRINCIPAL */}
+      <div className="relative w-full max-w-5xl mx-auto px-4 md:px-8 mt-8">
+        {/* TARJETA DE INFORMACIÓN */}
+        <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl pt-6 pb-6 px-6 shadow-2xl">
+          <div className="flex flex-col md:flex-row items-center gap-6">
+            {/* Avatar centrado */}
+            <div className="flex flex-col items-center">
+              <div className="w-28 h-28 rounded-full border-2 border-[#7cc7e8] bg-[#0a121c] overflow-hidden shadow-lg">
+                {profileData.avatar_url ? (
+                  <Image
+                    src={profileData.avatar_url}
+                    alt={profileData.username}
+                    width={112}
+                    height={112}
+                    className="object-cover w-full h-full"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-stone-400">
+                    {profileData.username?.charAt(0).toUpperCase()}
+                  </div>
+                )}
               </div>
-              <div className="bg-[#0a121c]/80 border border-[#2a3645] rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-white">{stats?.monthlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider">This Month</p>
-              </div>
-              <div className="bg-[#0a121c]/80 border border-[#2a3645] rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-stone-500">0</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider">To Listen</p>
+              {/* Stats principales como texto */}
+              <div className="mt-4 text-center md:text-left space-y-1">
+                <p className="text-xs text-stone-400">
+                  <span className="text-white font-bold">{stats?.yearlyListens || 0}</span> This Year
+                </p>
+                <p className="text-xs text-stone-400">
+                  <span className="text-white font-bold">{stats?.monthlyListens || 0}</span> This Month
+                </p>
+                <p className="text-xs text-stone-400">
+                  <span className="text-white font-bold">0</span> To Listen
+                </p>
               </div>
             </div>
 
-            {/* INFORMACIÓN CENTRAL */}
-            <div className="flex-1 text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-3 flex-wrap">
+            {/* Información del usuario (centrada) */}
+            <div className="flex-1 text-center">
+              <div className="flex items-center justify-center gap-3 flex-wrap">
                 <h1 className="text-2xl font-bold">{profileData.full_name || profileData.username}</h1>
                 {profileData.pronouns && (
                   <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-[#7cc7e8] px-2 py-0.5 rounded border border-[#2a3645]">
@@ -149,12 +147,12 @@ export default function UserProfilePage({ params }) {
                 )}
               </div>
               <p className="text-stone-400 text-sm mt-1">@{profileData.username}</p>
-              <div className="flex justify-center md:justify-start gap-6 mt-3 text-sm">
+              <div className="flex justify-center gap-6 mt-3 text-sm">
                 <span><strong className="text-white">{profileData.followers || 0}</strong> Followers</span>
                 <span><strong className="text-white">{profileData.following || 0}</strong> Following</span>
               </div>
               {profileData.bio && (
-                <p className="text-stone-300 text-sm mt-4 leading-relaxed border-l-2 border-[#2a3645] pl-4 max-w-md">
+                <p className="text-stone-300 text-sm mt-4 leading-relaxed max-w-md mx-auto">
                   {profileData.bio}
                 </p>
               )}
@@ -168,10 +166,49 @@ export default function UserProfilePage({ params }) {
                   {profileData.website.replace(/^https?:\/\//, '')}
                 </a>
               )}
+
+              {/* Now Playing de Last.fm */}
+              {profileData.nowPlaying?.isPlaying && (
+                <a
+                  href={profileData.nowPlaying.url || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954] transition-colors rounded-full px-4 py-2 mt-4 cursor-pointer"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-[#1db954]"
+                  >
+                    <rect x="2" y="6" width="20" height="12" rx="2" ry="2" />
+                    <circle cx="8" cy="12" r="2" />
+                    <circle cx="16" cy="12" r="2" />
+                    <line x1="10" y1="12" x2="14" y2="12" />
+                  </svg>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase tracking-wider text-[#1db954] font-bold leading-none mb-1">
+                      Listening now
+                    </span>
+                    <span className="text-sm font-bold text-[#f0f9ff] leading-none truncate max-w-[200px]">
+                      {profileData.nowPlaying.title}
+                    </span>
+                    <span className="text-xs text-stone-400 leading-none mt-1 truncate max-w-[200px]">
+                      {profileData.nowPlaying.artist}
+                    </span>
+                  </div>
+                </a>
+              )}
             </div>
 
-            {/* BOTÓN ACCIÓN (derecha) */}
-            <div className="w-full md:w-auto flex justify-center md:justify-end">
+            {/* Botón de acción (derecha) */}
+            <div className="flex-shrink-0">
               {isOwner ? (
                 <button
                   onClick={() => router.push('/settings')}
@@ -245,11 +282,10 @@ export default function UserProfilePage({ params }) {
           >
             Recent Activity
           </button>
-          {/* Puedes añadir más tabs aquí en el futuro */}
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Columna principal: Actividad (tab actual) */}
+          {/* Columna principal: Actividad */}
           <div className="flex-1">
             {activeTab === "activity" && (
               <ActivityFeed activities={stats?.recentActivity || []} />
