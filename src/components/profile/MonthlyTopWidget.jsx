@@ -1,0 +1,26 @@
+import Image from 'next/image';
+
+export default function MonthlyTopWidget({ albums }) {
+  if (!albums || albums.length === 0) {
+    return <p className="text-xs text-stone-500 text-center py-4">No data this month.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {albums.map((album, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <span className="text-sm font-bold text-[#7cc7e8] w-4">{i + 1}</span>
+          <div className="w-8 h-8 rounded overflow-hidden bg-[#1f2b3a] flex-shrink-0">
+            {album.cover && (
+              <Image src={album.cover} alt={album.title} width={32} height={32} className="object-cover w-full h-full" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-white truncate">{album.title}</p>
+            <p className="text-[10px] text-stone-400">{album.count} play{album.count > 1 ? 's' : ''}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

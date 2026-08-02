@@ -66,6 +66,9 @@ export const api = {
   getPublicHistory: (username, limit = 20) =>
     fetchApi(`/api/profiles/${username}/history?limit=${limit}`),
 
+  getProfileStats: (username) =>
+    fetchApi(`/api/profiles/username/${username}/stats`),
+
   // funciones sociales
   followUser: (userId, targetId) =>
     fetchApi(`/api/users/${userId}/follow`, {
