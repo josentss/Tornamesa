@@ -10,7 +10,7 @@ import ActivityFeed from "@/components/profile/ActivityFeed";
 import MonthlyTopWidget from "@/components/profile/MonthlyTopWidget";
 import RatingChart from "@/components/profile/RatingChart";
 import ListsPreview from "@/components/profile/ListsPreview";
-import Toast from "@/components/shared/Toast";
+import Toast from "@/components/Toast";
 
 export default function UserProfileClient({ params }) {
   const username = typeof params?.then === "function" ? null : params?.username;
