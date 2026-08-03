@@ -86,6 +86,7 @@ export async function POST(request) {
           album_id: albumId,
           rating: ratingValue,
           review: review ? sanitizeString(review) : null,
+          listened_at: new Date().toISOString(),
         },
       ])
       .select();
