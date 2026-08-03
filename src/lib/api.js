@@ -69,7 +69,10 @@ export const api = {
     ),
 
   getProfileStats: (username) =>
-    fetchApi(`/api/profiles/username/${username}/stats`),
+    fetchApi(
+      `/api/profiles/username/${username}/stats?_t=${Date.now()}`,
+      { cache: 'no-store' }
+    ),
 
   // funciones sociales
   followUser: (userId, targetId) =>

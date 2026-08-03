@@ -13,7 +13,6 @@ export async function POST(request) {
     );
   }
 
-  // Rating opcional; si viene, debe ser 1–10
   if (rating !== undefined && rating !== null && rating !== '') {
     const num = Number(rating);
     if (Number.isNaN(num) || num < 1 || num > 10) {
@@ -37,7 +36,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Guardar álbum en DB si no existe
     const { data: existingAlbum } = await supabase
       .from('albums')
       .select('spotify_id')
@@ -58,7 +56,7 @@ export async function POST(request) {
 
       const albumData = await spotifyResponse.json();
       const totalDuration = (albumData.tracks?.items || []).reduce(
-        (acc, track) => acc + (track.duration_ms || 0),
+        (acc, t) => acc + (t.duration_ms || 0),
         0
       );
 
@@ -86,7 +84,7 @@ export async function POST(request) {
           album_id: albumId,
           rating: ratingValue,
           review: review ? sanitizeString(review) : null,
-          listened_at: new Date().toISOString(),
+          listened_at: new Date().toISOString(), // CRÍTICO para stats del perfil
         },
       ])
       .select();
