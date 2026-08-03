@@ -19,6 +19,7 @@ async function fetchNewToken() {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials',
+    cache: 'no-store',
   });
 
   if (!response.ok) {
@@ -35,13 +36,11 @@ async function fetchNewToken() {
 
   return {
     token: data.access_token,
-    // renovar 3 minutos antes de que expire
     expiry: Date.now() + (data.expires_in - 180) * 1000,
   };
 }
 
 export async function getSpotifyToken(forceNew = false) {
-  // Si ya hay una petición de token en curso, esperamos esa
   if (tokenPromise) {
     return tokenPromise;
   }
@@ -64,39 +63,31 @@ export async function getSpotifyToken(forceNew = false) {
   return tokenPromise;
 }
 
-/** Limpia la caché del token (usar tras un 401) */
 export function clearSpotifyToken() {
   cachedToken = null;
   tokenExpiry = 0;
 }
 
-/**
- * Fetch a Spotify con reintento automático si el token está caducado
- */
 export async function spotifyFetch(url, options = {}) {
   let token = await getSpotifyToken();
 
-  let response = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const doFetch = (accessToken) =>
+    fetch(url, {
+      ...options,
+      cache: 'no-store',
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
 
-  // Token inválido/caducado → limpiar, pedir uno nuevo y reintentar 1 vez
+  let response = await doFetch(token);
+
   if (response.status === 401) {
     console.warn('Spotify 401 – refreshing token and retrying');
     clearSpotifyToken();
     token = await getSpotifyToken(true);
-
-    response = await fetch(url, {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    response = await doFetch(token);
   }
 
   return response;
@@ -129,6 +120,7 @@ export async function getUserSpotifyToken(userId) {
       grant_type: 'refresh_token',
       refresh_token: connection.refresh_token,
     }).toString(),
+    cache: 'no-store',
   });
 
   if (!response.ok) return null;

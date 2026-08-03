@@ -21,7 +21,6 @@ export async function GET(request, { params }) {
     }
 
     if (albumResponse.status === 401) {
-      // Tras el reintento interno sigue fallando
       const body = await albumResponse.text();
       console.error('Spotify still 401 after retry:', body);
       return NextResponse.json(
