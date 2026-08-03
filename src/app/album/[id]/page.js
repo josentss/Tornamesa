@@ -491,7 +491,7 @@ export default function AlbumPage({ params }) {
                           <div className="w-8 h-8 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0">
                             {review.user?.avatar_url ? (
                               <Image
-                                src={review.avatar_url}
+                                src={review.avatarUrl}
                                 alt={review.user.username || "User"}
                                 width={32}
                                 height={32}
