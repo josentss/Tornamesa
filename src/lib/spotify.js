@@ -1,5 +1,6 @@
 let cachedToken = null;
 let tokenExpiry = 0;
+let tokenPromise = null;
 
 async function fetchNewToken() {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -23,31 +24,54 @@ async function fetchNewToken() {
   if (!response.ok) {
     const text = await response.text();
     console.error('Spotify token error:', response.status, text);
-    throw new Error(`Spotify token request failed with status ${response.status}`);
+    throw new Error(`Spotify token request failed (${response.status}): ${text}`);
   }
 
   const data = await response.json();
 
+  if (!data.access_token) {
+    throw new Error('Spotify did not return an access_token');
+  }
+
   return {
     token: data.access_token,
-    // renovamos 2 minutos antes de que expire
-    expiry: Date.now() + (data.expires_in - 120) * 1000,
+    // renovar 3 minutos antes de que expire
+    expiry: Date.now() + (data.expires_in - 180) * 1000,
   };
 }
 
 export async function getSpotifyToken(forceNew = false) {
+  // Si ya hay una petición de token en curso, esperamos esa
+  if (tokenPromise) {
+    return tokenPromise;
+  }
+
   if (!forceNew && cachedToken && Date.now() < tokenExpiry) {
     return cachedToken;
   }
 
-  const { token, expiry } = await fetchNewToken();
-  cachedToken = token;
-  tokenExpiry = expiry;
-  return token;
+  tokenPromise = (async () => {
+    try {
+      const { token, expiry } = await fetchNewToken();
+      cachedToken = token;
+      tokenExpiry = expiry;
+      return token;
+    } finally {
+      tokenPromise = null;
+    }
+  })();
+
+  return tokenPromise;
+}
+
+/** Limpia la caché del token (usar tras un 401) */
+export function clearSpotifyToken() {
+  cachedToken = null;
+  tokenExpiry = 0;
 }
 
 /**
- * Helper genérico: hace una petición a Spotify y reintenta 1 vez si recibe 401
+ * Fetch a Spotify con reintento automático si el token está caducado
  */
 export async function spotifyFetch(url, options = {}) {
   let token = await getSpotifyToken();
@@ -60,9 +84,12 @@ export async function spotifyFetch(url, options = {}) {
     },
   });
 
-  // Token caducado → forzamos uno nuevo y reintentamos
+  // Token inválido/caducado → limpiar, pedir uno nuevo y reintentar 1 vez
   if (response.status === 401) {
+    console.warn('Spotify 401 – refreshing token and retrying');
+    clearSpotifyToken();
     token = await getSpotifyToken(true);
+
     response = await fetch(url, {
       ...options,
       headers: {
