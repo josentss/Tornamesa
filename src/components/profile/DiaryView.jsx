@@ -90,7 +90,6 @@ export default function DiaryView({
   loadingMore,
   onLoadMore,
   isOwner = false,
-  username = null,
 }) {
   const [query, setQuery] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
@@ -119,10 +118,11 @@ export default function DiaryView({
   const entryCount = processed.reduce((acc, [, items]) => acc + items.length, 0);
 
   return (
-    <div>
+    <div className="w-full min-w-0">
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-8">
-        <div className="flex gap-1.5 flex-wrap">
+      <div className="flex flex-col gap-3 mb-6 sm:mb-8 w-full min-w-0">
+        {/* Period chips – scroll horizontal en móvil si hace falta */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0 scrollbar-hide">
           {[
             { id: "all", label: "All" },
             { id: "year", label: "This year" },
@@ -131,7 +131,7 @@ export default function DiaryView({
             <button
               key={p.id}
               onClick={() => onPeriodChange?.(p.id)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap flex-shrink-0 ${
                 period === p.id
                   ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/40 text-[#7cc7e8]"
                   : "bg-[#131e2c] border-[#2a3645] text-stone-400 hover:text-white"
@@ -142,18 +142,19 @@ export default function DiaryView({
           ))}
         </div>
 
-        <div className="flex gap-2 flex-1 sm:justify-end">
+        {/* Search + rating – apilados en móvil */}
+        <div className="flex flex-col xs:flex-row sm:flex-row gap-2 w-full min-w-0">
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search album or artist..."
-            className="flex-1 sm:max-w-[200px] bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-1.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8]"
+            className="w-full min-w-0 flex-1 bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8]"
           />
           <select
             value={ratingFilter}
             onChange={(e) => setRatingFilter(e.target.value)}
-            className="bg-[#0a121c] border border-[#2a3645] rounded-lg px-2 py-1.5 text-sm text-stone-300 focus:outline-none focus:border-[#7cc7e8]"
+            className="w-full sm:w-auto sm:min-w-[130px] bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-stone-300 focus:outline-none focus:border-[#7cc7e8]"
           >
             <option value="all">All ratings</option>
             {Array.from({ length: 10 }, (_, i) => 10 - i).map((n) => (
@@ -166,18 +167,18 @@ export default function DiaryView({
       </div>
 
       {entryCount === 0 ? (
-        <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-10 text-center">
+        <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-8 sm:p-10 text-center">
           <p className="text-stone-400 text-sm font-medium">No entries found</p>
-          <p className="text-stone-500 text-xs mt-1">
+          <p className="text-stone-500 text-xs mt-1 px-2">
             {isOwner
               ? "Try another filter or log an album."
               : "This user has no listens in this period."}
           </p>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8 w-full min-w-0">
           {processed.map(([day, entries]) => (
-            <section key={day}>
+            <section key={day} className="w-full min-w-0">
               <h2 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-3 pb-2 border-b border-[#2a3645]">
                 {formatDate(day)}
               </h2>
@@ -186,9 +187,9 @@ export default function DiaryView({
                   <Link
                     key={entry.key}
                     href={`/album/${entry.album.id}`}
-                    className="flex items-center gap-3 sm:gap-4 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-3 hover:border-[#3d5068] transition-colors group"
+                    className="flex items-center gap-3 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-2.5 sm:p-3 hover:border-[#3d5068] transition-colors group w-full min-w-0"
                   >
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
+                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
                       {entry.album.cover_url ? (
                         <Image
                           src={entry.album.cover_url}
@@ -203,7 +204,8 @@ export default function DiaryView({
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
+
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
                         {entry.album.title}
                       </p>
@@ -211,14 +213,15 @@ export default function DiaryView({
                         {entry.album.artist}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                       {entry.count > 1 && (
-                        <span className="text-xs font-bold text-[#7cc7e8] bg-[#0a121c] px-2 py-0.5 rounded border border-[#2a3645]">
+                        <span className="text-[10px] sm:text-xs font-bold text-[#7cc7e8] bg-[#0a121c] px-1.5 sm:px-2 py-0.5 rounded border border-[#2a3645]">
                           ×{entry.count}
                         </span>
                       )}
                       {entry.rating != null && (
-                        <span className="text-yellow-400 text-sm font-semibold">
+                        <span className="text-yellow-400 text-xs sm:text-sm font-semibold whitespace-nowrap">
                           ★ {entry.rating}
                         </span>
                       )}

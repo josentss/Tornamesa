@@ -89,9 +89,9 @@ export default function PublicDiaryPage({ params }) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
+    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff] overflow-x-hidden">
       <Header user={user} />
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14 overflow-x-hidden">
         <div className="mb-8">
           <Link
             href={`/${resolvedUsername}`}

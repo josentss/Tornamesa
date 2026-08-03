@@ -90,7 +90,7 @@ function DiaryContent() {
   if (!user) return null;
 
   return (
-    <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14">
+    <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14 overflow-x-hidden">
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
         <p className="text-stone-400 text-sm mt-1">Your listening history</p>
@@ -115,7 +115,7 @@ export default function DiaryPage() {
   const { user } = useAuth();
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
+    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff] overflow-x-hidden">
       <Header user={user} />
       <Suspense
         fallback={
