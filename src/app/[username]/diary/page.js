@@ -2,20 +2,20 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
+import Link from "next/link";
 
-export default function DiaryPage() {
-  const { user, loading: authLoading } = useAuth();
+export default function PublicDiaryPage({ params }) {
+  const username =
+    typeof params?.then === "function" ? null : params?.username;
+  const [resolvedUsername, setResolvedUsername] = useState(username);
+  const { user } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const initialPeriod = searchParams.get("period") || "all";
-  const [period, setPeriod] = useState(
-    ["all", "year", "month"].includes(initialPeriod) ? initialPeriod : "all"
-  );
+  const [period, setPeriod] = useState("all");
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,20 +25,25 @@ export default function DiaryPage() {
   const limit = 50;
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.push("/");
-      return;
+    if (params && typeof params.then === "function") {
+      params.then((p) => setResolvedUsername(p.username));
+    } else if (params?.username) {
+      setResolvedUsername(params.username);
     }
+  }, [params]);
 
+  useEffect(() => {
+    if (!resolvedUsername) return;
     let cancelled = false;
+
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await api.getUserHistory(user.id, limit, 0);
+        const data = await api.getPublicHistory(resolvedUsername, limit, 0);
         if (cancelled) return;
-        const items = data.history || [];
+        // Compatible con respuesta array (vieja) u objeto { history }
+        const items = Array.isArray(data) ? data : data.history || [];
         setHistory(items);
         setOffset(limit);
         setHasMore(items.length >= limit);
@@ -52,23 +57,16 @@ export default function DiaryPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, authLoading, router]);
+  }, [resolvedUsername]);
 
-  const handlePeriodChange = useCallback(
-    (p) => {
-      setPeriod(p);
-      const url = p === "all" ? "/diary" : `/diary?period=${p}`;
-      router.replace(url, { scroll: false });
-    },
-    [router]
-  );
+  const handlePeriodChange = useCallback((p) => setPeriod(p), []);
 
   const loadMore = async () => {
-    if (!user || loadingMore || !hasMore) return;
+    if (!resolvedUsername || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const data = await api.getUserHistory(user.id, limit, offset);
-      const more = data.history || [];
+      const data = await api.getPublicHistory(resolvedUsername, limit, offset);
+      const more = Array.isArray(data) ? data : data.history || [];
       setHistory((prev) => [...prev, ...more]);
       setOffset((prev) => prev + limit);
       setHasMore(more.length >= limit);
@@ -79,7 +77,7 @@ export default function DiaryPage() {
     }
   };
 
-  if (authLoading || loading) {
+  if (loading || !resolvedUsername) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
         <Header user={user} />
@@ -90,15 +88,21 @@ export default function DiaryPage() {
     );
   }
 
-  if (!user) return null;
-
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={user} />
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14">
         <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
-          <p className="text-stone-400 text-sm mt-1">Your listening history</p>
+          <Link
+            href={`/${resolvedUsername}`}
+            className="text-xs text-stone-500 hover:text-[#7cc7e8] transition-colors"
+          >
+            ← @{resolvedUsername}
+          </Link>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mt-2">
+            @{resolvedUsername}&apos;s diary
+          </h1>
+          <p className="text-stone-400 text-sm mt-1">Full listening history</p>
         </div>
         {error && <ErrorMessage message={error} />}
         {!error && (
@@ -109,7 +113,8 @@ export default function DiaryPage() {
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={loadMore}
-            isOwner
+            isOwner={false}
+            username={resolvedUsername}
           />
         )}
       </main>

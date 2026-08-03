@@ -4,19 +4,20 @@ import { createSupabaseServer } from '@/lib/supabase-server';
 export async function GET(request, { params }) {
   const { username } = params;
   const { searchParams } = new URL(request.url);
-  const limit = parseInt(searchParams.get('limit') || '20', 10);
+  const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 100);
+  const offset = parseInt(searchParams.get('offset') || '0', 10);
 
   const supabase = createSupabaseServer();
 
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id')
+      .select('id, username')
       .ilike('username', username)
       .single();
 
     if (profileError || !profile) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const { data: history, error } = await supabase
@@ -25,6 +26,7 @@ export async function GET(request, { params }) {
         id,
         listened_at,
         rating,
+        review,
         albums (
           spotify_id,
           title,
@@ -34,11 +36,14 @@ export async function GET(request, { params }) {
       `)
       .eq('user_id', profile.id)
       .order('listened_at', { ascending: false })
-      .limit(limit);
+      .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    return NextResponse.json(history || []);
+    return NextResponse.json({
+      username: profile.username,
+      history: history || [],
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -66,6 +66,11 @@ export default function UserProfileClient({ params }) {
   }, [resolvedUsername, currentUser?.id]);
 
   const isOwner = currentUser && profileData && currentUser.id === profileData.id;
+  const diaryBase = profileData
+    ? isOwner
+      ? "/diary"
+      : `/${profileData.username}/diary`
+    : "/diary";
 
   const handleFollowToggle = async () => {
     if (!currentUser) return router.push("/auth/login");
@@ -108,7 +113,6 @@ export default function UserProfileClient({ params }) {
     }
   };
 
-  // ========== FULL SKELETON ==========
   if (loading || !resolvedUsername) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
@@ -176,7 +180,6 @@ export default function UserProfileClient({ params }) {
       {/* PROFILE HEADER */}
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
         <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 sm:pb-9 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
-
           {/* Avatar */}
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
             <div className="relative">
@@ -202,11 +205,14 @@ export default function UserProfileClient({ params }) {
 
           <div className="flex flex-col gap-6 sm:gap-8">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 lg:gap-10">
-
               {/* Stats Desktop */}
               <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
                 <div className="space-y-5 text-left">
-                  <button className="group text-left w-full focus:outline-none" title="Albums logged this year">
+                  <button
+                    onClick={() => router.push(`${diaryBase}?period=year`)}
+                    className="group text-left w-full focus:outline-none"
+                    title="Albums logged this year"
+                  >
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.yearlyListens || 0}
                     </p>
@@ -214,7 +220,11 @@ export default function UserProfileClient({ params }) {
                       This Year
                     </p>
                   </button>
-                  <button className="group text-left w-full focus:outline-none" title="Albums logged this month">
+                  <button
+                    onClick={() => router.push(`${diaryBase}?period=month`)}
+                    className="group text-left w-full focus:outline-none"
+                    title="Albums logged this month"
+                  >
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.monthlyListens || 0}
                     </p>
@@ -222,7 +232,11 @@ export default function UserProfileClient({ params }) {
                       This Month
                     </p>
                   </button>
-                  <button className="group text-left w-full focus:outline-none" title="Albums marked to listen">
+                  <button
+                    onClick={() => router.push(diaryBase)}
+                    className="group text-left w-full focus:outline-none"
+                    title="Albums marked to listen"
+                  >
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       0
                     </p>
@@ -290,7 +304,17 @@ export default function UserProfileClient({ params }) {
                     className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954]/60 transition-all rounded-full px-4 py-2.5 mt-4 sm:mt-5 group max-w-full"
                   >
                     <div className="text-[#1db954] group-hover:scale-110 transition-transform flex-shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <rect x="2" y="6" width="20" height="12" rx="2" ry="2" />
                         <circle cx="8" cy="12" r="2" />
                         <circle cx="16" cy="12" r="2" />
@@ -325,14 +349,34 @@ export default function UserProfileClient({ params }) {
                 >
                   {shareCopied ? (
                     <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                       Copied!
                     </>
                   ) : (
                     <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
                         <circle cx="18" cy="5" r="3" />
                         <circle cx="6" cy="12" r="3" />
                         <circle cx="18" cy="19" r="3" />
@@ -370,38 +414,32 @@ export default function UserProfileClient({ params }) {
             {/* Stats Mobile */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
               <button
-                onClick={() => router.push("/diary")}
-                className="group text-left w-full focus:outline-none"
+                onClick={() => router.push(`${diaryBase}?period=year`)}
+                className="text-center focus:outline-none"
                 title="Albums logged this year"
               >
-                <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                  {stats?.yearlyListens || 0}
-                </p>
-                <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                <p className="text-xl font-bold text-white">{stats?.yearlyListens || 0}</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
                   This Year
                 </p>
               </button>
               <button
-                onClick={() => router.push("/diary")}
-                className="group text-left w-full focus:outline-none"
+                onClick={() => router.push(`${diaryBase}?period=month`)}
+                className="text-center focus:outline-none"
                 title="Albums logged this month"
               >
-                <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                  {stats?.monthlyListens || 0}
-                </p>
-                <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                <p className="text-xl font-bold text-white">{stats?.monthlyListens || 0}</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
                   This Month
                 </p>
               </button>
               <button
-                onClick={() => router.push("/diary")}
-                className="group text-left w-full focus:outline-none"
+                onClick={() => router.push(diaryBase)}
+                className="text-center focus:outline-none"
                 title="Albums marked to listen"
               >
-                <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                  0
-                </p>
-                <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                <p className="text-xl font-bold text-white">0</p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
                   To Listen
                 </p>
               </button>
@@ -475,13 +513,32 @@ export default function UserProfileClient({ params }) {
         <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
           <div className="flex-1 min-w-0">
             {activeTab === "activity" && (
-              <ActivityFeed activities={stats?.recentActivity || []} />
+              <div>
+                <ActivityFeed activities={stats?.recentActivity || []} />
+                <div className="mt-5 text-center sm:text-left">
+                  <button
+                    onClick={() => router.push(diaryBase)}
+                    className="text-xs text-[#7cc7e8] hover:underline"
+                  >
+                    View full diary
+                  </button>
+                </div>
+              </div>
             )}
 
             {activeTab === "reviews" && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="w-16 h-16 rounded-full bg-[#1f2b3a] flex items-center justify-center mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-stone-500">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="28"
+                    height="28"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="text-stone-500"
+                  >
                     <path d="M12 20h9" />
                     <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                   </svg>
@@ -521,7 +578,16 @@ export default function UserProfileClient({ params }) {
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <div className="w-16 h-16 rounded-full bg-[#1f2b3a] flex items-center justify-center mb-4">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-stone-500">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="28"
+                        height="28"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        className="text-stone-500"
+                      >
                         <path d="M8 6h13" />
                         <path d="M8 12h13" />
                         <path d="M8 18h13" />

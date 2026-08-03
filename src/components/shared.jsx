@@ -21,18 +21,15 @@ export function Header({ user: initialUser }) {
       return;
     }
 
-    // 1. Datos ya enriquecidos desde AuthContext
     if (user.username) setUsername(user.username);
     if (user.avatar_url) setAvatarUrl(user.avatar_url);
 
     if (user.username && user.avatar_url) return;
 
-    // 2. Fallback a metadata
     if (!user.username && user.user_metadata?.username) {
       setUsername(user.user_metadata.username);
     }
 
-    // 3. Consultar perfil si falta username o avatar
     if (!user.username || !user.avatar_url) {
       let cancelled = false;
 
@@ -81,7 +78,8 @@ export function Header({ user: initialUser }) {
           Tornamesa
         </Link>
 
-        <div className="flex items-center gap-4 md:gap-6">
+        <div className="flex items-center gap-3 md:gap-5">
+          {/* Search */}
           <Link
             href="/search"
             className="text-stone-400 hover:text-[#87ceeb] transition-colors"
@@ -102,6 +100,42 @@ export function Header({ user: initialUser }) {
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
           </Link>
+
+          {/* Diary – desktop text */}
+          {user && (
+            <Link
+              href="/diary"
+              className="hidden sm:inline text-sm font-medium text-stone-400 hover:text-[#87ceeb] transition-colors"
+              title="Diary"
+            >
+              Diary
+            </Link>
+          )}
+
+          {/* Diary – mobile icon */}
+          {user && (
+            <Link
+              href="/diary"
+              className="sm:hidden text-stone-400 hover:text-[#87ceeb] transition-colors"
+              title="Diary"
+              aria-label="Diary"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </Link>
+          )}
 
           {user ? (
             <div className="relative">
@@ -125,11 +159,11 @@ export function Header({ user: initialUser }) {
               {showMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-[#131b26] border border-[#1e293b] rounded shadow-lg z-50">
                   <Link
-                    href="/settings/profile"
+                    href="/diary"
                     className="block px-4 py-2 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
                     onClick={() => setShowMenu(false)}
                   >
-                    Settings
+                    Diary
                   </Link>
                   <Link
                     href={profileUrl}
@@ -137,6 +171,13 @@ export function Header({ user: initialUser }) {
                     onClick={() => setShowMenu(false)}
                   >
                     Profile
+                  </Link>
+                  <Link
+                    href="/settings/profile"
+                    className="block px-4 py-2 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                    onClick={() => setShowMenu(false)}
+                  >
+                    Settings
                   </Link>
                   <button
                     onClick={handleSignOut}

@@ -63,8 +63,10 @@ export const api = {
     return fetchApi(url);
   },
 
-  getPublicHistory: (username, limit = 20) =>
-    fetchApi(`/api/profiles/${username}/history?limit=${limit}`),
+  getPublicHistory: (username, limit = 40, offset = 0) =>
+    fetchApi(
+      `/api/profiles/username/${username}/history?limit=${limit}&offset=${offset}`
+    ),
 
   getProfileStats: (username) =>
     fetchApi(`/api/profiles/username/${username}/stats`),
