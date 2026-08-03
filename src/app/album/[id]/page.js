@@ -140,6 +140,22 @@ export default function AlbumPage({ params }) {
     };
   }, [id, user]);
 
+  // scroll to #reviews after content is ready
+  useEffect(() => {
+    if (loading || !album) return;
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#reviews") return;
+
+    const t = requestAnimationFrame(() => {
+      const el = document.getElementById("reviews");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+
+    return () => cancelAnimationFrame(t);
+  }, [loading, album, reviews]);
+
   const handleQuickLog = async () => {
     if (!user || !album) return;
     setIsLogging(true);
@@ -464,7 +480,7 @@ export default function AlbumPage({ params }) {
             </div>
 
             {/* Reviews */}
-            <section id="reviews">
+            <section id="reviews" className="scroll-mt-24">
               <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-4 sm:mb-5 pb-2 border-b border-[#2a3645]">
                 Reviews ({reviews.length})
               </h3>
