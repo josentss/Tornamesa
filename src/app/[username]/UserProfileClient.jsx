@@ -369,17 +369,41 @@ export default function UserProfileClient({ params }) {
 
             {/* Stats Mobile */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
-              <button className="text-center focus:outline-none" title="Albums logged this year">
-                <p className="text-xl font-bold text-white">{stats?.yearlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Year</p>
+              <button
+                onClick={() => router.push("/diary")}
+                className="group text-left w-full focus:outline-none"
+                title="Albums logged this year"
+              >
+                <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
+                  {stats?.yearlyListens || 0}
+                </p>
+                <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                  This Year
+                </p>
               </button>
-              <button className="text-center focus:outline-none" title="Albums logged this month">
-                <p className="text-xl font-bold text-white">{stats?.monthlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Month</p>
+              <button
+                onClick={() => router.push("/diary")}
+                className="group text-left w-full focus:outline-none"
+                title="Albums logged this month"
+              >
+                <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
+                  {stats?.monthlyListens || 0}
+                </p>
+                <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                  This Month
+                </p>
               </button>
-              <button className="text-center focus:outline-none" title="Albums marked to listen">
-                <p className="text-xl font-bold text-white">0</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">To Listen</p>
+              <button
+                onClick={() => router.push("/diary")}
+                className="group text-left w-full focus:outline-none"
+                title="Albums marked to listen"
+              >
+                <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
+                  0
+                </p>
+                <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                  To Listen
+                </p>
               </button>
             </div>
           </div>

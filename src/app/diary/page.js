@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
@@ -8,22 +8,76 @@ import { api } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
 
-function formatDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
+function formatDate(isoDay) {
+  if (!isoDay || isoDay === "Unknown") return "Unknown date";
+  const d = new Date(isoDay + "T12:00:00");
   return d.toLocaleDateString("en-US", {
+    weekday: "short",
     year: "numeric",
     month: "short",
     day: "numeric",
   });
 }
 
-function groupByDate(history) {
-  const groups = {};
+/**
+ * Agrupa listens por día + álbum.
+ * Si el mismo disco se logueó varias veces el mismo día → una sola entrada con count.
+ */
+function groupListens(history) {
+  const map = {};
+
   (history || []).forEach((item) => {
+    const album = item.albums;
+    if (!album?.spotify_id) return;
+
     const day = (item.listened_at || "").split("T")[0] || "Unknown";
-    if (!groups[day]) groups[day] = [];
-    groups[day].push(item);
+    const key = `${day}_${album.spotify_id}`;
+
+    if (!map[key]) {
+      map[key] = {
+        key,
+        day,
+        count: 0,
+        rating: null,
+        listened_at: item.listened_at,
+        album: {
+          id: album.spotify_id,
+          title: album.title,
+          artist: album.artist,
+          cover_url: album.cover_url,
+        },
+      };
+    }
+
+    map[key].count += 1;
+
+    // Nos quedamos con el rating más reciente no nulo
+    if (item.rating != null) {
+      map[key].rating = item.rating;
+    }
+
+    // Mantener la fecha/hora más reciente del grupo
+    if (
+      item.listened_at &&
+      (!map[key].listened_at ||
+        item.listened_at > map[key].listened_at)
+    ) {
+      map[key].listened_at = item.listened_at;
+    }
+  });
+
+  // Orden: por día desc, y dentro del día por listened_at desc
+  return Object.values(map).sort((a, b) => {
+    if (a.day !== b.day) return b.day.localeCompare(a.day);
+    return (b.listened_at || "").localeCompare(a.listened_at || "");
+  });
+}
+
+function groupByDay(entries) {
+  const groups = {};
+  entries.forEach((entry) => {
+    if (!groups[entry.day]) groups[entry.day] = [];
+    groups[entry.day].push(entry);
   });
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
@@ -33,12 +87,12 @@ export default function DiaryPage() {
   const router = useRouter();
 
   const [history, setHistory] = useState([]);
-  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const limit = 30;
+  const limit = 40;
 
   useEffect(() => {
     if (authLoading) return;
@@ -55,9 +109,10 @@ export default function DiaryPage() {
         setError(null);
         const data = await api.getUserHistory(user.id, limit, 0);
         if (cancelled) return;
-        setHistory(data.history || []);
-        setStats(data.stats || null);
+        const items = data.history || [];
+        setHistory(items);
         setOffset(limit);
+        setHasMore(items.length >= limit);
       } catch (err) {
         console.error(err);
         if (!cancelled) setError(err.message || "Could not load diary");
@@ -73,19 +128,23 @@ export default function DiaryPage() {
   }, [user, authLoading, router]);
 
   const loadMore = async () => {
-    if (!user || loadingMore) return;
+    if (!user || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
       const data = await api.getUserHistory(user.id, limit, offset);
       const more = data.history || [];
       setHistory((prev) => [...prev, ...more]);
       setOffset((prev) => prev + limit);
+      setHasMore(more.length >= limit);
     } catch (err) {
       console.error(err);
     } finally {
       setLoadingMore(false);
     }
   };
+
+  const groupedEntries = useMemo(() => groupListens(history), [history]);
+  const byDay = useMemo(() => groupByDay(groupedEntries), [groupedEntries]);
 
   if (authLoading || loading) {
     return (
@@ -100,8 +159,6 @@ export default function DiaryPage() {
 
   if (!user) return null;
 
-  const grouped = groupByDate(history);
-
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={user} />
@@ -110,26 +167,16 @@ export default function DiaryPage() {
         <div className="mb-8 sm:mb-10">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
           <p className="text-stone-400 text-sm mt-1">
-            Your listening history
+            Your listening history — same album on the same day is grouped
           </p>
-
-          {stats && (
-            <div className="flex gap-6 mt-5 text-sm">
-              <div>
-                <span className="text-white font-semibold">
-                  {stats.totalAlbumsListened ?? history.length}
-                </span>{" "}
-                <span className="text-stone-500">in this page load</span>
-              </div>
-              {stats.totalMinutesSpended > 0 && (
-                <div>
-                  <span className="text-white font-semibold">
-                    {stats.totalMinutesSpended}
-                  </span>{" "}
-                  <span className="text-stone-500">min</span>
-                </div>
+          {groupedEntries.length > 0 && (
+            <p className="text-stone-500 text-xs mt-2">
+              {groupedEntries.length} entr
+              {groupedEntries.length === 1 ? "y" : "ies"}
+              {history.length !== groupedEntries.length && (
+                <span> · {history.length} total logs</span>
               )}
-            </div>
+            </p>
           )}
         </div>
 
@@ -139,7 +186,7 @@ export default function DiaryPage() {
           </div>
         )}
 
-        {!error && history.length === 0 && (
+        {!error && groupedEntries.length === 0 && (
           <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-10 text-center">
             <p className="text-stone-400 text-sm font-medium">No listens yet</p>
             <p className="text-stone-500 text-xs mt-1 max-w-xs mx-auto">
@@ -155,60 +202,63 @@ export default function DiaryPage() {
         )}
 
         <div className="space-y-8">
-          {grouped.map(([day, items]) => (
+          {byDay.map(([day, entries]) => (
             <section key={day}>
               <h2 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-3 pb-2 border-b border-[#2a3645]">
                 {formatDate(day)}
               </h2>
               <div className="space-y-2">
-                {items.map((item) => {
-                  const album = item.albums;
-                  const albumId = album?.spotify_id;
-                  if (!album || !albumId) return null;
+                {entries.map((entry) => (
+                  <Link
+                    key={entry.key}
+                    href={`/album/${entry.album.id}`}
+                    className="flex items-center gap-3 sm:gap-4 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-3 hover:border-[#3d5068] transition-colors group"
+                  >
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
+                      {entry.album.cover_url ? (
+                        <Image
+                          src={entry.album.cover_url}
+                          alt={entry.album.title}
+                          width={56}
+                          height={56}
+                          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-stone-600 text-[10px]">
+                          —
+                        </div>
+                      )}
+                    </div>
 
-                  return (
-                    <Link
-                      key={item.id}
-                      href={`/album/${albumId}`}
-                      className="flex items-center gap-3 sm:gap-4 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-3 hover:border-[#3d5068] transition-colors group"
-                    >
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
-                        {album.cover_url ? (
-                          <Image
-                            src={album.cover_url}
-                            alt={album.title}
-                            width={56}
-                            height={56}
-                            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-stone-600 text-[10px]">
-                            —
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
-                          {album.title}
-                        </p>
-                        <p className="text-xs text-stone-400 truncate">
-                          {album.artist}
-                        </p>
-                      </div>
-                      {item.rating != null && (
-                        <span className="text-yellow-400 text-sm font-semibold flex-shrink-0">
-                          ★ {item.rating}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
+                        {entry.album.title}
+                      </p>
+                      <p className="text-xs text-stone-400 truncate">
+                        {entry.album.artist}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {entry.count > 1 && (
+                        <span className="text-xs font-bold text-[#7cc7e8] bg-[#0a121c] px-2 py-0.5 rounded border border-[#2a3645]">
+                          ×{entry.count}
                         </span>
                       )}
-                    </Link>
-                  );
-                })}
+                      {entry.rating != null && (
+                        <span className="text-yellow-400 text-sm font-semibold">
+                          ★ {entry.rating}
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                ))}
               </div>
             </section>
           ))}
         </div>
 
-        {history.length >= offset && history.length > 0 && (
+        {hasMore && groupedEntries.length > 0 && (
           <div className="mt-8 text-center">
             <button
               onClick={loadMore}
