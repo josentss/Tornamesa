@@ -8,6 +8,56 @@ import Image from "next/image";
 import Link from "next/link";
 import Toast from "@/components/Toast";
 
+function StarRating({ value, onChange, size = "md" }) {
+  const [hovered, setHovered] = useState(0);
+  const display = hovered || value || 0;
+  const starSize = size === "lg" ? "w-7 h-7" : "w-6 h-6";
+
+  return (
+    <div
+      className="flex items-center gap-0.5"
+      onMouseLeave={() => setHovered(0)}
+    >
+      {Array.from({ length: 10 }, (_, i) => {
+        const n = i + 1;
+        const active = n <= display;
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            onMouseEnter={() => setHovered(n)}
+            className={`${starSize} flex items-center justify-center transition-transform hover:scale-110 focus:outline-none`}
+            aria-label={`Rate ${n} out of 10`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className={`w-full h-full transition-colors duration-100 ${
+                active
+                  ? "fill-yellow-400 text-yellow-400"
+                  : "fill-transparent text-stone-600"
+              }`}
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"
+              />
+            </svg>
+          </button>
+        );
+      })}
+      {value > 0 && (
+        <span className="ml-2 text-sm font-semibold text-yellow-400 tabular-nums">
+          {value}/10
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function AlbumPage({ params }) {
   const { user } = useAuth();
 
@@ -90,7 +140,6 @@ export default function AlbumPage({ params }) {
     };
   }, [id, user]);
 
-  // Opción 1: Log rápido sin rating
   const handleQuickLog = async () => {
     if (!user || !album) return;
     setIsLogging(true);
@@ -108,7 +157,6 @@ export default function AlbumPage({ params }) {
     }
   };
 
-  // Opción 2: Rating + review opcional
   const handleSubmitRating = async (e) => {
     e.preventDefault();
     if (!user || !album) return;
@@ -120,7 +168,6 @@ export default function AlbumPage({ params }) {
 
     setIsSubmitting(true);
     try {
-      // 1) Registrar listen con rating
       await api.registerListen(
         album.id,
         user.id,
@@ -128,7 +175,6 @@ export default function AlbumPage({ params }) {
         reviewText.trim() || null
       );
 
-      // 2) Guardar / actualizar review (si tu API de reviews está activa)
       try {
         const result = await api.createReview(
           album.id,
@@ -143,7 +189,6 @@ export default function AlbumPage({ params }) {
         });
         setUserReview(newReview);
       } catch (reviewErr) {
-        // Si falla solo la review, el listen ya quedó
         console.warn("Review save failed:", reviewErr);
       }
 
@@ -205,22 +250,28 @@ export default function AlbumPage({ params }) {
         />
       )}
 
-      {/* Background blur */}
+      {/* Atmospheric cover background */}
       {album.coverUrl && (
-        <div className="absolute top-0 left-0 right-0 h-[420px] pointer-events-none overflow-hidden z-0 select-none">
+        <div className="absolute top-0 left-0 right-0 h-[55vh] sm:h-[50vh] md:h-[480px] pointer-events-none overflow-hidden z-0 select-none">
           <div
-            className="w-full h-full bg-cover bg-center opacity-20 scale-125 blur-3xl"
+            className="absolute inset-0 bg-cover bg-center scale-110 blur-2xl opacity-40 sm:opacity-45"
             style={{ backgroundImage: `url(${album.coverUrl})` }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f16]/30 via-[#0a0f16]/85 to-[#0a0f16]" />
+          <div
+            className="absolute inset-0 bg-cover bg-center scale-105 blur-md opacity-25"
+            style={{ backgroundImage: `url(${album.coverUrl})` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f16]/20 via-[#0a0f16]/70 to-[#0a0f16]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0f16]/40 via-transparent to-[#0a0f16]/40" />
         </div>
       )}
 
-      <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 md:px-8 pt-10 md:pt-16 pb-16">
-        <div className="flex flex-col md:flex-row gap-8 md:gap-10">
+      <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 md:px-8 pt-8 sm:pt-10 md:pt-14 pb-14 sm:pb-16">
+        <div className="flex flex-col md:flex-row gap-6 sm:gap-8 md:gap-10">
           {/* LEFT: Cover + actions */}
-          <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-5 md:sticky md:top-24 self-start">
-            <div className="aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#1f2b3a] shadow-2xl shadow-black/40">
+          <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-4 sm:gap-5 md:sticky md:top-24 self-start">
+            {/* Cover – centered on mobile */}
+            <div className="w-full max-w-[280px] sm:max-w-none mx-auto md:mx-0 aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#1f2b3a] shadow-2xl shadow-black/50">
               {album.coverUrl ? (
                 <Image
                   src={album.coverUrl}
@@ -237,13 +288,12 @@ export default function AlbumPage({ params }) {
               )}
             </div>
 
-            {/* Actions card */}
-            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5 space-y-3">
+            {/* Actions */}
+            <div className="bg-[#131e2c]/90 backdrop-blur-sm border border-[#2a3645] rounded-xl p-4 sm:p-5 space-y-3">
               {user ? (
                 <>
                   {!showRatePanel ? (
                     <>
-                      {/* Quick log */}
                       <button
                         onClick={handleQuickLog}
                         disabled={isLogging}
@@ -252,7 +302,6 @@ export default function AlbumPage({ params }) {
                         {isLogging ? "Logging..." : "Log listen"}
                       </button>
 
-                      {/* Open rate panel */}
                       <button
                         onClick={() => setShowRatePanel(true)}
                         className="w-full bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold py-2.5 rounded-lg border border-[#2a3645] hover:border-[#3d5068] transition-all"
@@ -284,32 +333,14 @@ export default function AlbumPage({ params }) {
                         </button>
                       </div>
 
-                      {/* Rating 1–10 */}
+                      {/* Star rating */}
                       <div>
-                        <p className="text-[11px] text-stone-500 mb-2">
-                          Rating (1–10)
+                        <p className="text-[11px] text-stone-500 mb-2.5">
+                          Tap a star to rate
                         </p>
-                        <div className="grid grid-cols-5 gap-1.5">
-                          {Array.from({ length: 10 }, (_, i) => i + 1).map(
-                            (n) => (
-                              <button
-                                key={n}
-                                type="button"
-                                onClick={() => setRating(n)}
-                                className={`py-2 rounded-md text-sm font-semibold transition-all ${
-                                  rating === n
-                                    ? "bg-[#7cc7e8] text-[#0a121c]"
-                                    : "bg-[#0a121c] border border-[#2a3645] text-stone-300 hover:border-[#7cc7e8]/50"
-                                }`}
-                              >
-                                {n}
-                              </button>
-                            )
-                          )}
-                        </div>
+                        <StarRating value={rating} onChange={setRating} />
                       </div>
 
-                      {/* Optional review */}
                       <div>
                         <label className="text-[11px] text-stone-500 block mb-1.5">
                           Review (optional)
@@ -317,10 +348,10 @@ export default function AlbumPage({ params }) {
                         <textarea
                           value={reviewText}
                           onChange={(e) => setReviewText(e.target.value)}
-                          rows={3}
+                          rows={4}
                           placeholder="What did you think?"
                           disabled={isSubmitting}
-                          className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white resize-none focus:outline-none focus:border-[#7cc7e8] transition-colors"
+                          className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white resize-none focus:outline-none focus:border-[#7cc7e8] transition-colors leading-relaxed"
                         />
                       </div>
 
@@ -362,15 +393,15 @@ export default function AlbumPage({ params }) {
 
           {/* RIGHT: Info + tracks + reviews */}
           <div className="flex-1 min-w-0">
-            <div className="mb-8">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight leading-tight">
+            <div className="mb-6 sm:mb-8 text-center md:text-left">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">
                 {album.title}
               </h1>
-              <h2 className="text-lg sm:text-xl text-stone-300 mt-2 font-light">
+              <h2 className="text-base sm:text-lg md:text-xl text-stone-300 mt-1.5 sm:mt-2 font-light">
                 {album.artist}
               </h2>
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-sm text-stone-400">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-3 gap-y-1.5 mt-3 sm:mt-4 text-sm text-stone-400">
                 <span>{album.releaseDate}</span>
                 {album.totalDuration && (
                   <>
@@ -392,11 +423,11 @@ export default function AlbumPage({ params }) {
               </div>
 
               {album.genres?.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-4">
+                <div className="flex flex-wrap justify-center md:justify-start gap-1.5 mt-3 sm:mt-4">
                   {album.genres.map((genre, idx) => (
                     <span
                       key={idx}
-                      className="bg-[#1f2b3a] border border-[#2a3645] text-stone-300 px-2.5 py-0.5 rounded-full text-[11px] capitalize"
+                      className="bg-[#1f2b3a]/80 border border-[#2a3645] text-stone-300 px-2.5 py-0.5 rounded-full text-[11px] capitalize"
                     >
                       {genre}
                     </span>
@@ -406,17 +437,17 @@ export default function AlbumPage({ params }) {
             </div>
 
             {/* Tracklist */}
-            <div className="mb-12">
-              <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-4 pb-2 border-b border-[#2a3645]">
+            <div className="mb-10 sm:mb-12">
+              <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
                 Tracklist
               </h3>
               <div className="space-y-0.5">
                 {album.tracks?.map((track, index) => (
                   <div
                     key={index}
-                    className="flex justify-between items-center py-2.5 px-3 rounded-lg hover:bg-white/5 transition-colors"
+                    className="flex justify-between items-center py-2 sm:py-2.5 px-2 sm:px-3 rounded-lg hover:bg-white/5 transition-colors"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                       <span className="text-stone-600 text-xs w-5 text-right font-mono flex-shrink-0">
                         {index + 1}
                       </span>
@@ -424,7 +455,7 @@ export default function AlbumPage({ params }) {
                         {track.name}
                       </span>
                     </div>
-                    <span className="text-stone-500 text-xs flex-shrink-0 ml-3">
+                    <span className="text-stone-500 text-xs flex-shrink-0 ml-2 sm:ml-3">
                       {track.duration}
                     </span>
                   </div>
@@ -434,37 +465,56 @@ export default function AlbumPage({ params }) {
 
             {/* Reviews */}
             <section>
-              <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-5 pb-2 border-b border-[#2a3645]">
+              <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-4 sm:mb-5 pb-2 border-b border-[#2a3645]">
                 Reviews ({reviews.length})
               </h3>
 
               {reviews.length === 0 ? (
-                <div className="bg-[#131e2c]/50 border border-[#2a3645] rounded-xl p-8 text-center">
+                <div className="bg-[#131e2c]/50 border border-[#2a3645] rounded-xl p-6 sm:p-8 text-center">
                   <p className="text-stone-400 text-sm">No reviews yet</p>
                   <p className="text-stone-500 text-xs mt-1">
                     Be the first to rate this album.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {reviews.map((review) => (
                     <div
                       key={review.id}
-                      className="bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-5 hover:border-[#3d5068] transition-colors"
+                      className="bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors"
                     >
-                      <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="flex items-start justify-between gap-3 mb-2">
                         <Link
                           href={`/${review.user?.username || ""}`}
-                          className="text-sm font-medium text-white hover:text-[#7cc7e8] transition-colors"
+                          className="flex items-center gap-2.5 min-w-0 group"
                         >
-                          {review.user?.username || "User"}
+                          <div className="w-8 h-8 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0">
+                            {review.user?.avatar_url ? (
+                              <Image
+                                src={review.user.avatar_url}
+                                alt={review.user.username || "User"}
+                                width={32}
+                                height={32}
+                                className="object-cover w-full h-full"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-xs font-bold text-stone-400">
+                                {(review.user?.username || "?")
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-white group-hover:text-[#7cc7e8] transition-colors truncate">
+                            {review.user?.username || "User"}
+                          </span>
                         </Link>
-                        <span className="text-yellow-400 text-sm font-semibold">
+                        <span className="text-yellow-400 text-sm font-semibold flex-shrink-0">
                           ★ {review.rating}/10
                         </span>
                       </div>
                       {review.reviewText && (
-                        <p className="text-sm text-stone-300 leading-relaxed">
+                        <p className="text-sm text-stone-300 leading-relaxed whitespace-pre-wrap break-words mt-1">
                           {review.reviewText}
                         </p>
                       )}
