@@ -108,6 +108,10 @@ export const api = {
     return res;
   },
 
+  // obtener reseñas de un usuario
+  getUserReviews: (username) =>
+    fetchApi(`/api/profiles/username/${username}/reviews?_t=${Date.now()}`, { cache: 'no-store' }),
+
   // resumenes
   generateMonthlySummary: (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {

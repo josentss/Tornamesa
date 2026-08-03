@@ -10,6 +10,7 @@ import ActivityFeed from "@/components/profile/ActivityFeed";
 import MonthlyTopWidget from "@/components/profile/MonthlyTopWidget";
 import RatingChart from "@/components/profile/RatingChart";
 import ListsPreview from "@/components/profile/ListsPreview";
+import ReviewsList from "@/components/profile/ReviewsList";
 import Toast from "@/components/Toast";
 
 export default function UserProfileClient({ params }) {
@@ -20,6 +21,7 @@ export default function UserProfileClient({ params }) {
 
   const [profileData, setProfileData] = useState(null);
   const [stats, setStats] = useState(null);
+  const [recentReviews, setRecentReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -43,13 +45,18 @@ export default function UserProfileClient({ params }) {
       try {
         setLoading(true);
         setError(null);
-        const [profileRes, statsRes] = await Promise.all([
+
+        const [profileRes, statsRes, reviewsRes] = await Promise.all([
           api.getPublicProfile(resolvedUsername, currentUser?.id),
           api.getProfileStats(resolvedUsername),
+          api.getUserReviews(resolvedUsername, 5, 0).catch(() => ({ reviews: [] })),
         ]);
+
         if (cancelled) return;
+
         setProfileData(profileRes.profile);
         setStats(statsRes);
+        setRecentReviews(reviewsRes.reviews || []);
       } catch (err) {
         if (cancelled) return;
         console.error("Error loading profile:", err);
@@ -180,7 +187,6 @@ export default function UserProfileClient({ params }) {
       {/* PROFILE HEADER */}
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
         <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 sm:pb-9 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
-          {/* Avatar */}
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
@@ -527,26 +533,23 @@ export default function UserProfileClient({ params }) {
             )}
 
             {activeTab === "reviews" && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-16 h-16 rounded-full bg-[#1f2b3a] flex items-center justify-center mb-4">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="28"
-                    height="28"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    className="text-stone-500"
-                  >
-                    <path d="M12 20h9" />
-                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                  </svg>
-                </div>
-                <p className="text-stone-400 text-sm font-medium">No reviews yet</p>
-                <p className="text-stone-500 text-xs mt-1 max-w-[240px]">
-                  Reviews written by this user will appear here.
-                </p>
+              <div>
+                <ReviewsList
+                  reviews={recentReviews}
+                  emptyMessage="Reviews written by this user will appear here."
+                />
+                {recentReviews.length > 0 && (
+                  <div className="mt-5 text-center sm:text-left">
+                    <button
+                      onClick={() =>
+                        router.push(`/${profileData.username}/reviews`)
+                      }
+                      className="text-xs text-[#7cc7e8] hover:underline"
+                    >
+                      View all reviews
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
