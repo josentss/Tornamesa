@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
 
-export default function DiaryPage() {
+function DiaryContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,11 +81,8 @@ export default function DiaryPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#0a0f16]">
-        <Header user={user} />
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner message="Loading diary..." />
-        </div>
+      <div className="flex-1 flex items-center justify-center">
+        <LoadingSpinner message="Loading diary..." />
       </div>
     );
   }
@@ -93,26 +90,42 @@ export default function DiaryPage() {
   if (!user) return null;
 
   return (
+    <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14">
+      <div className="mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
+        <p className="text-stone-400 text-sm mt-1">Your listening history</p>
+      </div>
+      {error && <ErrorMessage message={error} />}
+      {!error && (
+        <DiaryView
+          history={history}
+          period={period}
+          onPeriodChange={handlePeriodChange}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          isOwner
+        />
+      )}
+    </main>
+  );
+}
+
+export default function DiaryPage() {
+  const { user } = useAuth();
+
+  return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={user} />
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-10 sm:py-14">
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
-          <p className="text-stone-400 text-sm mt-1">Your listening history</p>
-        </div>
-        {error && <ErrorMessage message={error} />}
-        {!error && (
-          <DiaryView
-            history={history}
-            period={period}
-            onPeriodChange={handlePeriodChange}
-            hasMore={hasMore}
-            loadingMore={loadingMore}
-            onLoadMore={loadMore}
-            isOwner
-          />
-        )}
-      </main>
+      <Suspense
+        fallback={
+          <div className="flex-1 flex items-center justify-center">
+            <LoadingSpinner message="Loading diary..." />
+          </div>
+        }
+      >
+        <DiaryContent />
+      </Suspense>
       <Footer />
     </div>
   );
