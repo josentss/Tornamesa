@@ -489,9 +489,9 @@ export default function AlbumPage({ params }) {
                           className="flex items-center gap-2.5 min-w-0 group"
                         >
                           <div className="w-8 h-8 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0">
-                            {review.user?.avatar_url ? (
+                            {review.user?.avatarUrl ? (
                               <Image
-                                src={review.avatarUrl}
+                                src={review.user.avatarUrl}
                                 alt={review.user.username || "User"}
                                 width={32}
                                 height={32}
@@ -499,9 +499,7 @@ export default function AlbumPage({ params }) {
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-xs font-bold text-stone-400">
-                                {(review.user?.username || "?")
-                                  .charAt(0)
-                                  .toUpperCase()}
+                                {(review.user?.username || "?").charAt(0).toUpperCase()}
                               </div>
                             )}
                           </div>
