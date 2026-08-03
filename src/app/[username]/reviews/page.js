@@ -104,6 +104,7 @@ export default function UserReviewsPage({ params }) {
             <ReviewsList
               reviews={reviews}
               emptyMessage="This user hasn't written any reviews yet."
+              showFilters
             />
             {hasMore && reviews.length > 0 && (
               <div className="mt-8 text-center">

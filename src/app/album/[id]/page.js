@@ -464,7 +464,7 @@ export default function AlbumPage({ params }) {
             </div>
 
             {/* Reviews */}
-            <section>
+            <section id="reviews">
               <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-4 sm:mb-5 pb-2 border-b border-[#2a3645]">
                 Reviews ({reviews.length})
               </h3>
