@@ -118,6 +118,20 @@ export const api = {
     }),
 
   // listas
+  getList: (listId) =>
+    fetchApi(`/api/lists/${listId}?_t=${Date.now()}`, { cache: 'no-store' }),
+
+  addToList: (listId, albumId, userId) =>
+    fetchApi(`/api/lists/${listId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ albumId, userId }),
+    }),
+
+  removeFromList: (listId, albumId, userId) =>
+    fetchApi(`/api/lists/${listId}/items/${albumId}?userId=${userId}`, {
+      method: 'DELETE',
+    }),
+
   getUserLists: (userId) =>
     fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, { cache: 'no-store' }),
 
