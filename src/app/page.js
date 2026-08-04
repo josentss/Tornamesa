@@ -29,7 +29,6 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
   const { signIn, signUp } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -80,7 +79,6 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
       return setError("Password must have at least 6 characters");
     if (!acceptTerms) return setError("You must accept the terms and conditions");
     if (!captchaOk) return setError("Please complete the security captcha");
-
     setLoading(true);
     try {
       await signUp(email, password, username);
@@ -286,7 +284,6 @@ const LandingView = ({ onRegister }) => (
         <div className="absolute inset-0 bg-gradient-to-r from-[#0a0f16] via-[#0a0f16]/90 to-transparent z-10" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-transparent to-transparent z-10" />
       </div>
-
       <div className="relative z-20 max-w-3xl space-y-8 mt-16">
         <h1 className="text-4xl md:text-6xl font-medium tracking-tight leading-[1.1]">
           <span className="text-[#f0f9ff]">Track the albums you listen to.</span>
@@ -306,31 +303,24 @@ const LandingView = ({ onRegister }) => (
         </button>
       </div>
     </div>
-
     <div className="w-full max-w-6xl mx-auto px-6 py-16 relative z-20">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#131b26]/80 backdrop-blur-sm border border-[#1e293b] p-8 rounded-xl space-y-4 hover:border-[#87ceeb]/50 transition-colors">
-          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">
-            🎧
-          </div>
+          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">🎧</div>
           <h3 className="font-semibold text-lg text-[#f0f9ff]">Track your music</h3>
           <p className="text-stone-400 text-sm leading-relaxed">
             Keep an exact diary of every album you play and rate them.
           </p>
         </div>
         <div className="bg-[#131b26]/80 backdrop-blur-sm border border-[#1e293b] p-8 rounded-xl space-y-4 hover:border-[#87ceeb]/50 transition-colors">
-          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">
-            📌
-          </div>
+          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">📌</div>
           <h3 className="font-semibold text-lg text-[#f0f9ff]">Review records</h3>
           <p className="text-stone-400 text-sm leading-relaxed">
             Write an article about an album you have listened to.
           </p>
         </div>
         <div className="bg-[#131b26]/80 backdrop-blur-sm border border-[#1e293b] p-8 rounded-xl space-y-4 hover:border-[#87ceeb]/50 transition-colors">
-          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">
-            👥
-          </div>
+          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">👥</div>
           <h3 className="font-semibold text-lg text-[#f0f9ff]">Interact with users</h3>
           <p className="text-stone-400 text-sm leading-relaxed">
             Discover new music by exploring the recent activity of people you follow.
@@ -341,7 +331,7 @@ const LandingView = ({ onRegister }) => (
   </div>
 );
 
-// ======================= DASHBOARD =======================
+// ======================= DASHBOARD HELPERS =======================
 
 function groupOwnHistory(history) {
   const map = {};
@@ -378,16 +368,47 @@ function groupOwnHistory(history) {
     .slice(0, 6);
 }
 
-const FriendListenCard = ({ item }) => (
+function groupFriendsFeed(feed) {
+  const map = {};
+  (feed || []).forEach((item) => {
+    if (!item.album_id) return;
+    const key = `${item.username || "user"}_${item.album_id}`;
+    if (!map[key]) {
+      map[key] = { ...item, key, count: 0 };
+    }
+    map[key].count += 1;
+    if (item.rating != null) map[key].rating = item.rating;
+    if (
+      item.listened_at &&
+      (!map[key].listened_at || item.listened_at > map[key].listened_at)
+    ) {
+      map[key].listened_at = item.listened_at;
+    }
+  });
+  return Object.values(map)
+    .sort((a, b) => (b.listened_at || "").localeCompare(a.listened_at || ""))
+    .slice(0, 6);
+}
+
+/** Same visual language: square cover + title + meta row */
+const AlbumGridCard = ({
+  href,
+  cover,
+  title,
+  subtitle,
+  rating,
+  count,
+  footerLeft,
+}) => (
   <div className="group flex flex-col w-full min-w-0">
     <Link
-      href={`/album/${item.album_id}`}
+      href={href}
       className="relative aspect-square w-full bg-[#131e2c] rounded-xl border border-[#2a3645] overflow-hidden transition-all duration-300 group-hover:border-[#7cc7e8]/40 shadow-sm"
     >
-      {item.album_cover ? (
+      {cover ? (
         <Image
-          src={item.album_cover}
-          alt={item.album_title}
+          src={cover}
+          alt={title}
           fill
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
           className="object-cover group-hover:scale-105 transition-transform duration-500"
@@ -395,75 +416,87 @@ const FriendListenCard = ({ item }) => (
       ) : (
         <div className="w-full h-full bg-[#1f2b3a]" />
       )}
-      {item.rating != null && (
+      {rating != null && (
         <span className="absolute top-2 right-2 text-[10px] font-bold bg-black/70 text-yellow-400 px-1.5 py-0.5 rounded">
-          ★ {item.rating}
+          ★ {rating}
         </span>
       )}
     </Link>
     <div className="mt-2 min-w-0">
       <Link
-        href={`/album/${item.album_id}`}
+        href={href}
         className="block text-xs font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors"
       >
-        {item.album_title}
+        {title}
       </Link>
-      <p className="text-[10px] text-stone-500 truncate">{item.artist_name}</p>
-      <Link href={`/${item.username}`} className="mt-1.5 flex items-center gap-1.5 min-w-0">
-        <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
-          {item.avatar_url ? (
-            <Image
-              src={item.avatar_url}
-              alt={item.username}
-              width={20}
-              height={20}
-              className="object-cover w-full h-full"
-            />
-          ) : (
-            <span className="text-[9px] font-bold text-[#7cc7e8]">
-              {(item.username || "?").charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
-        <span className="text-[11px] text-stone-400 hover:text-white truncate transition-colors">
-          {item.username}
-        </span>
-      </Link>
+      {subtitle && (
+        <p className="text-[10px] text-stone-500 truncate">{subtitle}</p>
+      )}
+      <div className="mt-1.5 flex items-center justify-between gap-2 min-w-0">
+        <div className="min-w-0 flex-1">{footerLeft}</div>
+        {count > 1 && (
+          <span className="text-[10px] font-bold text-[#7cc7e8] bg-[#0a121c] px-1.5 py-0.5 rounded border border-[#2a3645] flex-shrink-0">
+            ×{count}
+          </span>
+        )}
+      </div>
     </div>
   </div>
 );
 
-const OwnActivityCard = ({ entry }) => (
+const FriendReviewCard = ({ review }) => (
   <Link
-    href={`/album/${entry.album.id}`}
-    className="flex items-center gap-3 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-2.5 hover:border-[#3d5068] transition-colors group min-w-0"
+    href={`/album/${review.album.id}#reviews`}
+    className="flex flex-col bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-3 hover:border-[#3d5068] transition-colors group h-full min-w-0"
   >
-    <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
-      {entry.album.cover ? (
-        <Image
-          src={entry.album.cover}
-          alt={entry.album.title}
-          width={48}
-          height={48}
-          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-        />
-      ) : null}
+    <div className="flex gap-3 min-w-0">
+      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0 relative">
+        {review.album.cover && (
+          <Image
+            src={review.album.cover}
+            alt={review.album.title}
+            fill
+            className="object-cover"
+            sizes="64px"
+          />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
+              {review.album.title}
+            </p>
+            <p className="text-[11px] text-stone-500 truncate">{review.album.artist}</p>
+          </div>
+          <span className="text-yellow-400 text-xs font-semibold flex-shrink-0">
+            ★ {review.rating}
+          </span>
+        </div>
+        {review.reviewText && (
+          <p className="text-xs text-stone-400 mt-1.5 line-clamp-2 leading-relaxed">
+            {review.reviewText}
+          </p>
+        )}
+      </div>
     </div>
-    <div className="flex-1 min-w-0">
-      <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
-        {entry.album.title}
-      </p>
-      <p className="text-xs text-stone-400 truncate">{entry.album.artist}</p>
-    </div>
-    <div className="flex items-center gap-1.5 flex-shrink-0">
-      {entry.count > 1 && (
-        <span className="text-[10px] font-bold text-[#7cc7e8] bg-[#0a121c] px-1.5 py-0.5 rounded border border-[#2a3645]">
-          ×{entry.count}
-        </span>
-      )}
-      {entry.rating != null && (
-        <span className="text-yellow-400 text-xs font-semibold">★ {entry.rating}</span>
-      )}
+    <div className="mt-2.5 pt-2 border-t border-[#2a3645]/80 flex items-center gap-1.5 min-w-0">
+      <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
+        {review.avatar_url ? (
+          <Image
+            src={review.avatar_url}
+            alt={review.username}
+            width={20}
+            height={20}
+            className="object-cover w-full h-full"
+          />
+        ) : (
+          <span className="text-[9px] font-bold text-[#7cc7e8]">
+            {(review.username || "?").charAt(0).toUpperCase()}
+          </span>
+        )}
+      </div>
+      <span className="text-[11px] text-stone-400 truncate">@{review.username}</span>
     </div>
   </Link>
 );
@@ -473,10 +506,12 @@ const DashboardView = ({
   feed,
   ownHistory,
   stats,
-  recentReviews,
+  friendsReviews,
   loadingData,
 }) => {
   const ownGrouped = groupOwnHistory(ownHistory);
+  const friendsGrouped = groupFriendsFeed(feed);
+  const reviewsSix = (friendsReviews || []).slice(0, 6);
 
   return (
     <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-8 sm:py-12 space-y-10 sm:space-y-14 overflow-x-hidden">
@@ -492,15 +527,11 @@ const DashboardView = ({
             </h1>
             <div className="flex flex-wrap gap-4 sm:gap-6 mt-3 text-sm">
               <div>
-                <span className="text-white font-semibold">
-                  {stats?.monthlyListens ?? 0}
-                </span>{" "}
+                <span className="text-white font-semibold">{stats?.monthlyListens ?? 0}</span>{" "}
                 <span className="text-stone-500 text-xs">this month</span>
               </div>
               <div>
-                <span className="text-white font-semibold">
-                  {stats?.yearlyListens ?? 0}
-                </span>{" "}
+                <span className="text-white font-semibold">{stats?.yearlyListens ?? 0}</span>{" "}
                 <span className="text-stone-500 text-xs">this year</span>
               </div>
             </div>
@@ -531,30 +562,56 @@ const DashboardView = ({
       </section>
 
       {loadingData && (
-        <div className="text-center text-stone-500 text-sm py-8">
-          Loading your feed...
-        </div>
+        <div className="text-center text-stone-500 text-sm py-8">Loading your feed...</div>
       )}
 
-      {/* Friends activity */}
+      {/* Friends listens */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
             What your friends are listening to
           </h2>
         </div>
-        {feed && feed.length > 0 ? (
+        {friendsGrouped.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-5">
-            {feed.slice(0, 6).map((item) => (
-              <FriendListenCard key={item.id} item={item} />
+            {friendsGrouped.map((item) => (
+              <AlbumGridCard
+                key={item.key}
+                href={`/album/${item.album_id}`}
+                cover={item.album_cover}
+                title={item.album_title}
+                subtitle={item.artist_name}
+                rating={item.rating}
+                count={item.count}
+                footerLeft={
+                  <Link href={`/${item.username}`} className="flex items-center gap-1.5 min-w-0">
+                    <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
+                      {item.avatar_url ? (
+                        <Image
+                          src={item.avatar_url}
+                          alt={item.username}
+                          width={20}
+                          height={20}
+                          className="object-cover w-full h-full"
+                        />
+                      ) : (
+                        <span className="text-[9px] font-bold text-[#7cc7e8]">
+                          {(item.username || "?").charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-stone-400 hover:text-white truncate transition-colors">
+                      {item.username}
+                    </span>
+                  </Link>
+                }
+              />
             ))}
           </div>
         ) : (
           !loadingData && (
             <div className="py-10 text-center bg-[#131e2c]/50 rounded-xl border border-[#2a3645]">
-              <p className="text-stone-400 text-sm">
-                No recent activity from people you follow.
-              </p>
+              <p className="text-stone-400 text-sm">No recent activity from people you follow.</p>
               <Link
                 href="/search"
                 className="text-[#7cc7e8] text-xs font-semibold hover:underline mt-2 inline-block"
@@ -566,7 +623,7 @@ const DashboardView = ({
         )}
       </section>
 
-      {/* Your recent activity */}
+      {/* Your recent activity — same grid as friends */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -577,9 +634,20 @@ const DashboardView = ({
           </Link>
         </div>
         {ownGrouped.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-5">
             {ownGrouped.map((entry) => (
-              <OwnActivityCard key={entry.key} entry={entry} />
+              <AlbumGridCard
+                key={entry.key}
+                href={`/album/${entry.album.id}`}
+                cover={entry.album.cover}
+                title={entry.album.title}
+                subtitle={entry.album.artist}
+                rating={entry.rating}
+                count={entry.count}
+                footerLeft={
+                  <span className="text-[10px] text-stone-500 truncate">You</span>
+                }
+              />
             ))}
           </div>
         ) : (
@@ -597,60 +665,27 @@ const DashboardView = ({
         )}
       </section>
 
-      {/* Your recent reviews */}
-      {recentReviews && recentReviews.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
-            <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
-              Your recent reviews
-            </h2>
-            {username && (
-              <Link
-                href={`/${username}/reviews`}
-                className="text-xs text-[#7cc7e8] hover:underline"
-              >
-                View all
-              </Link>
-            )}
-          </div>
-          <div className="space-y-2">
-            {recentReviews.slice(0, 6).map((review) => (
-              <Link
-                key={review.id}
-                href={`/album/${review.album.id}`}
-                className="flex gap-3 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-3 hover:border-[#3d5068] transition-colors group min-w-0"
-              >
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
-                  {review.album?.cover && (
-                    <Image
-                      src={review.album.cover}
-                      alt={review.album.title}
-                      width={48}
-                      height={48}
-                      className="object-cover w-full h-full"
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between gap-2">
-                    <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8]">
-                      {review.album?.title}
-                    </p>
-                    <span className="text-yellow-400 text-xs font-semibold flex-shrink-0">
-                      ★ {review.rating}
-                    </span>
-                  </div>
-                  {review.reviewText && (
-                    <p className="text-xs text-stone-400 mt-1 line-clamp-2">
-                      {review.reviewText}
-                    </p>
-                  )}
-                </div>
-              </Link>
+      {/* Friends reviews — compact grid, max 6 */}
+      <section>
+        <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
+          <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
+            Reviews from friends
+          </h2>
+        </div>
+        {reviewsSix.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {reviewsSix.map((review) => (
+              <FriendReviewCard key={review.id} review={review} />
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          !loadingData && (
+            <div className="py-10 text-center bg-[#131e2c]/50 rounded-xl border border-[#2a3645]">
+              <p className="text-stone-400 text-sm">No reviews from people you follow yet.</p>
+            </div>
+          )
+        )}
+      </section>
     </main>
   );
 };
@@ -662,7 +697,7 @@ export default function Page() {
   const [feed, setFeed] = useState([]);
   const [ownHistory, setOwnHistory] = useState([]);
   const [stats, setStats] = useState(null);
-  const [recentReviews, setRecentReviews] = useState([]);
+  const [friendsReviews, setFriendsReviews] = useState([]);
   const [username, setUsername] = useState(null);
   const [loadingData, setLoadingData] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -676,7 +711,6 @@ export default function Page() {
       setLoadingData(true);
       try {
         let uname = user.username || user.user_metadata?.username || null;
-
         if (!uname) {
           try {
             const profile = await api.getUserProfile(user.id);
@@ -686,15 +720,11 @@ export default function Page() {
           }
         }
 
-        const [feedRes, historyRes, statsRes, reviewsRes] = await Promise.all([
+        const [feedRes, historyRes, statsRes, friendsReviewsRes] = await Promise.all([
           api.getFriendsFeed(user.id).catch(() => []),
           api.getUserHistory(user.id, 30, 0).catch(() => ({ history: [] })),
-          uname
-            ? api.getProfileStats(uname).catch(() => null)
-            : Promise.resolve(null),
-          uname
-            ? api.getUserReviews(uname, 4, 0).catch(() => ({ reviews: [] }))
-            : Promise.resolve({ reviews: [] }),
+          uname ? api.getProfileStats(uname).catch(() => null) : Promise.resolve(null),
+          api.getFriendsReviews(user.id).catch(() => []),
         ]);
 
         if (cancelled) return;
@@ -703,7 +733,7 @@ export default function Page() {
         setFeed(Array.isArray(feedRes) ? feedRes : []);
         setOwnHistory(historyRes.history || []);
         setStats(statsRes);
-        setRecentReviews(reviewsRes.reviews || []);
+        setFriendsReviews(Array.isArray(friendsReviewsRes) ? friendsReviewsRes : []);
       } catch (err) {
         console.error("Dashboard load error:", err);
       } finally {
@@ -742,7 +772,7 @@ export default function Page() {
           feed={feed}
           ownHistory={ownHistory}
           stats={stats}
-          recentReviews={recentReviews}
+          friendsReviews={friendsReviews}
           loadingData={loadingData}
         />
       ) : (

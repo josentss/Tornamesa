@@ -112,6 +112,11 @@ export const api = {
   getUserReviews: (username) =>
     fetchApi(`/api/profiles/username/${username}/reviews?_t=${Date.now()}`, { cache: 'no-store' }),
 
+  getFriendsReviews: (userId) =>
+    fetchApi(`/api/users/${userId}/friends-reviews?_t=${Date.now()}`, {
+      cache: 'no-store',
+    }),
+
   // resumenes
   generateMonthlySummary: (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {
