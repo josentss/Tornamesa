@@ -1,33 +1,3 @@
-import { createSupabaseServer } from '@/lib/supabase-server';
-
-export async function ensureToListenList(userId) {
-  const supabase = createSupabaseServer();
-
-  const { data: existing } = await supabase
-    .from('lists')
-    .select('id, user_id, name, description, is_system, created_at, updated_at')
-    .eq('user_id', userId)
-    .eq('is_system', true)
-    .eq('name', 'To Listen')
-    .maybeSingle();
-
-  if (existing) return existing;
-
-  const { data: created, error } = await supabase
-    .from('lists')
-    .insert({
-      user_id: userId,
-      name: 'To Listen',
-      description: 'Albums you want to listen to',
-      is_system: true,
-    })
-    .select('id, user_id, name, description, is_system, created_at, updated_at')
-    .single();
-
-  if (error) throw error;
-  return created;
-}
-
 export async function getListsWithCounts(userId) {
   const supabase = createSupabaseServer();
   await ensureToListenList(userId);
@@ -40,21 +10,44 @@ export async function getListsWithCounts(userId) {
     .order('created_at', { ascending: true });
 
   if (error) throw error;
+  if (!lists?.length) return [];
 
-  const listIds = (lists || []).map((l) => l.id);
-  if (listIds.length === 0) return [];
+  const listIds = lists.map((l) => l.id);
 
   const { data: items } = await supabase
     .from('list_items')
-    .select('list_id')
-    .in('list_id', listIds);
+    .select('list_id, album_id, added_at')
+    .in('list_id', listIds)
+    .order('added_at', { ascending: false });
 
   const counts = {};
+  const previewIdsByList = {};
+
   (items || []).forEach((item) => {
     counts[item.list_id] = (counts[item.list_id] || 0) + 1;
+    if (!previewIdsByList[item.list_id]) previewIdsByList[item.list_id] = [];
+    if (previewIdsByList[item.list_id].length < 3) {
+      previewIdsByList[item.list_id].push(item.album_id);
+    }
   });
 
-  return (lists || []).map((list) => ({
+  const allPreviewIds = [
+    ...new Set(Object.values(previewIdsByList).flat()),
+  ];
+
+  const coverMap = {};
+  if (allPreviewIds.length > 0) {
+    const { data: albums } = await supabase
+      .from('albums')
+      .select('spotify_id, cover_url')
+      .in('spotify_id', allPreviewIds);
+
+    (albums || []).forEach((a) => {
+      coverMap[a.spotify_id] = a.cover_url;
+    });
+  }
+
+  return lists.map((list) => ({
     id: list.id,
     name: list.name,
     description: list.description,
@@ -62,5 +55,8 @@ export async function getListsWithCounts(userId) {
     createdAt: list.created_at,
     updatedAt: list.updated_at,
     count: counts[list.id] || 0,
+    previewCovers: (previewIdsByList[list.id] || [])
+      .map((id) => coverMap[id])
+      .filter(Boolean),
   }));
 }

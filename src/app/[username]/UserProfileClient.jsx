@@ -571,26 +571,46 @@ export default function UserProfileClient({ params }) {
                       <button
                         key={list.id}
                         onClick={() => router.push(`/list/${list.id}`)}
-                        className="text-left bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors group"
+                        className="text-left bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors group flex items-center gap-3 overflow-hidden"
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors truncate">
                             {list.name}
                           </h4>
-                          {list.isSystem && (
-                            <span className="text-[10px] uppercase tracking-wider text-[#7cc7e8] bg-[#0a121c] px-2 py-0.5 rounded border border-[#2a3645] flex-shrink-0">
-                              System
-                            </span>
+                          {list.description && (
+                            <p className="text-xs text-stone-500 mt-1 line-clamp-2">
+                              {list.description}
+                            </p>
                           )}
-                        </div>
-                        {list.description && (
-                          <p className="text-xs text-stone-500 mt-1 line-clamp-2">
-                            {list.description}
+                          <p className="text-xs text-stone-400 mt-2">
+                            {list.count} album{list.count !== 1 ? "s" : ""}
                           </p>
+                        </div>
+
+                        {/* Preview de portadas (hasta 3) */}
+                        {list.previewCovers?.length > 0 && (
+                          <div className="relative flex-shrink-0 w-[72px] h-12">
+                            {list.previewCovers.slice(0, 3).map((cover, i) => (
+                              <div
+                                key={i}
+                                className="absolute top-0 w-12 h-12 rounded-md overflow-hidden border border-[#0a0f16] shadow-md bg-[#1f2b3a]"
+                                style={{
+                                  right: `${i * 10}px`,
+                                  zIndex: 3 - i,
+                                  opacity: 1 - i * 0.15,
+                                }}
+                              >
+                                <Image
+                                  src={cover}
+                                  alt=""
+                                  width={48}
+                                  height={48}
+                                  className="object-cover w-full h-full"
+                                />
+                              </div>
+                            ))}
+                          </div>
                         )}
-                        <p className="text-xs text-stone-400 mt-2">
-                          {list.count} album{list.count !== 1 ? "s" : ""}
-                        </p>
                       </button>
                     ))}
                   </div>
