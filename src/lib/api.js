@@ -117,6 +117,16 @@ export const api = {
       cache: 'no-store',
     }),
 
+  // listas
+  getUserLists: (userId) =>
+    fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, { cache: 'no-store' }),
+
+  createList: (userId, name, description = null) =>
+    fetchApi(`/api/users/${userId}/lists`, {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+
   // resumenes
   generateMonthlySummary: (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {
