@@ -7,9 +7,42 @@ export const revalidate = 0;
 
 export async function GET(request, { params }) {
   const { userId } = params;
+  const { searchParams } = new URL(request.url);
+  const albumId = searchParams.get('albumId');
 
   try {
     const lists = await getListsWithCounts(userId);
+
+    if (albumId) {
+      const supabase = createSupabaseServer();
+      const listIds = lists.map((l) => l.id);
+
+      if (listIds.length === 0) {
+        return NextResponse.json(
+          { lists: [] },
+          { headers: { 'Cache-Control': 'no-store' } }
+        );
+      }
+
+      const { data: memberships } = await supabase
+        .from('list_items')
+        .select('list_id')
+        .eq('album_id', albumId)
+        .in('list_id', listIds);
+
+      const inList = new Set((memberships || []).map((m) => m.list_id));
+
+      return NextResponse.json(
+        {
+          lists: lists.map((l) => ({
+            ...l,
+            containsAlbum: inList.has(l.id),
+          })),
+        },
+        { headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } }
+      );
+    }
+
     return NextResponse.json(
       { lists },
       { headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } }
@@ -39,8 +72,6 @@ export async function POST(request, { params }) {
     }
 
     const supabase = createSupabaseServer();
-
-    // Asegurar To Listen y que el user exista
     await ensureToListenList(userId);
 
     const { data: list, error } = await supabase
@@ -66,6 +97,7 @@ export async function POST(request, { params }) {
           createdAt: list.created_at,
           updatedAt: list.updated_at,
           count: 0,
+          previewCovers: [],
         },
       },
       { status: 201 }

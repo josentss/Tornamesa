@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
 import Toast from "@/components/Toast";
+import SaveToListModal from "@/components/album/SaveToListModal";
 
 function StarRating({ value, onChange, size = "md" }) {
   const [hovered, setHovered] = useState(0);
@@ -14,10 +15,7 @@ function StarRating({ value, onChange, size = "md" }) {
   const starSize = size === "lg" ? "w-7 h-7" : "w-6 h-6";
 
   return (
-    <div
-      className="flex items-center gap-0.5"
-      onMouseLeave={() => setHovered(0)}
-    >
+    <div className="flex items-center gap-0.5" onMouseLeave={() => setHovered(0)}>
       {Array.from({ length: 10 }, (_, i) => {
         const n = i + 1;
         const active = n <= display;
@@ -77,6 +75,7 @@ export default function AlbumPage({ params }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLogging, setIsLogging] = useState(false);
   const [toast, setToast] = useState(null);
+  const [saveOpen, setSaveOpen] = useState(false);
 
   useEffect(() => {
     if (params && typeof params.then === "function") {
@@ -140,19 +139,18 @@ export default function AlbumPage({ params }) {
     };
   }, [id, user]);
 
-  // scroll to #reviews after content is ready
+  // Scroll to #reviews after content loads
   useEffect(() => {
     if (loading || !album) return;
     if (typeof window === "undefined") return;
     if (window.location.hash !== "#reviews") return;
 
     const t = requestAnimationFrame(() => {
-      const el = document.getElementById("reviews");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      document.getElementById("reviews")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     });
-
     return () => cancelAnimationFrame(t);
   }, [loading, album, reviews]);
 
@@ -249,9 +247,7 @@ export default function AlbumPage({ params }) {
 
   const averageRating =
     reviews.length > 0
-      ? (
-          reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-        ).toFixed(1)
+      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
       : null;
 
   return (
@@ -263,6 +259,16 @@ export default function AlbumPage({ params }) {
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {user && (
+        <SaveToListModal
+          open={saveOpen}
+          onClose={() => setSaveOpen(false)}
+          userId={user.id}
+          albumId={album.id}
+          onToast={setToast}
         />
       )}
 
@@ -286,7 +292,6 @@ export default function AlbumPage({ params }) {
         <div className="flex flex-col md:flex-row gap-6 sm:gap-8 md:gap-10">
           {/* LEFT: Cover + actions */}
           <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-4 sm:gap-5 md:sticky md:top-24 self-start">
-            {/* Cover – centered on mobile */}
             <div className="w-full max-w-[280px] sm:max-w-none mx-auto md:mx-0 aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#1f2b3a] shadow-2xl shadow-black/50">
               {album.coverUrl ? (
                 <Image
@@ -304,7 +309,6 @@ export default function AlbumPage({ params }) {
               )}
             </div>
 
-            {/* Actions */}
             <div className="bg-[#131e2c]/90 backdrop-blur-sm border border-[#2a3645] rounded-xl p-4 sm:p-5 space-y-3">
               {user ? (
                 <>
@@ -323,6 +327,27 @@ export default function AlbumPage({ params }) {
                         className="w-full bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold py-2.5 rounded-lg border border-[#2a3645] hover:border-[#3d5068] transition-all"
                       >
                         {userReview ? "Update rating" : "Rate & review"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSaveOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold py-2.5 rounded-lg border border-[#2a3645] hover:border-[#3d5068] transition-all"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                        </svg>
+                        Save to list
                       </button>
 
                       {userReview && (
@@ -349,7 +374,6 @@ export default function AlbumPage({ params }) {
                         </button>
                       </div>
 
-                      {/* Star rating */}
                       <div>
                         <p className="text-[11px] text-stone-500 mb-2.5">
                           Tap a star to rate
@@ -407,7 +431,7 @@ export default function AlbumPage({ params }) {
             )}
           </div>
 
-          {/* RIGHT: Info + tracks + reviews */}
+          {/* RIGHT */}
           <div className="flex-1 min-w-0">
             <div className="mb-6 sm:mb-8 text-center md:text-left">
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">
@@ -452,7 +476,6 @@ export default function AlbumPage({ params }) {
               )}
             </div>
 
-            {/* Tracklist */}
             <div className="mb-10 sm:mb-12">
               <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
                 Tracklist
@@ -479,7 +502,6 @@ export default function AlbumPage({ params }) {
               </div>
             </div>
 
-            {/* Reviews */}
             <section id="reviews" className="scroll-mt-24">
               <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-4 sm:mb-5 pb-2 border-b border-[#2a3645]">
                 Reviews ({reviews.length})

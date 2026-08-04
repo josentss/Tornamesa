@@ -141,6 +141,12 @@ export const api = {
       body: JSON.stringify({ name, description }),
     }),
 
+  getUserListsForAlbum: (userId, albumId) =>
+    fetchApi(
+      `/api/users/${userId}/lists?albumId=${encodeURIComponent(albumId)}&_t=${Date.now()}`,
+      { cache: 'no-store' }
+    ),
+
   // resumenes
   generateMonthlySummary: (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {
