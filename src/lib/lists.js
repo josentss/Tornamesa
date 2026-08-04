@@ -1,3 +1,33 @@
+import { createSupabaseServer } from '@/lib/supabase-server';
+
+export async function ensureToListenList(userId) {
+  const supabase = createSupabaseServer();
+
+  const { data: existing } = await supabase
+    .from('lists')
+    .select('id, user_id, name, description, is_system, created_at, updated_at')
+    .eq('user_id', userId)
+    .eq('is_system', true)
+    .eq('name', 'To Listen')
+    .maybeSingle();
+
+  if (existing) return existing;
+
+  const { data: created, error } = await supabase
+    .from('lists')
+    .insert({
+      user_id: userId,
+      name: 'To Listen',
+      description: 'Albums you want to listen to',
+      is_system: true,
+    })
+    .select('id, user_id, name, description, is_system, created_at, updated_at')
+    .single();
+
+  if (error) throw error;
+  return created;
+}
+
 export async function getListsWithCounts(userId) {
   const supabase = createSupabaseServer();
   await ensureToListenList(userId);
@@ -31,11 +61,9 @@ export async function getListsWithCounts(userId) {
     }
   });
 
-  const allPreviewIds = [
-    ...new Set(Object.values(previewIdsByList).flat()),
-  ];
-
+  const allPreviewIds = [...new Set(Object.values(previewIdsByList).flat())];
   const coverMap = {};
+
   if (allPreviewIds.length > 0) {
     const { data: albums } = await supabase
       .from('albums')
