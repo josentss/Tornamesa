@@ -545,7 +545,7 @@ const DashboardView = ({
         </div>
         {feed && feed.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-5">
-            {feed.map((item) => (
+            {feed.slice(0, 6).map((item) => (
               <FriendListenCard key={item.id} item={item} />
             ))}
           </div>
