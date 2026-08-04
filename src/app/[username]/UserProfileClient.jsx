@@ -4,12 +4,11 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
+import { Header, Footer, ErrorMessage } from "@/components/shared";
 import Image from "next/image";
 import ActivityFeed from "@/components/profile/ActivityFeed";
 import MonthlyTopWidget from "@/components/profile/MonthlyTopWidget";
 import RatingChart from "@/components/profile/RatingChart";
-import ListsPreview from "@/components/profile/ListsPreview";
 import ReviewsList from "@/components/profile/ReviewsList";
 import Toast from "@/components/Toast";
 
@@ -22,6 +21,7 @@ export default function UserProfileClient({ params }) {
   const [profileData, setProfileData] = useState(null);
   const [stats, setStats] = useState(null);
   const [recentReviews, setRecentReviews] = useState([]);
+  const [userLists, setUserLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -57,6 +57,13 @@ export default function UserProfileClient({ params }) {
         setProfileData(profileRes.profile);
         setStats(statsRes);
         setRecentReviews(reviewsRes.reviews || []);
+
+        try {
+          const listsRes = await api.getUserLists(profileRes.profile.id);
+          if (!cancelled) setUserLists(listsRes.lists || []);
+        } catch {
+          if (!cancelled) setUserLists([]);
+        }
       } catch (err) {
         if (cancelled) return;
         console.error("Error loading profile:", err);
@@ -78,6 +85,9 @@ export default function UserProfileClient({ params }) {
       ? "/diary"
       : `/${profileData.username}/diary`
     : "/diary";
+
+  const toListenList = userLists.find((l) => l.isSystem);
+  const toListenCount = toListenList?.count ?? 0;
 
   const handleFollowToggle = async () => {
     if (!currentUser) return router.push("/auth/login");
@@ -136,13 +146,11 @@ export default function UserProfileClient({ params }) {
               <div className="h-16 w-full max-w-md bg-[#1f2b3a] rounded mt-4" />
             </div>
           </div>
-
           <div className="mt-14 flex justify-center gap-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="w-24 h-24 sm:w-28 sm:h-28 bg-[#1f2b3a] rounded-xl" />
             ))}
           </div>
-
           <div className="mt-16 flex flex-col lg:flex-row gap-8">
             <div className="flex-1 space-y-4">
               <div className="h-10 w-48 bg-[#1f2b3a] rounded mb-6" />
@@ -239,12 +247,14 @@ export default function UserProfileClient({ params }) {
                     </p>
                   </button>
                   <button
-                    onClick={() => router.push(diaryBase)}
+                    onClick={() => {
+                      if (toListenList?.id) router.push(`/list/${toListenList.id}`);
+                    }}
                     className="group text-left w-full focus:outline-none"
                     title="Albums marked to listen"
                   >
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                      0
+                      {toListenCount}
                     </p>
                     <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
                       To Listen
@@ -440,11 +450,13 @@ export default function UserProfileClient({ params }) {
                 </p>
               </button>
               <button
-                onClick={() => router.push(diaryBase)}
+                onClick={() => {
+                  if (toListenList?.id) router.push(`/list/${toListenList.id}`);
+                }}
                 className="text-center focus:outline-none"
                 title="Albums marked to listen"
               >
-                <p className="text-xl font-bold text-white">0</p>
+                <p className="text-xl font-bold text-white">{toListenCount}</p>
                 <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
                   To Listen
                 </p>
@@ -541,9 +553,7 @@ export default function UserProfileClient({ params }) {
                 {recentReviews.length > 0 && (
                   <div className="mt-5 text-center sm:text-left">
                     <button
-                      onClick={() =>
-                        router.push(`/${profileData.username}/reviews`)
-                      }
+                      onClick={() => router.push(`/${profileData.username}/reviews`)}
                       className="text-xs text-[#7cc7e8] hover:underline"
                     >
                       View all reviews
@@ -555,29 +565,35 @@ export default function UserProfileClient({ params }) {
 
             {activeTab === "lists" && (
               <div className="space-y-4">
-                {stats?.lists && stats.lists.length > 0 ? (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {stats.lists.map((list, idx) => (
-                        <div
-                          key={idx}
-                          className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-5 hover:border-[#3d5068] transition-colors cursor-pointer group"
-                        >
-                          <h4 className="text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors">
+                {userLists.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {userLists.map((list) => (
+                      <button
+                        key={list.id}
+                        onClick={() => router.push(`/list/${list.id}`)}
+                        className="text-left bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors group"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors truncate">
                             {list.name}
                           </h4>
-                          <p className="text-xs text-stone-400 mt-1">
-                            {list.count} album{list.count !== 1 ? "s" : ""}
-                          </p>
+                          {list.isSystem && (
+                            <span className="text-[10px] uppercase tracking-wider text-[#7cc7e8] bg-[#0a121c] px-2 py-0.5 rounded border border-[#2a3645] flex-shrink-0">
+                              System
+                            </span>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                    <div className="pt-2">
-                      <button className="text-xs text-[#7cc7e8] hover:underline">
-                        View all lists
+                        {list.description && (
+                          <p className="text-xs text-stone-500 mt-1 line-clamp-2">
+                            {list.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-stone-400 mt-2">
+                          {list.count} album{list.count !== 1 ? "s" : ""}
+                        </p>
                       </button>
-                    </div>
-                  </>
+                    ))}
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <div className="w-16 h-16 rounded-full bg-[#1f2b3a] flex items-center justify-center mb-4">
