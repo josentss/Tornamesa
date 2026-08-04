@@ -11,9 +11,7 @@ async function ensureAlbum(supabase, albumId) {
     .select('spotify_id, title, artist, cover_url')
     .eq('spotify_id', albumId)
     .single();
-
   if (existing) return existing;
-
   try {
     const res = await spotifyFetch(`https://api.spotify.com/v1/albums/${albumId}`);
     if (!res.ok) return null;
@@ -125,6 +123,121 @@ export async function GET(request, { params }) {
     );
   } catch (err) {
     console.error('GET list error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request, { params }) {
+  const { listId } = params;
+
+  try {
+    const body = await request.json();
+    const userId = body.userId;
+    if (!userId) {
+      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+    }
+
+    const supabase = createSupabaseServer();
+    const { data: list } = await supabase
+      .from('lists')
+      .select('id, user_id, is_system, name')
+      .eq('id', listId)
+      .single();
+
+    if (!list) {
+      return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    }
+    if (list.user_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const updates = { updated_at: new Date().toISOString() };
+
+    if (body.description !== undefined) {
+      updates.description = (body.description || '').trim() || null;
+    }
+
+    if (body.name !== undefined) {
+      if (list.is_system) {
+        return NextResponse.json(
+          { error: 'Cannot rename system list' },
+          { status: 400 }
+        );
+      }
+      const name = (body.name || '').trim();
+      if (!name) {
+        return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+      }
+      if (name.toLowerCase() === 'to listen') {
+        return NextResponse.json(
+          { error: 'This name is reserved' },
+          { status: 400 }
+        );
+      }
+      updates.name = name;
+    }
+
+    const { data: updated, error } = await supabase
+      .from('lists')
+      .update(updates)
+      .eq('id', listId)
+      .select('id, name, description, is_system, updated_at')
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({
+      list: {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        isSystem: updated.is_system,
+        updatedAt: updated.updated_at,
+      },
+    });
+  } catch (err) {
+    console.error('PATCH list error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request, { params }) {
+  const { listId } = params;
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+
+  if (!userId) {
+    return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
+  }
+
+  const supabase = createSupabaseServer();
+
+  try {
+    const { data: list } = await supabase
+      .from('lists')
+      .select('id, user_id, is_system')
+      .eq('id', listId)
+      .single();
+
+    if (!list) {
+      return NextResponse.json({ error: 'List not found' }, { status: 404 });
+    }
+    if (list.user_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (list.is_system) {
+      return NextResponse.json(
+        { error: 'Cannot delete system list' },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await supabase.from('lists').delete().eq('id', listId);
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('DELETE list error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

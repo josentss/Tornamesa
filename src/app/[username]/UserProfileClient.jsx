@@ -28,6 +28,9 @@ export default function UserProfileClient({ params }) {
   const [activeTab, setActiveTab] = useState("activity");
   const [toast, setToast] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [showNewList, setShowNewList] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [creatingList, setCreatingList] = useState(false);
 
   useEffect(() => {
     if (params && typeof params.then === "function") {
@@ -130,6 +133,23 @@ export default function UserProfileClient({ params }) {
     }
   };
 
+  const handleCreateList = async (e) => {
+    e.preventDefault();
+    if (!currentUser || !isOwner || !newListName.trim()) return;
+    setCreatingList(true);
+    try {
+      const res = await api.createList(currentUser.id, newListName.trim());
+      setUserLists((prev) => [...prev, { ...res.list, previewCovers: [] }]);
+      setNewListName("");
+      setShowNewList(false);
+      setToast({ message: "List created", type: "success" });
+    } catch (err) {
+      setToast({ message: err.message || "Could not create list", type: "error" });
+    } finally {
+      setCreatingList(false);
+    }
+  };
+
   if (loading || !resolvedUsername) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
@@ -144,23 +164,6 @@ export default function UserProfileClient({ params }) {
               <div className="h-4 w-28 bg-[#1f2b3a] rounded" />
               <div className="h-4 w-40 bg-[#1f2b3a] rounded mt-2" />
               <div className="h-16 w-full max-w-md bg-[#1f2b3a] rounded mt-4" />
-            </div>
-          </div>
-          <div className="mt-14 flex justify-center gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-24 h-24 sm:w-28 sm:h-28 bg-[#1f2b3a] rounded-xl" />
-            ))}
-          </div>
-          <div className="mt-16 flex flex-col lg:flex-row gap-8">
-            <div className="flex-1 space-y-4">
-              <div className="h-10 w-48 bg-[#1f2b3a] rounded mb-6" />
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 bg-[#1f2b3a] rounded-lg" />
-              ))}
-            </div>
-            <div className="w-full lg:w-72 space-y-5">
-              <div className="h-48 bg-[#1f2b3a] rounded-xl" />
-              <div className="h-48 bg-[#1f2b3a] rounded-xl" />
             </div>
           </div>
         </div>
@@ -185,14 +188,9 @@ export default function UserProfileClient({ params }) {
       <Header user={currentUser} />
 
       {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
 
-      {/* PROFILE HEADER */}
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
         <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 sm:pb-9 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
@@ -219,30 +217,27 @@ export default function UserProfileClient({ params }) {
 
           <div className="flex flex-col gap-6 sm:gap-8">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 lg:gap-10">
-              {/* Stats Desktop */}
               <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
                 <div className="space-y-5 text-left">
                   <button
                     onClick={() => router.push(`${diaryBase}?period=year`)}
                     className="group text-left w-full focus:outline-none"
-                    title="Albums logged this year"
                   >
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.yearlyListens || 0}
                     </p>
-                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
                       This Year
                     </p>
                   </button>
                   <button
                     onClick={() => router.push(`${diaryBase}?period=month`)}
                     className="group text-left w-full focus:outline-none"
-                    title="Albums logged this month"
                   >
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {stats?.monthlyListens || 0}
                     </p>
-                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
                       This Month
                     </p>
                   </button>
@@ -251,19 +246,17 @@ export default function UserProfileClient({ params }) {
                       if (toListenList?.id) router.push(`/list/${toListenList.id}`);
                     }}
                     className="group text-left w-full focus:outline-none"
-                    title="Albums marked to listen"
                   >
                     <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
                       {toListenCount}
                     </p>
-                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 group-hover:text-stone-300">
+                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
                       To Listen
                     </p>
                   </button>
                 </div>
               </div>
 
-              {/* User Info */}
               <div className="flex-1 text-center order-1 md:order-2 w-full">
                 <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
@@ -275,139 +268,49 @@ export default function UserProfileClient({ params }) {
                     </span>
                   )}
                 </div>
-
-                <p className="text-stone-400 text-sm mt-1 sm:mt-1.5 tracking-wide">
-                  @{profileData.username}
-                </p>
-
+                <p className="text-stone-400 text-sm mt-1 sm:mt-1.5">@{profileData.username}</p>
                 <div className="flex justify-center gap-6 sm:gap-8 mt-3 sm:mt-4 text-sm">
                   <span>
-                    <strong className="text-white font-semibold">
-                      {profileData.followers || 0}
-                    </strong>{" "}
+                    <strong className="text-white font-semibold">{profileData.followers || 0}</strong>{" "}
                     <span className="text-stone-400">Followers</span>
                   </span>
                   <span>
-                    <strong className="text-white font-semibold">
-                      {profileData.following || 0}
-                    </strong>{" "}
+                    <strong className="text-white font-semibold">{profileData.following || 0}</strong>{" "}
                     <span className="text-stone-400">Following</span>
                   </span>
                 </div>
-
                 {profileData.bio && (
                   <p className="text-stone-300 text-sm mt-4 sm:mt-5 leading-relaxed max-w-md mx-auto px-2">
                     {profileData.bio}
                   </p>
                 )}
-
                 {profileData.website && (
                   <a
                     href={profileData.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block mt-3 sm:mt-4 text-xs text-[#7cc7e8] hover:text-white hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645] transition-colors"
+                    className="inline-block mt-3 sm:mt-4 text-xs text-[#7cc7e8] hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645]"
                   >
                     {profileData.website.replace(/^https?:\/\//, "")}
                   </a>
                 )}
-
-                {profileData.nowPlaying?.isPlaying && (
-                  <a
-                    href={profileData.nowPlaying.url || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-3 bg-[#0a121c] border border-[#2a3645] hover:border-[#1db954]/60 transition-all rounded-full px-4 py-2.5 mt-4 sm:mt-5 group max-w-full"
-                  >
-                    <div className="text-[#1db954] group-hover:scale-110 transition-transform flex-shrink-0">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect x="2" y="6" width="20" height="12" rx="2" ry="2" />
-                        <circle cx="8" cy="12" r="2" />
-                        <circle cx="16" cy="12" r="2" />
-                        <line x1="10" y1="12" x2="14" y2="12" />
-                      </svg>
-                    </div>
-                    <div className="flex flex-col text-left min-w-0">
-                      <span className="text-[10px] uppercase tracking-wider text-[#1db954] font-bold leading-none mb-0.5">
-                        Listening now
-                      </span>
-                      <span className="text-sm font-semibold text-[#f0f9ff] leading-none truncate">
-                        {profileData.nowPlaying.title}
-                      </span>
-                      <span className="text-xs text-stone-400 leading-none mt-0.5 truncate">
-                        {profileData.nowPlaying.artist}
-                      </span>
-                    </div>
-                  </a>
-                )}
               </div>
 
-              {/* Action Buttons */}
               <div className="w-full md:w-40 lg:w-44 flex-shrink-0 flex flex-col items-center md:items-end gap-3 order-3">
                 <button
                   onClick={handleShare}
                   className={`w-full sm:w-auto text-sm font-semibold px-4 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 ${
                     shareCopied
                       ? "bg-[#7cc7e8]/10 border-[#7cc7e8]/50 text-[#7cc7e8]"
-                      : "bg-[#1f2b3a] hover:bg-[#2a3645] border-[#2a3645] hover:border-[#3d5068]"
+                      : "bg-[#1f2b3a] hover:bg-[#2a3645] border-[#2a3645]"
                   }`}
-                  aria-label="Share profile"
                 >
-                  {shareCopied ? (
-                    <>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <circle cx="18" cy="5" r="3" />
-                        <circle cx="6" cy="12" r="3" />
-                        <circle cx="18" cy="19" r="3" />
-                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                      </svg>
-                      Share
-                    </>
-                  )}
+                  {shareCopied ? "Copied!" : "Share"}
                 </button>
-
                 {isOwner ? (
                   <button
                     onClick={() => router.push("/settings")}
-                    className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645] transition-all hover:border-[#3d5068]"
+                    className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645]"
                   >
                     Edit Profile
                   </button>
@@ -417,8 +320,8 @@ export default function UserProfileClient({ params }) {
                     disabled={actionLoading}
                     className={`w-full sm:w-auto text-sm font-semibold px-6 py-2.5 rounded-lg border transition-all ${
                       profileData.isFollowing
-                        ? "bg-transparent border-[#2a3645] text-white hover:bg-red-950/30 hover:border-red-800/40"
-                        : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-[#a5d8f0] shadow-lg shadow-[#7cc7e8]/20"
+                        ? "bg-transparent border-[#2a3645] text-white"
+                        : "bg-[#7cc7e8] text-[#0a121c] border-transparent"
                     }`}
                   >
                     {actionLoading ? "..." : profileData.isFollowing ? "Following" : "Follow"}
@@ -427,59 +330,44 @@ export default function UserProfileClient({ params }) {
               </div>
             </div>
 
-            {/* Stats Mobile */}
             <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
               <button
                 onClick={() => router.push(`${diaryBase}?period=year`)}
                 className="text-center focus:outline-none"
-                title="Albums logged this year"
               >
                 <p className="text-xl font-bold text-white">{stats?.yearlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
-                  This Year
-                </p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Year</p>
               </button>
               <button
                 onClick={() => router.push(`${diaryBase}?period=month`)}
                 className="text-center focus:outline-none"
-                title="Albums logged this month"
               >
                 <p className="text-xl font-bold text-white">{stats?.monthlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
-                  This Month
-                </p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Month</p>
               </button>
               <button
                 onClick={() => {
                   if (toListenList?.id) router.push(`/list/${toListenList.id}`);
                 }}
                 className="text-center focus:outline-none"
-                title="Albums marked to listen"
               >
                 <p className="text-xl font-bold text-white">{toListenCount}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
-                  To Listen
-                </p>
+                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">To Listen</p>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* FAVORITE ALBUMS */}
       {profileData.favorite_albums?.length > 0 && (
-        <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14 animate-in fade-in duration-700">
-          <h2 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-5 sm:mb-6 text-center">
+        <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14">
+          <h2 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-5 text-center">
             Favorite Albums
           </h2>
           <div className="grid grid-cols-3 gap-3 sm:gap-5 max-w-xs sm:max-w-md mx-auto">
             {profileData.favorite_albums.map((fav, idx) => (
-              <a
-                key={idx}
-                href={`/album/${fav.id}`}
-                className="block group focus:outline-none focus:ring-2 focus:ring-[#7cc7e8]/40 rounded-xl"
-              >
-                <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] group-hover:border-[#7cc7e8]/50 transition-all duration-300 shadow-md group-hover:shadow-[#7cc7e8]/10 group-hover:-translate-y-0.5 sm:group-hover:-translate-y-1">
+              <a key={idx} href={`/album/${fav.id}`} className="block group">
+                <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] group-hover:border-[#7cc7e8]/50">
                   {fav.coverUrl ? (
                     <Image
                       src={fav.coverUrl}
@@ -489,25 +377,20 @@ export default function UserProfileClient({ params }) {
                       className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="w-full h-full bg-[#1f2b3a] flex items-center justify-center text-stone-600 text-xs">
-                      No cover
-                    </div>
+                    <div className="w-full h-full bg-[#1f2b3a]" />
                   )}
                 </div>
-                <p className="text-[11px] sm:text-xs font-semibold truncate text-center group-hover:text-[#7cc7e8] transition-colors">
+                <p className="text-[11px] sm:text-xs font-semibold truncate text-center group-hover:text-[#7cc7e8]">
                   {fav.title}
                 </p>
-                <p className="text-[10px] text-stone-500 truncate text-center mt-0.5">
-                  {fav.artist}
-                </p>
+                <p className="text-[10px] text-stone-500 truncate text-center">{fav.artist}</p>
               </a>
             ))}
           </div>
         </section>
       )}
 
-      {/* DETAILED SECTION */}
-      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-12 sm:mt-16 flex-1 pb-16 sm:pb-20 animate-in fade-in duration-700">
+      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-12 sm:mt-16 flex-1 pb-16 sm:pb-20">
         <div className="flex border-b border-[#2a3645] mb-6 sm:mb-8 overflow-x-auto scrollbar-hide">
           {[
             { id: "activity", label: "Recent Activity" },
@@ -517,7 +400,7 @@ export default function UserProfileClient({ params }) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`pb-3 sm:pb-3.5 px-4 sm:px-5 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap focus:outline-none ${
+              className={`pb-3 sm:pb-3.5 px-4 sm:px-5 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap ${
                 activeTab === tab.id
                   ? "border-[#7cc7e8] text-[#7cc7e8]"
                   : "border-transparent text-stone-400 hover:text-white"
@@ -565,6 +448,50 @@ export default function UserProfileClient({ params }) {
 
             {activeTab === "lists" && (
               <div className="space-y-4">
+                {isOwner && (
+                  <div className="mb-2">
+                    {showNewList ? (
+                      <form
+                        onSubmit={handleCreateList}
+                        className="flex flex-col sm:flex-row gap-2"
+                      >
+                        <input
+                          value={newListName}
+                          onChange={(e) => setNewListName(e.target.value)}
+                          placeholder="New list name"
+                          className="flex-1 min-w-0 bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7cc7e8]"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="submit"
+                            disabled={creatingList || !newListName.trim()}
+                            className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#7cc7e8] text-[#0a121c] disabled:opacity-50"
+                          >
+                            {creatingList ? "..." : "Create"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowNewList(false);
+                              setNewListName("");
+                            }}
+                            className="text-sm px-3 py-2 text-stone-400"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <button
+                        onClick={() => setShowNewList(true)}
+                        className="text-xs text-[#7cc7e8] hover:underline"
+                      >
+                        + Create new list
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {userLists.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {userLists.map((list) => (
@@ -586,8 +513,6 @@ export default function UserProfileClient({ params }) {
                             {list.count} album{list.count !== 1 ? "s" : ""}
                           </p>
                         </div>
-
-                        {/* Preview de portadas (hasta 3) */}
                         {list.previewCovers?.length > 0 && (
                           <div className="relative flex-shrink-0 w-[72px] h-12">
                             {list.previewCovers.slice(0, 3).map((cover, i) => (
@@ -616,27 +541,8 @@ export default function UserProfileClient({ params }) {
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <div className="w-16 h-16 rounded-full bg-[#1f2b3a] flex items-center justify-center mb-4">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="28"
-                        height="28"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        className="text-stone-500"
-                      >
-                        <path d="M8 6h13" />
-                        <path d="M8 12h13" />
-                        <path d="M8 18h13" />
-                        <path d="M3 6h.01" />
-                        <path d="M3 12h.01" />
-                        <path d="M3 18h.01" />
-                      </svg>
-                    </div>
                     <p className="text-stone-400 text-sm font-medium">No lists yet</p>
-                    <p className="text-stone-500 text-xs mt-1 max-w-[220px]">
+                    <p className="text-stone-500 text-xs mt-1">
                       Lists created by this user will appear here.
                     </p>
                   </div>
@@ -645,16 +551,14 @@ export default function UserProfileClient({ params }) {
             )}
           </div>
 
-          {/* Sidebar */}
           <div className="w-full lg:w-72 space-y-5 sm:space-y-6 flex-shrink-0">
-            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors">
+            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5">
               <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
                 Monthly Top
               </h3>
               <MonthlyTopWidget albums={stats?.monthlyTop || []} />
             </div>
-
-            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors">
+            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5">
               <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
                 Rating Distribution
               </h3>

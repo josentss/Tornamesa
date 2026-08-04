@@ -141,6 +141,17 @@ export const api = {
       body: JSON.stringify({ name, description }),
     }),
 
+  updateList: (listId, userId, { name, description } = {}) =>
+    fetchApi(`/api/lists/${listId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ userId, name, description }),
+    }),
+
+  deleteList: (listId, userId) =>
+    fetchApi(`/api/lists/${listId}?userId=${userId}`, {
+      method: 'DELETE',
+    }),
+
   getUserListsForAlbum: (userId, albumId) =>
     fetchApi(
       `/api/users/${userId}/lists?albumId=${encodeURIComponent(albumId)}&_t=${Date.now()}`,

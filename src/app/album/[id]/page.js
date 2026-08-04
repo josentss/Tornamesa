@@ -76,6 +76,7 @@ export default function AlbumPage({ params }) {
   const [isLogging, setIsLogging] = useState(false);
   const [toast, setToast] = useState(null);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [savedSomewhere, setSavedSomewhere] = useState(false);
 
   useEffect(() => {
     if (params && typeof params.then === "function") {
@@ -139,7 +140,30 @@ export default function AlbumPage({ params }) {
     };
   }, [id, user]);
 
-  // Scroll to #reviews after content loads
+  // Bookmark filled if album is in any list
+  useEffect(() => {
+    if (!user || !id) {
+      setSavedSomewhere(false);
+      return;
+    }
+    let cancelled = false;
+
+    api
+      .getUserListsForAlbum(user.id, id)
+      .then((data) => {
+        if (cancelled) return;
+        setSavedSomewhere((data.lists || []).some((l) => l.containsAlbum));
+      })
+      .catch(() => {
+        if (!cancelled) setSavedSomewhere(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, id, saveOpen]);
+
+  // Scroll to #reviews after content is ready
   useEffect(() => {
     if (loading || !album) return;
     if (typeof window === "undefined") return;
@@ -151,6 +175,7 @@ export default function AlbumPage({ params }) {
         block: "start",
       });
     });
+
     return () => cancelAnimationFrame(t);
   }, [loading, album, reviews]);
 
@@ -272,7 +297,6 @@ export default function AlbumPage({ params }) {
         />
       )}
 
-      {/* Atmospheric cover background */}
       {album.coverUrl && (
         <div className="absolute top-0 left-0 right-0 h-[55vh] sm:h-[50vh] md:h-[480px] pointer-events-none overflow-hidden z-0 select-none">
           <div
@@ -290,7 +314,7 @@ export default function AlbumPage({ params }) {
 
       <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 md:px-8 pt-8 sm:pt-10 md:pt-14 pb-14 sm:pb-16">
         <div className="flex flex-col md:flex-row gap-6 sm:gap-8 md:gap-10">
-          {/* LEFT: Cover + actions */}
+          {/* LEFT */}
           <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-4 sm:gap-5 md:sticky md:top-24 self-start">
             <div className="w-full max-w-[280px] sm:max-w-none mx-auto md:mx-0 aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#1f2b3a] shadow-2xl shadow-black/50">
               {album.coverUrl ? (
@@ -339,15 +363,16 @@ export default function AlbumPage({ params }) {
                           width="16"
                           height="16"
                           viewBox="0 0 24 24"
-                          fill="none"
+                          fill={savedSomewhere ? "currentColor" : "none"}
                           stroke="currentColor"
                           strokeWidth="2"
                           strokeLinecap="round"
                           strokeLinejoin="round"
+                          className={savedSomewhere ? "text-[#7cc7e8]" : ""}
                         >
                           <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
                         </svg>
-                        Save to list
+                        {savedSomewhere ? "Saved" : "Save to list"}
                       </button>
 
                       {userReview && (
@@ -537,7 +562,9 @@ export default function AlbumPage({ params }) {
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-xs font-bold text-stone-400">
-                                {(review.user?.username || "?").charAt(0).toUpperCase()}
+                                {(review.user?.username || "?")
+                                  .charAt(0)
+                                  .toUpperCase()}
                               </div>
                             )}
                           </div>
