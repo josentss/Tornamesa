@@ -375,7 +375,7 @@ function groupOwnHistory(history) {
   });
   return Object.values(map)
     .sort((a, b) => (b.listened_at || "").localeCompare(a.listened_at || ""))
-    .slice(0, 8);
+    .slice(0, 6);
 }
 
 const FriendListenCard = ({ item }) => (
@@ -614,7 +614,7 @@ const DashboardView = ({
             )}
           </div>
           <div className="space-y-2">
-            {recentReviews.slice(0, 4).map((review) => (
+            {recentReviews.slice(0, 6).map((review) => (
               <Link
                 key={review.id}
                 href={`/album/${review.album.id}`}
