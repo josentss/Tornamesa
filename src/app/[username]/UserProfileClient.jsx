@@ -556,7 +556,10 @@ export default function UserProfileClient({ params }) {
               <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
                 Monthly Top
               </h3>
-              <MonthlyTopWidget albums={stats?.monthlyTop || []} />
+              <MonthlyTopWidget
+                albums={stats?.monthlyTop || []}
+                username={profileData.username}
+              />
             </div>
             <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5">
               <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">

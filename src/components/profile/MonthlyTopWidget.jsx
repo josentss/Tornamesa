@@ -1,11 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export default function MonthlyTopWidget({ albums }) {
+export default function MonthlyTopWidget({ albums, username }) {
   if (!albums || albums.length === 0) {
     return (
       <div className="text-center py-6">
         <p className="text-xs text-stone-500">No data this month</p>
+        {username && (
+          <Link
+            href={`/${username}/monthly-top`}
+            className="text-xs text-[#7cc7e8] hover:underline mt-2 inline-block"
+          >
+            View full top
+          </Link>
+        )}
       </div>
     );
   }
@@ -14,7 +22,7 @@ export default function MonthlyTopWidget({ albums }) {
     <div className="space-y-3">
       {albums.map((album, i) => (
         <Link
-          key={i}
+          key={album.id || i}
           href={`/album/${album.id}`}
           className="flex items-center gap-3 hover:bg-white/5 rounded p-1 -mx-1 transition-colors group"
         >
@@ -40,9 +48,14 @@ export default function MonthlyTopWidget({ albums }) {
           </div>
         </Link>
       ))}
-      <button className="text-xs text-[#7cc7e8] hover:underline mt-2 w-full text-left">
-        View full top
-      </button>
+      {username && (
+        <Link
+          href={`/${username}/monthly-top`}
+          className="text-xs text-[#7cc7e8] hover:underline mt-2 inline-block"
+        >
+          View full top
+        </Link>
+      )}
     </div>
   );
 }
