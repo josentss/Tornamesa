@@ -207,32 +207,21 @@ export default function AlbumPage({ params }) {
 
     setIsSubmitting(true);
     try {
-      await api.registerListen(
+      const result = await api.createReview(
         album.id,
-        user.id,
         rating,
         reviewText.trim() || null
       );
+      const newReview = result.review;
 
-      try {
-        const result = await api.createReview(
-          album.id,
-          rating,
-          reviewText.trim() || null
-        );
-        const newReview = result.review;
-
-        setReviews((prev) => {
-          const filtered = prev.filter((r) => r.user.id !== user.id);
-          return [newReview, ...filtered];
-        });
-        setUserReview(newReview);
-      } catch (reviewErr) {
-        console.warn("Review save failed:", reviewErr);
-      }
+      setReviews((prev) => {
+        const filtered = prev.filter((r) => r.user.id !== user.id);
+        return [newReview, ...filtered];
+      });
+      setUserReview(newReview);
 
       setToast({
-        message: userReview ? "Rating updated!" : "Album logged with rating!",
+        message: userReview ? "Rating updated!" : "Rating saved!",
         type: "success",
       });
       setShowRatePanel(false);

@@ -27,21 +27,28 @@ export async function GET(request, { params }) {
     const nowYear = now.getUTCFullYear();
     const nowMonth = now.getUTCMonth() + 1;
 
-    const [{ count: yearlyListens }, { count: monthlyListens }] =
-      await Promise.all([
-        supabase
-          .from('listens')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .gte('listened_at', startOfYear),
-        supabase
-          .from('listens')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .gte('listened_at', startOfMonth),
-      ]);
+    // Unique albums this year / this month (not total listen rows)
+    const [{ data: yearRows }, { data: monthRows }] = await Promise.all([
+      supabase
+        .from('listens')
+        .select('album_id')
+        .eq('user_id', userId)
+        .gte('listened_at', startOfYear),
+      supabase
+        .from('listens')
+        .select('album_id')
+        .eq('user_id', userId)
+        .gte('listened_at', startOfMonth),
+    ]);
 
-    // Monthly top — same source as Monthly Top page
+    const yearlyListens = new Set(
+      (yearRows || []).map((r) => r.album_id).filter(Boolean)
+    ).size;
+    const monthlyListens = new Set(
+      (monthRows || []).map((r) => r.album_id).filter(Boolean)
+    ).size;
+
+    // Monthly top from dedicated table
     let monthlyTop = [];
     try {
       let { data: summary } = await supabase
@@ -52,7 +59,6 @@ export async function GET(request, { params }) {
         .eq('month', nowMonth)
         .maybeSingle();
 
-      // First visit this month / no row yet
       if (!summary) {
         await recomputeMonthlyTop(userId, nowYear, nowMonth);
         const res = await supabase
@@ -179,8 +185,8 @@ export async function GET(request, { params }) {
 
     return NextResponse.json(
       {
-        yearlyListens: yearlyListens ?? 0,
-        monthlyListens: monthlyListens ?? 0,
+        yearlyListens,
+        monthlyListens,
         monthlyTop,
         ratingDistribution,
         recentActivity,
