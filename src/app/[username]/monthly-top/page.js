@@ -60,6 +60,29 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [calendarYear, setCalendarYear] = useState(year);
   const [archiveOpen, setArchiveOpen] = useState(false);
 
+  const [wrappedOpen, setWrappedOpen] = useState(false);
+
+  const wrappedSrc =
+    usernameProp && year && month
+      ? `/api/og/wrapped?username=${encodeURIComponent(usernameProp)}&year=${year}&month=${month}&t=${Date.now()}`
+      : null;
+
+  const downloadWrapped = async () => {
+    if (!wrappedSrc) return;
+    try {
+      const res = await fetch(wrappedSrc);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tornamesa-wrapped-${year}-${String(month).padStart(2, '0')}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     setCalendarYear(year);
   }, [year]);
@@ -397,11 +420,66 @@ function MonthlyTopContent({ username: usernameProp }) {
         })}
       </div>
 
-      {user && data && (
-        <div className="mt-10 pt-6 border-t border-[#2a3645] text-center">
-          <p className="text-xs text-stone-500">
-            Wrapped for this month — coming soon
-          </p>
+      {data && (
+        <div className="mt-10 pt-6 border-t border-[#2a3645] flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setWrappedOpen(true)}
+            className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
+          >
+            Generate Wrapped
+          </button>
+        </div>
+      )}
+
+      {wrappedOpen && wrappedSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4"
+          onClick={() => setWrappedOpen(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3645]">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                {data?.label} Wrapped
+              </h3>
+              <button
+                type="button"
+                onClick={() => setWrappedOpen(false)}
+                className="text-stone-500 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-4 flex justify-center bg-[#0a0f16]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={wrappedSrc}
+                alt="Monthly Wrapped"
+                className="w-full max-w-sm rounded-lg border border-[#2a3645]"
+              />
+            </div>
+
+            <div className="p-4 border-t border-[#2a3645] flex gap-2">
+              <button
+                type="button"
+                onClick={downloadWrapped}
+                className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0]"
+              >
+                Download PNG
+              </button>
+              <button
+                type="button"
+                onClick={() => setWrappedOpen(false)}
+                className="px-4 text-sm text-stone-400 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
