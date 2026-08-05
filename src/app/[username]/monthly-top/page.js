@@ -43,12 +43,13 @@ function CalendarIcon({ className = "w-4 h-4" }) {
 }
 
 function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
 }
 
@@ -76,115 +77,211 @@ function loadImage(src) {
 async function generateWrappedPng({
   username,
   label,
+  weekLabel,
   totalListens,
   uniqueAlbums,
   albums,
 }) {
   const W = 1080;
-  const H = 1350;
+  const H = 1920;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#0a0f16";
+  const list = (albums || []).slice(0, 5);
+  const top = list[0];
+  const topCover = top ? await loadImage(top.cover) : null;
+
+  ctx.fillStyle = "#070b12";
   ctx.fillRect(0, 0, W, H);
 
+  const g1 = ctx.createRadialGradient(W * 0.2, H * 0.15, 0, W * 0.2, H * 0.15, 500);
+  g1.addColorStop(0, "rgba(124,199,232,0.22)");
+  g1.addColorStop(1, "rgba(124,199,232,0)");
+  ctx.fillStyle = g1;
+  ctx.fillRect(0, 0, W, H);
+
+  const g2 = ctx.createRadialGradient(W * 0.85, H * 0.55, 0, W * 0.85, H * 0.55, 420);
+  g2.addColorStop(0, "rgba(99,102,241,0.18)");
+  g2.addColorStop(1, "rgba(99,102,241,0)");
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, W, H);
+
+  if (topCover) {
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.filter = "blur(40px)";
+    const scale = Math.max(W / topCover.width, H / topCover.height) * 1.2;
+    const bw = topCover.width * scale;
+    const bh = topCover.height * scale;
+    ctx.drawImage(topCover, (W - bw) / 2, (H - bh) / 2, bw, bh);
+    ctx.filter = "none";
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   ctx.fillStyle = "#7cc7e8";
-  ctx.font = "700 28px system-ui, -apple-system, sans-serif";
-  ctx.fillText("MONTHLY WRAPPED", 64, 80);
+  ctx.font = "700 26px system-ui, -apple-system, sans-serif";
+  ctx.fillText("TORNAMESA WRAPPED", 64, 100);
 
   ctx.fillStyle = "#f0f9ff";
-  ctx.font = "700 52px system-ui, -apple-system, sans-serif";
-  ctx.fillText(label || "", 64, 150);
+  ctx.font = "800 64px system-ui, -apple-system, sans-serif";
+  ctx.fillText(label || "", 64, 180);
+
+  if (weekLabel) {
+    ctx.fillStyle = "#7cc7e8";
+    ctx.font = "600 28px system-ui, -apple-system, sans-serif";
+    ctx.fillText(weekLabel, 64, 230);
+  }
 
   ctx.fillStyle = "#94a3b8";
-  ctx.font = "400 28px system-ui, -apple-system, sans-serif";
-  ctx.fillText(`@${username || ""}`, 64, 200);
+  ctx.font = "500 28px system-ui, -apple-system, sans-serif";
+  ctx.fillText(`@${username || ""}`, 64, weekLabel ? 280 : 240);
 
-  ctx.textAlign = "right";
-  ctx.fillStyle = "#f0f9ff";
-  ctx.font = "700 44px system-ui, -apple-system, sans-serif";
-  ctx.fillText(String(totalListens ?? 0), W - 64, 120);
-  ctx.fillStyle = "#64748b";
-  ctx.font = "400 20px system-ui, -apple-system, sans-serif";
-  ctx.fillText("listens", W - 64, 150);
-
-  ctx.fillStyle = "#f0f9ff";
-  ctx.font = "700 36px system-ui, -apple-system, sans-serif";
-  ctx.fillText(String(uniqueAlbums ?? 0), W - 64, 210);
-  ctx.fillStyle = "#64748b";
-  ctx.font = "400 20px system-ui, -apple-system, sans-serif";
-  ctx.fillText("albums", W - 64, 238);
-  ctx.textAlign = "left";
-
-  const list = (albums || []).slice(0, 5);
-  let y = 280;
-
-  for (let i = 0; i < list.length; i++) {
-    const item = list[i];
-    const rowH = i === 0 ? 120 : 96;
-    const coverSize = i === 0 ? 88 : 72;
-
-    if (i === 0) {
-      ctx.fillStyle = "#131e2c";
-      ctx.strokeStyle = "rgba(124,199,232,0.4)";
-      ctx.lineWidth = 2;
-      roundRect(ctx, 48, y - 16, W - 96, rowH + 8, 16);
-      ctx.fill();
-      ctx.stroke();
-    }
-
-    ctx.fillStyle = i === 0 ? "#7cc7e8" : "#64748b";
-    ctx.font = `700 ${i === 0 ? 36 : 28}px system-ui, -apple-system, sans-serif`;
-    ctx.fillText(String(item.rank ?? i + 1), 72, y + coverSize / 2 + 10);
-
-    const img = await loadImage(item.cover);
-    const cx = 130;
-    const cy = y;
-    if (img) {
-      ctx.save();
-      roundRect(ctx, cx, cy, coverSize, coverSize, 10);
-      ctx.clip();
-      ctx.drawImage(img, cx, cy, coverSize, coverSize);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = "#1f2b3a";
-      roundRect(ctx, cx, cy, coverSize, coverSize, 10);
-      ctx.fill();
-    }
-
-    const textX = cx + coverSize + 24;
-    const maxText = W - textX - 120;
+  const statsY = weekLabel ? 330 : 300;
+  const chipW = 280;
+  const chipH = 110;
+  const gap = 24;
+  [
+    { value: String(totalListens ?? 0), label: "listens" },
+    { value: String(uniqueAlbums ?? 0), label: "albums" },
+  ].forEach((c, i) => {
+    const x = 64 + i * (chipW + gap);
+    ctx.fillStyle = "rgba(19,30,44,0.9)";
+    roundRect(ctx, x, statsY, chipW, chipH, 20);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(42,54,69,0.9)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
     ctx.fillStyle = "#f0f9ff";
-    ctx.font = `600 ${i === 0 ? 30 : 24}px system-ui, -apple-system, sans-serif`;
-    ctx.fillText(truncate(ctx, item.title || "", maxText), textX, y + 32);
-    ctx.fillStyle = "#64748b";
-    ctx.font = "400 20px system-ui, -apple-system, sans-serif";
-    ctx.fillText(truncate(ctx, item.artist || "", maxText), textX, y + 62);
+    ctx.font = "800 44px system-ui, -apple-system, sans-serif";
+    ctx.fillText(c.value, x + 28, statsY + 55);
+    ctx.fillStyle = "#7cc7e8";
+    ctx.font = "600 22px system-ui, -apple-system, sans-serif";
+    ctx.fillText(c.label, x + 28, statsY + 88);
+  });
+
+  let y = statsY + chipH + 56;
+
+  if (top) {
+    const heroSize = 420;
+    const hx = (W - heroSize) / 2;
+
+    ctx.save();
+    ctx.shadowColor = "rgba(124,199,232,0.45)";
+    ctx.shadowBlur = 60;
+    roundRect(ctx, hx, y, heroSize, heroSize, 28);
+    ctx.fillStyle = "#131e2c";
+    ctx.fill();
+    ctx.restore();
+
+    if (topCover) {
+      ctx.save();
+      roundRect(ctx, hx, y, heroSize, heroSize, 28);
+      ctx.clip();
+      ctx.drawImage(topCover, hx, y, heroSize, heroSize);
+      ctx.restore();
+    }
 
     ctx.fillStyle = "#7cc7e8";
-    ctx.font = "700 24px system-ui, -apple-system, sans-serif";
-    ctx.textAlign = "right";
-    ctx.fillText(`×${item.count ?? 0}`, W - 72, y + coverSize / 2 + 8);
-    ctx.textAlign = "left";
+    roundRect(ctx, hx + 20, y + 20, 72, 48, 12);
+    ctx.fill();
+    ctx.fillStyle = "#0a121c";
+    ctx.font = "800 28px system-ui, -apple-system, sans-serif";
+    ctx.fillText("#1", hx + 36, y + 52);
 
-    y += rowH + 16;
+    y += heroSize + 36;
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#f0f9ff";
+    ctx.font = "800 44px system-ui, -apple-system, sans-serif";
+    ctx.fillText(truncate(ctx, top.title || "", W - 120), W / 2, y);
+    y += 42;
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "500 28px system-ui, -apple-system, sans-serif";
+    ctx.fillText(truncate(ctx, top.artist || "", W - 120), W / 2, y);
+    y += 36;
+    ctx.fillStyle = "#7cc7e8";
+    ctx.font = "700 26px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`×${top.count ?? 0} plays`, W / 2, y);
+    ctx.textAlign = "left";
+    y += 56;
+  }
+
+  const rest = list.slice(1);
+  if (rest.length > 0) {
+    ctx.fillStyle = "#64748b";
+    ctx.font = "700 20px system-ui, -apple-system, sans-serif";
+    ctx.fillText("ALSO IN THE MIX", 64, y);
+    y += 28;
+
+    const coverS = 140;
+    const totalW = rest.length * coverS + (rest.length - 1) * 20;
+    let cx = (W - totalW) / 2;
+
+    for (let i = 0; i < rest.length; i++) {
+      const item = rest[i];
+      const img = await loadImage(item.cover);
+
+      ctx.fillStyle = "#131e2c";
+      roundRect(ctx, cx, y, coverS, coverS, 16);
+      ctx.fill();
+
+      if (img) {
+        ctx.save();
+        roundRect(ctx, cx, y, coverS, coverS, 16);
+        ctx.clip();
+        ctx.drawImage(img, cx, y, coverS, coverS);
+        ctx.restore();
+      }
+
+      ctx.fillStyle = "rgba(10,18,28,0.85)";
+      roundRect(ctx, cx + 8, y + 8, 36, 28, 8);
+      ctx.fill();
+      ctx.fillStyle = "#7cc7e8";
+      ctx.font = "700 16px system-ui, -apple-system, sans-serif";
+      ctx.fillText(String(item.rank ?? i + 2), cx + 16, y + 28);
+
+      cx += coverS + 20;
+    }
+
+    y += coverS + 28;
+
+    for (let i = 0; i < rest.length; i++) {
+      const item = rest[i];
+      ctx.fillStyle = "#64748b";
+      ctx.font = "700 22px system-ui, -apple-system, sans-serif";
+      ctx.fillText(`${item.rank}`, 64, y);
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = "600 24px system-ui, -apple-system, sans-serif";
+      ctx.fillText(truncate(ctx, item.title || "", W - 220), 110, y);
+      ctx.fillStyle = "#7cc7e8";
+      ctx.textAlign = "right";
+      ctx.font = "700 22px system-ui, -apple-system, sans-serif";
+      ctx.fillText(`×${item.count ?? 0}`, W - 64, y);
+      ctx.textAlign = "left";
+      y += 40;
+    }
   }
 
   ctx.strokeStyle = "#2a3645";
   ctx.beginPath();
-  ctx.moveTo(64, H - 80);
-  ctx.lineTo(W - 64, H - 80);
+  ctx.moveTo(64, H - 100);
+  ctx.lineTo(W - 64, H - 100);
   ctx.stroke();
 
   ctx.fillStyle = "#7cc7e8";
-  ctx.font = "700 24px system-ui, -apple-system, sans-serif";
-  ctx.fillText("Tornamesa", 64, H - 40);
+  ctx.font = "800 28px system-ui, -apple-system, sans-serif";
+  ctx.fillText("Tornamesa", 64, H - 52);
   ctx.fillStyle = "#475569";
-  ctx.font = "400 18px system-ui, -apple-system, sans-serif";
+  ctx.font = "500 20px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText("tornamesa.app", W - 64, H - 40);
+  ctx.fillText(
+    weekLabel ? "Your week in music" : "Your month in music",
+    W - 64,
+    H - 52
+  );
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
@@ -207,10 +304,13 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [error, setError] = useState(null);
   const [calendarYear, setCalendarYear] = useState(year);
   const [archiveOpen, setArchiveOpen] = useState(false);
-
   const [wrappedOpen, setWrappedOpen] = useState(false);
   const [wrappedUrl, setWrappedUrl] = useState(null);
   const [wrappedLoading, setWrappedLoading] = useState(false);
+
+  const isOwner =
+    !!user?.username &&
+    user.username.toLowerCase() === (usernameProp || "").toLowerCase();
 
   useEffect(() => {
     setCalendarYear(year);
@@ -277,8 +377,23 @@ function MonthlyTopContent({ username: usernameProp }) {
     setCalendarYear(availableYears[idx]);
   };
 
+  const wrappedStats = useMemo(() => {
+    if (!data) return { totalListens: 0, uniqueAlbums: 0 };
+    if (week == null) {
+      return {
+        totalListens: data.totalListens ?? 0,
+        uniqueAlbums: data.uniqueAlbums ?? 0,
+      };
+    }
+    const list = data.albums || [];
+    return {
+      totalListens: list.reduce((s, a) => s + (a.count || 0), 0),
+      uniqueAlbums: list.length,
+    };
+  }, [data, week]);
+
   const openWrapped = async () => {
-    if (!data) return;
+    if (!data || !isOwner) return;
     setWrappedOpen(true);
     setWrappedLoading(true);
     setWrappedUrl(null);
@@ -286,8 +401,12 @@ function MonthlyTopContent({ username: usernameProp }) {
       const url = await generateWrappedPng({
         username: usernameProp,
         label: data.label,
-        totalListens: data.totalListens,
-        uniqueAlbums: data.uniqueAlbums,
+        weekLabel:
+          week != null
+            ? `Week ${week} · ${weekRangeLabel(week, month, year)}`
+            : null,
+        totalListens: wrappedStats.totalListens,
+        uniqueAlbums: wrappedStats.uniqueAlbums,
         albums: data.albums || [],
       });
       setWrappedUrl(url);
@@ -302,7 +421,10 @@ function MonthlyTopContent({ username: usernameProp }) {
     if (!wrappedUrl) return;
     const a = document.createElement("a");
     a.href = wrappedUrl;
-    a.download = `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}.png`;
+    a.download =
+      week != null
+        ? `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}-w${week}.png`
+        : `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}.png`;
     a.click();
   };
 
@@ -432,13 +554,17 @@ function MonthlyTopContent({ username: usernameProp }) {
       <div className="mt-6 flex flex-wrap gap-4 sm:gap-6 text-sm">
         <div>
           <span className="text-white font-semibold">
-            {data?.totalListens ?? 0}
+            {week == null
+              ? data?.totalListens ?? 0
+              : wrappedStats.totalListens}
           </span>{" "}
           <span className="text-stone-500 text-xs">listens</span>
         </div>
         <div>
           <span className="text-white font-semibold">
-            {data?.uniqueAlbums ?? 0}
+            {week == null
+              ? data?.uniqueAlbums ?? 0
+              : wrappedStats.uniqueAlbums}
           </span>{" "}
           <span className="text-stone-500 text-xs">albums</span>
         </div>
@@ -558,18 +684,21 @@ function MonthlyTopContent({ username: usernameProp }) {
         })}
       </div>
 
-      {/* Wrapped CTA — full month only */}
-      {data && week == null && (data.totalListens > 0 || albums.length > 0) && (
-        <div className="mt-10 pt-6 border-t border-[#2a3645] flex justify-center">
-          <button
-            type="button"
-            onClick={openWrapped}
-            className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
-          >
-            Generate Wrapped
-          </button>
-        </div>
-      )}
+      {isOwner &&
+        data &&
+        (wrappedStats.totalListens > 0 || albums.length > 0) && (
+          <div className="mt-10 pt-6 border-t border-[#2a3645] flex justify-center">
+            <button
+              type="button"
+              onClick={openWrapped}
+              className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
+            >
+              {week != null
+                ? `Generate Week ${week} Wrapped`
+                : "Generate Wrapped"}
+            </button>
+          </div>
+        )}
 
       {wrappedOpen && (
         <div
@@ -577,12 +706,14 @@ function MonthlyTopContent({ username: usernameProp }) {
           onClick={() => setWrappedOpen(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            className="w-full sm:max-w-sm bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3645]">
               <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-                {data?.label} Wrapped
+                {week != null
+                  ? `Week ${week} · ${data?.label}`
+                  : `${data?.label} Wrapped`}
               </h3>
               <button
                 type="button"
@@ -593,7 +724,7 @@ function MonthlyTopContent({ username: usernameProp }) {
               </button>
             </div>
 
-            <div className="overflow-y-auto p-4 flex justify-center bg-[#0a0f16] min-h-[200px]">
+            <div className="overflow-y-auto p-3 sm:p-4 flex justify-center bg-[#0a0f16] min-h-[180px]">
               {wrappedLoading && (
                 <p className="text-stone-500 text-sm py-16">Generating...</p>
               )}
@@ -601,8 +732,8 @@ function MonthlyTopContent({ username: usernameProp }) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={wrappedUrl}
-                  alt="Monthly Wrapped"
-                  className="w-full max-w-sm rounded-lg border border-[#2a3645]"
+                  alt="Wrapped"
+                  className="w-full max-w-[280px] sm:max-w-xs rounded-lg border border-[#2a3645]"
                 />
               )}
               {!wrappedLoading && !wrappedUrl && (
