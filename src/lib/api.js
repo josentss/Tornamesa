@@ -165,6 +165,19 @@ export const api = {
       body: JSON.stringify({ year, month }),
     }),
 
+  // obtener el top de discos x mes
+  getMonthlyTop: (username, { year, month, week, limit } = {}) => {
+    const params = new URLSearchParams({ _t: String(Date.now()) });
+    if (year != null) params.set('year', year);
+    if (month != null) params.set('month', month);
+    if (week != null) params.set('week', week);
+    if (limit != null) params.set('limit', limit);
+    return fetchApi(
+      `/api/profiles/username/${username}/monthly-top?${params}`,
+      { cache: 'no-store' }
+    );
+  },
+
   // health endp
   checkHealth: () =>
     fetchApi('/api/health').catch(() => ({ status: 'offline' })),
