@@ -14,12 +14,16 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+const MONTH_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
 function weekRangeLabel(week, month, year) {
   const start = (week - 1) * 7 + 1;
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const end = Math.min(week * 7, lastDay);
-  const short = MONTH_NAMES[month - 1]?.slice(0, 3) || "";
-  return `${short} ${start}–${end}`;
+  return `${MONTH_SHORT[month - 1]} ${start}–${end}`;
 }
 
 function MonthlyTopContent({ username: usernameProp }) {
@@ -37,6 +41,12 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  /** Year shown in the archive calendar (can differ while browsing grid) */
+  const [calendarYear, setCalendarYear] = useState(year);
+
+  useEffect(() => {
+    setCalendarYear(year);
+  }, [year]);
 
   useEffect(() => {
     if (!usernameProp) return;
@@ -75,31 +85,32 @@ function MonthlyTopContent({ username: usernameProp }) {
 
   const availableMonths = data?.availableMonths || [];
 
-  const monthIndex = useMemo(() => {
-    return availableMonths.findIndex(
-      (m) => m.year === year && m.month === month
+  const monthsWithData = useMemo(() => {
+    const set = new Set(
+      availableMonths.map((m) => `${m.year}-${m.month}`)
     );
-  }, [availableMonths, year, month]);
+    return set;
+  }, [availableMonths]);
 
-  const goMonth = (dir) => {
-    if (!availableMonths.length) {
-      let m = month + dir;
-      let y = year;
-      if (m < 1) {
-        m = 12;
-        y -= 1;
-      }
-      if (m > 12) {
-        m = 1;
-        y += 1;
-      }
-      setPeriod({ year: y, month: m, week: null });
+  const availableYears = useMemo(() => {
+    const years = [...new Set(availableMonths.map((m) => m.year))];
+    return years.sort((a, b) => b - a);
+  }, [availableMonths]);
+
+  const yearIndex = availableYears.indexOf(calendarYear);
+  const canPrevYear =
+    availableYears.length === 0 || yearIndex < availableYears.length - 1;
+  const canNextYear = availableYears.length === 0 || yearIndex > 0;
+
+  const goCalendarYear = (dir) => {
+    // dir: 1 = older, -1 = newer (list is DESC)
+    if (availableYears.length === 0) {
+      setCalendarYear((y) => y + dir);
       return;
     }
-    const idx = monthIndex >= 0 ? monthIndex + dir : 0;
-    if (idx < 0 || idx >= availableMonths.length) return;
-    const target = availableMonths[idx];
-    setPeriod({ year: target.year, month: target.month, week: null });
+    const idx = yearIndex >= 0 ? yearIndex + dir : 0;
+    if (idx < 0 || idx >= availableYears.length) return;
+    setCalendarYear(availableYears[idx]);
   };
 
   if (loading && !data) {
@@ -134,78 +145,93 @@ function MonthlyTopContent({ username: usernameProp }) {
         ← @{usernameProp}
       </Link>
 
-      <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Monthly Top
-          </h1>
-          <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
-        </div>
+      <div className="mt-3">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          Monthly Top
+        </h1>
+        <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
+      </div>
 
-        <div className="flex items-center gap-2">
+      {/* Archive calendar */}
+      <div className="mt-6 bg-[#131e2c]/80 border border-[#2a3645] rounded-xl p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <button
             type="button"
-            onClick={() => goMonth(1)}
-            className="w-9 h-9 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] flex items-center justify-center"
-            aria-label="Older month"
+            onClick={() => goCalendarYear(1)}
+            disabled={!canPrevYear && availableYears.length > 0}
+            className="w-9 h-9 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+            aria-label="Previous year"
           >
             ‹
           </button>
-          <span className="text-sm font-semibold text-white min-w-[7.5rem] text-center">
-            {MONTH_NAMES[month - 1]?.slice(0, 3)} {year}
+          <span className="text-sm font-bold text-white tracking-wide">
+            {calendarYear}
           </span>
           <button
             type="button"
-            onClick={() => goMonth(-1)}
-            className="w-9 h-9 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] flex items-center justify-center"
-            aria-label="Newer month"
+            onClick={() => goCalendarYear(-1)}
+            disabled={!canNextYear && availableYears.length > 0}
+            className="w-9 h-9 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+            aria-label="Next year"
           >
             ›
           </button>
         </div>
-      </div>
 
-      {/* Month chips archive */}
-      {availableMonths.length > 0 && (
-        <div className="mt-5 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto scrollbar-hide">
-          <div className="flex gap-2 min-w-max sm:min-w-0 sm:flex-wrap pb-1">
-            {availableMonths.map((m) => {
-              const active = m.year === year && m.month === month;
-              return (
-                <button
-                  key={`${m.year}-${m.month}`}
-                  type="button"
-                  onClick={() =>
-                    setPeriod({ year: m.year, month: m.month, week: null })
-                  }
-                  className={`text-[11px] font-semibold px-3 py-1.5 rounded-full border whitespace-nowrap transition-colors ${
-                    active
-                      ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/50 text-[#7cc7e8]"
-                      : "bg-[#1f2b3a] border-[#2a3645] text-stone-400 hover:text-white hover:border-[#3d5068]"
-                  }`}
-                >
-                  {MONTH_NAMES[m.month - 1]?.slice(0, 3)} {m.year}
-                </button>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+          {Array.from({ length: 12 }, (_, i) => {
+            const m = i + 1;
+            const hasData = monthsWithData.has(`${calendarYear}-${m}`);
+            const isSelected = calendarYear === year && m === month;
+
+            return (
+              <button
+                key={m}
+                type="button"
+                disabled={!hasData}
+                onClick={() => {
+                  if (!hasData) return;
+                  setPeriod({ year: calendarYear, month: m, week: null });
+                }}
+                className={`min-w-0 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm font-semibold border transition-colors ${
+                  isSelected
+                    ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/50 text-[#7cc7e8]"
+                    : hasData
+                    ? "bg-[#1f2b3a] border-[#2a3645] text-stone-200 hover:border-[#3d5068] hover:text-white"
+                    : "bg-transparent border-transparent text-stone-600 opacity-40 cursor-not-allowed"
+                }`}
+              >
+                {MONTH_SHORT[i]}
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {availableMonths.length === 0 && (
+          <p className="text-[11px] text-stone-500 text-center mt-3">
+            No archived months yet — keep logging
+          </p>
+        )}
+      </div>
 
       {/* Stats */}
       <div className="mt-6 flex flex-wrap gap-4 sm:gap-6 text-sm">
         <div>
-          <span className="text-white font-semibold">{data?.totalListens ?? 0}</span>{" "}
+          <span className="text-white font-semibold">
+            {data?.totalListens ?? 0}
+          </span>{" "}
           <span className="text-stone-500 text-xs">listens</span>
         </div>
         <div>
-          <span className="text-white font-semibold">{data?.uniqueAlbums ?? 0}</span>{" "}
+          <span className="text-white font-semibold">
+            {data?.uniqueAlbums ?? 0}
+          </span>{" "}
           <span className="text-stone-500 text-xs">albums</span>
         </div>
       </div>
 
       {/* Full month + weeks */}
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => setPeriod({ year, month, week: null })}
@@ -258,16 +284,16 @@ function MonthlyTopContent({ username: usernameProp }) {
             <Link
               key={`${item.rank}-${item.albumId}`}
               href={`/album/${item.albumId}`}
-              className={`flex items-center gap-3 sm:gap-4 rounded-xl p-3 sm:p-4 transition-colors group ${
+              className={`flex items-center gap-3 sm:gap-4 rounded-xl p-3 sm:p-4 transition-colors group min-w-0 ${
                 isFirst
                   ? "bg-[#131e2c] border border-[#7cc7e8]/40 shadow-[0_0_24px_-8px_rgba(124,199,232,0.35)] sm:p-5"
                   : "bg-[#131e2c]/60 border border-[#2a3645] hover:border-[#3d5068]"
               }`}
             >
               <span
-                className={`w-8 flex-shrink-0 text-center font-bold tabular-nums ${
+                className={`w-7 sm:w-8 flex-shrink-0 text-center font-bold tabular-nums ${
                   isFirst
-                    ? "text-[#7cc7e8] text-xl"
+                    ? "text-[#7cc7e8] text-lg sm:text-xl"
                     : item.rank <= 3
                     ? "text-white text-base"
                     : "text-stone-500 text-sm"
@@ -278,7 +304,9 @@ function MonthlyTopContent({ username: usernameProp }) {
 
               <div
                 className={`rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0 relative ${
-                  isFirst ? "w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem]" : "w-12 h-12 sm:w-14 sm:h-14"
+                  isFirst
+                    ? "w-14 h-14 sm:w-16 sm:h-16"
+                    : "w-11 h-11 sm:w-14 sm:h-14"
                 }`}
               >
                 {item.cover && (
@@ -287,7 +315,7 @@ function MonthlyTopContent({ username: usernameProp }) {
                     alt={item.title}
                     fill
                     className="object-cover"
-                    sizes={isFirst ? "72px" : "56px"}
+                    sizes={isFirst ? "64px" : "56px"}
                   />
                 )}
               </div>
@@ -300,7 +328,7 @@ function MonthlyTopContent({ username: usernameProp }) {
                 )}
                 <p
                   className={`font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors ${
-                    isFirst ? "text-base sm:text-lg" : "text-sm"
+                    isFirst ? "text-sm sm:text-base" : "text-sm"
                   }`}
                 >
                   {item.title}
