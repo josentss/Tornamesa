@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { sanitizeString } from '@/lib/validators';
+import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 
 export async function POST(request) {
   const { albumId, userId, rating, review } = await request.json();
@@ -76,6 +77,8 @@ export async function POST(request) {
         ? Number(rating)
         : null;
 
+    const listenedAt = new Date().toISOString();
+
     const { data: newListen, error: listenError } = await supabase
       .from('listens')
       .insert([
@@ -84,12 +87,24 @@ export async function POST(request) {
           album_id: albumId,
           rating: ratingValue,
           review: review ? sanitizeString(review) : null,
-          listened_at: new Date().toISOString(), // CRÍTICO para stats del perfil
+          listened_at: listenedAt,
         },
       ])
       .select();
 
     if (listenError) throw listenError;
+
+    // Keep Monthly Top in sync (current month only)
+    try {
+      const d = new Date(listenedAt);
+      await recomputeMonthlyTop(
+        userId,
+        d.getUTCFullYear(),
+        d.getUTCMonth() + 1
+      );
+    } catch (recomputeErr) {
+      console.warn('monthly top recompute failed:', recomputeErr);
+    }
 
     return NextResponse.json(
       {

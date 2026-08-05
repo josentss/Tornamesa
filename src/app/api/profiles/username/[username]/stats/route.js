@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -23,6 +24,8 @@ export async function GET(request, { params }) {
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const nowYear = now.getUTCFullYear();
+    const nowMonth = now.getUTCMonth() + 1;
 
     const [{ count: yearlyListens }, { count: monthlyListens }] =
       await Promise.all([
@@ -38,35 +41,68 @@ export async function GET(request, { params }) {
           .gte('listened_at', startOfMonth),
       ]);
 
-    // Monthly top — sin !inner
-    const { data: monthlyData, error: monthlyError } = await supabase
-      .from('listens')
-      .select('album_id, albums(spotify_id, title, artist, cover_url)')
-      .eq('user_id', userId)
-      .gte('listened_at', startOfMonth);
+    // Monthly top — same source as Monthly Top page
+    let monthlyTop = [];
+    try {
+      let { data: summary } = await supabase
+        .from('monthly_summaries')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('year', nowYear)
+        .eq('month', nowMonth)
+        .maybeSingle();
 
-    if (monthlyError) throw monthlyError;
-
-    const albumCounts = {};
-    (monthlyData || []).forEach((item) => {
-      const album = item.albums;
-      if (!album?.spotify_id) return;
-      const key = album.spotify_id;
-      if (!albumCounts[key]) {
-        albumCounts[key] = {
-          id: album.spotify_id,
-          count: 0,
-          title: album.title,
-          artist: album.artist,
-          cover: album.cover_url,
-        };
+      // First visit this month / no row yet
+      if (!summary) {
+        await recomputeMonthlyTop(userId, nowYear, nowMonth);
+        const res = await supabase
+          .from('monthly_summaries')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('year', nowYear)
+          .eq('month', nowMonth)
+          .maybeSingle();
+        summary = res.data;
       }
-      albumCounts[key].count++;
-    });
 
-    const monthlyTop = Object.values(albumCounts)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+      if (summary) {
+        const { data: entries } = await supabase
+          .from('monthly_top_entries')
+          .select('rank, album_id, listen_count')
+          .eq('summary_id', summary.id)
+          .is('week', null)
+          .order('rank', { ascending: true })
+          .limit(5);
+
+        const ids = (entries || []).map((e) => e.album_id);
+        const albumMap = {};
+
+        if (ids.length > 0) {
+          const { data: albums } = await supabase
+            .from('albums')
+            .select('spotify_id, title, artist, cover_url')
+            .in('spotify_id', ids);
+
+          (albums || []).forEach((a) => {
+            albumMap[a.spotify_id] = a;
+          });
+        }
+
+        monthlyTop = (entries || []).map((e) => {
+          const a = albumMap[e.album_id];
+          return {
+            id: e.album_id,
+            title: a?.title || 'Unknown album',
+            artist: a?.artist || '',
+            cover: a?.cover_url || null,
+            count: e.listen_count,
+          };
+        });
+      }
+    } catch (mtErr) {
+      console.warn('monthly top from table failed:', mtErr);
+      monthlyTop = [];
+    }
 
     // Ratings: reviews + listens
     const ratingDistribution = {};
@@ -85,7 +121,6 @@ export async function GET(request, { params }) {
       }
     });
 
-    // Ratings solo en listens (si no hay review)
     const { data: ratedListens } = await supabase
       .from('listens')
       .select('album_id, rating')
@@ -99,10 +134,12 @@ export async function GET(request, { params }) {
       }
     });
 
-    // Recent activity — sin !inner
+    // Recent activity
     const { data: recentListens, error: recentError } = await supabase
       .from('listens')
-      .select('album_id, listened_at, rating, albums(spotify_id, title, artist, cover_url)')
+      .select(
+        'album_id, listened_at, rating, albums(spotify_id, title, artist, cover_url)'
+      )
       .eq('user_id', userId)
       .order('listened_at', { ascending: false })
       .limit(50);
@@ -125,8 +162,7 @@ export async function GET(request, { params }) {
             title: album.title,
             artist: album.artist,
             cover: album.cover_url,
-            rating:
-              ratingMap[album.spotify_id] ?? item.rating ?? null,
+            rating: ratingMap[album.spotify_id] ?? item.rating ?? null,
           },
           count: 0,
         };
