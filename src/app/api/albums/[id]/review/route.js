@@ -17,7 +17,10 @@ export async function POST(request, { params }) {
     }
     const token = authHeader.split(' ')[1];
 
-    const { data: { user }, error: authError } = await supabaseAnon.auth.getUser(token);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseAnon.auth.getUser(token);
     if (authError || !user) {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
     }
@@ -25,23 +28,24 @@ export async function POST(request, { params }) {
     const { rating, review_text } = await request.json();
     const numericRating = Number(rating);
     if (!rating || numericRating < 1 || numericRating > 10) {
-      return NextResponse.json({ error: 'Rating inválido (1-10)' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Rating inválido (1-10)' },
+        { status: 400 }
+      );
     }
 
     const supabaseAdmin = createSupabaseServer();
 
-    // Buscar si ya existe una reseña
     const { data: existing } = await supabaseAdmin
       .from('reviews')
       .select('id')
       .eq('user_id', user.id)
       .eq('album_id', albumId)
-      .single();
+      .maybeSingle();
 
     let review;
 
     if (existing) {
-      // Actualizar
       const { data: updated, error: updateError } = await supabaseAdmin
         .from('reviews')
         .update({
@@ -56,7 +60,6 @@ export async function POST(request, { params }) {
       if (updateError) throw updateError;
       review = updated;
     } else {
-      // Insertar
       const { data: inserted, error: insertError } = await supabaseAdmin
         .from('reviews')
         .insert({
@@ -72,14 +75,8 @@ export async function POST(request, { params }) {
       review = inserted;
     }
 
-    // Registrar escucha (opcional)
-    await supabaseAdmin.from('listens').insert({
-      user_id: user.id,
-      album_id: albumId,
-      listened_at: new Date().toISOString(),
-    });
+    // no insert into listens... only log listen does that
 
-    // Obtener perfil para devolverlo al frontend
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('username, avatar_url')
