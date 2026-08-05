@@ -107,6 +107,7 @@ export function Header({ user: initialUser }) {
                 className="w-8 h-8 rounded-full bg-[#131b26] border border-[#1e293b] flex items-center justify-center hover:border-[#87ceeb] transition-colors overflow-hidden"
               >
                 {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={avatarUrl}
                     alt={username || 'User'}
@@ -120,28 +121,35 @@ export function Header({ user: initialUser }) {
               </button>
 
               {showMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-[#131b26] border border-[#1e293b] rounded shadow-lg z-50">
-                  <Link
-                    href={profileUrl}
-                    className="block px-4 py-2 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    aria-hidden
                     onClick={() => setShowMenu(false)}
-                  >
-                    Profile
-                  </Link>
-                  <Link
-                    href="/settings/profile"
-                    className="block px-4 py-2 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
-                    onClick={() => setShowMenu(false)}
-                  >
-                    Settings
-                  </Link>
-                  <button
-                    onClick={handleSignOut}
-                    className="w-full text-left px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-[#1e293b]"
-                  >
-                    Sign out
-                  </button>
-                </div>
+                  />
+                  <div className="absolute right-0 mt-2 w-48 bg-[#131b26] border border-[#1e293b] rounded-lg shadow-lg z-50 overflow-hidden">
+                    <Link
+                      href={profileUrl}
+                      className="block px-4 py-2.5 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                      onClick={() => setShowMenu(false)}
+                    >
+                      Profile
+                    </Link>
+                    <Link
+                      href="/settings/profile"
+                      className="block px-4 py-2.5 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                      onClick={() => setShowMenu(false)}
+                    >
+                      Settings
+                    </Link>
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-[#1e293b]"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ) : (
@@ -176,25 +184,83 @@ export function Footer() {
   );
 }
 
-export function LoadingSpinner({ message = 'Loading...' }) {
+export function LoadingSpinner({ message = 'Loading...', fullScreen = false }) {
+  const body = (
+    <div className="flex flex-col items-center justify-center gap-3 text-stone-500">
+      <div
+        className="w-8 h-8 border-2 border-[#2a3645] border-t-[#7cc7e8] rounded-full animate-spin"
+        aria-hidden
+      />
+      <p className="text-sm">{message}</p>
+    </div>
+  );
+
+  if (fullScreen) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0f16]">
+        {body}
+      </div>
+    );
+  }
+
+  return <div className="py-16 flex items-center justify-center">{body}</div>;
+}
+
+export function ErrorMessage({ message, onDismiss, action }) {
   return (
-    <div className="min-h-screen flex items-center justify-center text-stone-500 bg-[#0a0f16]">
-      {message}
+    <div className="mb-4 p-4 bg-red-900/20 border border-red-800/60 text-red-300 text-sm rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <span className="min-w-0">{message}</span>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {action}
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-red-300 hover:text-red-100 px-1"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-export function ErrorMessage({ message, onDismiss }) {
+export function EmptyState({
+  title = 'Nothing here yet',
+  description,
+  actionLabel,
+  actionHref,
+  onAction,
+}) {
   return (
-    <div className="mb-4 p-3 bg-red-900/20 border border-red-800 text-red-300 text-sm flex justify-between rounded">
-      <span>{message}</span>
-      {onDismiss && (
-        <button
-          onClick={onDismiss}
-          className="text-red-300 hover:text-red-100"
-        >
-          ✕
-        </button>
+    <div className="py-12 sm:py-14 px-4 text-center bg-[#131e2c]/50 border border-[#2a3645] rounded-xl">
+      <p className="text-stone-300 text-sm font-medium">{title}</p>
+      {description && (
+        <p className="text-stone-500 text-xs mt-1.5 max-w-sm mx-auto leading-relaxed">
+          {description}
+        </p>
+      )}
+      {(actionHref || onAction) && (
+        <div className="mt-4">
+          {actionHref ? (
+            <Link
+              href={actionHref}
+              className="inline-block text-xs font-semibold text-[#7cc7e8] hover:underline"
+            >
+              {actionLabel || 'Explore'}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onAction}
+              className="text-xs font-semibold text-[#7cc7e8] hover:underline"
+            >
+              {actionLabel || 'Try again'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -202,7 +268,7 @@ export function ErrorMessage({ message, onDismiss }) {
 
 export function SuccessMessage({ message }) {
   return (
-    <div className="mb-4 p-3 bg-green-900/20 border border-green-800 text-green-300 text-sm rounded">
+    <div className="mb-4 p-3 bg-green-900/20 border border-green-800 text-green-300 text-sm rounded-xl">
       ✓ {message}
     </div>
   );
@@ -213,5 +279,6 @@ export default {
   Footer,
   LoadingSpinner,
   ErrorMessage,
+  EmptyState,
   SuccessMessage,
 };
