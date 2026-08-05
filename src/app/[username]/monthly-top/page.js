@@ -26,6 +26,22 @@ function weekRangeLabel(week, month, year) {
   return `${MONTH_SHORT[month - 1]} ${start}–${end}`;
 }
 
+function CalendarIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        fill="currentColor"
+        d="M7 2h1a1 1 0 0 1 1 1v1h5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3V3a1 1 0 0 1 1-1m8 2h1V3h-1zM8 4V3H7v1zM6 5a2 2 0 0 0-2 2v1h15V7a2 2 0 0 0-2-2zM4 18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V9H4zm8-5h5v5h-5zm1 1v3h3v-3z"
+      />
+    </svg>
+  );
+}
+
 function MonthlyTopContent({ username: usernameProp }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -41,8 +57,8 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  /** Year shown in the archive calendar (can differ while browsing grid) */
   const [calendarYear, setCalendarYear] = useState(year);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   useEffect(() => {
     setCalendarYear(year);
@@ -86,10 +102,7 @@ function MonthlyTopContent({ username: usernameProp }) {
   const availableMonths = data?.availableMonths || [];
 
   const monthsWithData = useMemo(() => {
-    const set = new Set(
-      availableMonths.map((m) => `${m.year}-${m.month}`)
-    );
-    return set;
+    return new Set(availableMonths.map((m) => `${m.year}-${m.month}`));
   }, [availableMonths]);
 
   const availableYears = useMemo(() => {
@@ -103,7 +116,6 @@ function MonthlyTopContent({ username: usernameProp }) {
   const canNextYear = availableYears.length === 0 || yearIndex > 0;
 
   const goCalendarYear = (dir) => {
-    // dir: 1 = older, -1 = newer (list is DESC)
     if (availableYears.length === 0) {
       setCalendarYear((y) => y + dir);
       return;
@@ -145,73 +157,107 @@ function MonthlyTopContent({ username: usernameProp }) {
         ← @{usernameProp}
       </Link>
 
-      <div className="mt-3">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          Monthly Top
-        </h1>
-        <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
-      </div>
-
-      {/* Archive calendar */}
-      <div className="mt-6 bg-[#131e2c]/80 border border-[#2a3645] rounded-xl p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <button
-            type="button"
-            onClick={() => goCalendarYear(1)}
-            disabled={!canPrevYear && availableYears.length > 0}
-            className="w-9 h-9 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-            aria-label="Previous year"
-          >
-            ‹
-          </button>
-          <span className="text-sm font-bold text-white tracking-wide">
-            {calendarYear}
-          </span>
-          <button
-            type="button"
-            onClick={() => goCalendarYear(-1)}
-            disabled={!canNextYear && availableYears.length > 0}
-            className="w-9 h-9 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-            aria-label="Next year"
-          >
-            ›
-          </button>
+      <div className="mt-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Monthly Top
+          </h1>
+          <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
         </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {Array.from({ length: 12 }, (_, i) => {
-            const m = i + 1;
-            const hasData = monthsWithData.has(`${calendarYear}-${m}`);
-            const isSelected = calendarYear === year && m === month;
+        {/* Collapsible archive */}
+        <div className="relative flex-shrink-0 self-start">
+          <button
+            type="button"
+            onClick={() => setArchiveOpen((o) => !o)}
+            className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] transition-colors"
+            aria-expanded={archiveOpen}
+            aria-label="Open month archive"
+          >
+            <CalendarIcon className="w-4 h-4 text-[#7cc7e8]" />
+            <span>
+              {MONTH_SHORT[month - 1]} {year}
+            </span>
+            <span className="text-stone-500 text-[10px]">
+              {archiveOpen ? "▲" : "▼"}
+            </span>
+          </button>
 
-            return (
-              <button
-                key={m}
-                type="button"
-                disabled={!hasData}
-                onClick={() => {
-                  if (!hasData) return;
-                  setPeriod({ year: calendarYear, month: m, week: null });
-                }}
-                className={`min-w-0 py-2.5 sm:py-3 rounded-lg text-xs sm:text-sm font-semibold border transition-colors ${
-                  isSelected
-                    ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/50 text-[#7cc7e8]"
-                    : hasData
-                    ? "bg-[#1f2b3a] border-[#2a3645] text-stone-200 hover:border-[#3d5068] hover:text-white"
-                    : "bg-transparent border-transparent text-stone-600 opacity-40 cursor-not-allowed"
-                }`}
-              >
-                {MONTH_SHORT[i]}
-              </button>
-            );
-          })}
+          {archiveOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                aria-hidden
+                onClick={() => setArchiveOpen(false)}
+              />
+              <div className="absolute left-0 sm:left-auto sm:right-0 z-20 mt-2 w-[min(100vw-2rem,18rem)] bg-[#131e2c] border border-[#2a3645] rounded-xl p-3 sm:p-4 shadow-xl">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => goCalendarYear(1)}
+                    disabled={!canPrevYear && availableYears.length > 0}
+                    className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                    aria-label="Previous year"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-sm font-bold text-white">
+                    {calendarYear}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => goCalendarYear(-1)}
+                    disabled={!canNextYear && availableYears.length > 0}
+                    className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                    aria-label="Next year"
+                  >
+                    ›
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5">
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const m = i + 1;
+                    const hasData = monthsWithData.has(`${calendarYear}-${m}`);
+                    const isSelected = calendarYear === year && m === month;
+
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={!hasData}
+                        onClick={() => {
+                          if (!hasData) return;
+                          setPeriod({
+                            year: calendarYear,
+                            month: m,
+                            week: null,
+                          });
+                          setArchiveOpen(false);
+                        }}
+                        className={`min-w-0 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                          isSelected
+                            ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/50 text-[#7cc7e8]"
+                            : hasData
+                            ? "bg-[#1f2b3a] border-[#2a3645] text-stone-200 hover:border-[#3d5068] hover:text-white"
+                            : "bg-transparent border-transparent text-stone-600 opacity-40 cursor-not-allowed"
+                        }`}
+                      >
+                        {MONTH_SHORT[i]}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {availableMonths.length === 0 && (
+                  <p className="text-[11px] text-stone-500 text-center mt-3">
+                    No archived months yet
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
-
-        {availableMonths.length === 0 && (
-          <p className="text-[11px] text-stone-500 text-center mt-3">
-            No archived months yet — keep logging
-          </p>
-        )}
       </div>
 
       {/* Stats */}
