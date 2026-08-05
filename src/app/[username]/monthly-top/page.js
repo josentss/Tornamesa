@@ -42,6 +42,154 @@ function CalendarIcon({ className = "w-4 h-4" }) {
   );
 }
 
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function truncate(ctx, text, maxWidth) {
+  if (!text) return "";
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 0 && ctx.measureText(t + "…").width > maxWidth) {
+    t = t.slice(0, -1);
+  }
+  return t + "…";
+}
+
+function loadImage(src) {
+  if (!src) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function generateWrappedPng({
+  username,
+  label,
+  totalListens,
+  uniqueAlbums,
+  albums,
+}) {
+  const W = 1080;
+  const H = 1350;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#0a0f16";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = "#7cc7e8";
+  ctx.font = "700 28px system-ui, -apple-system, sans-serif";
+  ctx.fillText("MONTHLY WRAPPED", 64, 80);
+
+  ctx.fillStyle = "#f0f9ff";
+  ctx.font = "700 52px system-ui, -apple-system, sans-serif";
+  ctx.fillText(label || "", 64, 150);
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "400 28px system-ui, -apple-system, sans-serif";
+  ctx.fillText(`@${username || ""}`, 64, 200);
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#f0f9ff";
+  ctx.font = "700 44px system-ui, -apple-system, sans-serif";
+  ctx.fillText(String(totalListens ?? 0), W - 64, 120);
+  ctx.fillStyle = "#64748b";
+  ctx.font = "400 20px system-ui, -apple-system, sans-serif";
+  ctx.fillText("listens", W - 64, 150);
+
+  ctx.fillStyle = "#f0f9ff";
+  ctx.font = "700 36px system-ui, -apple-system, sans-serif";
+  ctx.fillText(String(uniqueAlbums ?? 0), W - 64, 210);
+  ctx.fillStyle = "#64748b";
+  ctx.font = "400 20px system-ui, -apple-system, sans-serif";
+  ctx.fillText("albums", W - 64, 238);
+  ctx.textAlign = "left";
+
+  const list = (albums || []).slice(0, 5);
+  let y = 280;
+
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    const rowH = i === 0 ? 120 : 96;
+    const coverSize = i === 0 ? 88 : 72;
+
+    if (i === 0) {
+      ctx.fillStyle = "#131e2c";
+      ctx.strokeStyle = "rgba(124,199,232,0.4)";
+      ctx.lineWidth = 2;
+      roundRect(ctx, 48, y - 16, W - 96, rowH + 8, 16);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = i === 0 ? "#7cc7e8" : "#64748b";
+    ctx.font = `700 ${i === 0 ? 36 : 28}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText(String(item.rank ?? i + 1), 72, y + coverSize / 2 + 10);
+
+    const img = await loadImage(item.cover);
+    const cx = 130;
+    const cy = y;
+    if (img) {
+      ctx.save();
+      roundRect(ctx, cx, cy, coverSize, coverSize, 10);
+      ctx.clip();
+      ctx.drawImage(img, cx, cy, coverSize, coverSize);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "#1f2b3a";
+      roundRect(ctx, cx, cy, coverSize, coverSize, 10);
+      ctx.fill();
+    }
+
+    const textX = cx + coverSize + 24;
+    const maxText = W - textX - 120;
+    ctx.fillStyle = "#f0f9ff";
+    ctx.font = `600 ${i === 0 ? 30 : 24}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText(truncate(ctx, item.title || "", maxText), textX, y + 32);
+    ctx.fillStyle = "#64748b";
+    ctx.font = "400 20px system-ui, -apple-system, sans-serif";
+    ctx.fillText(truncate(ctx, item.artist || "", maxText), textX, y + 62);
+
+    ctx.fillStyle = "#7cc7e8";
+    ctx.font = "700 24px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(`×${item.count ?? 0}`, W - 72, y + coverSize / 2 + 8);
+    ctx.textAlign = "left";
+
+    y += rowH + 16;
+  }
+
+  ctx.strokeStyle = "#2a3645";
+  ctx.beginPath();
+  ctx.moveTo(64, H - 80);
+  ctx.lineTo(W - 64, H - 80);
+  ctx.stroke();
+
+  ctx.fillStyle = "#7cc7e8";
+  ctx.font = "700 24px system-ui, -apple-system, sans-serif";
+  ctx.fillText("Tornamesa", 64, H - 40);
+  ctx.fillStyle = "#475569";
+  ctx.font = "400 18px system-ui, -apple-system, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText("tornamesa.app", W - 64, H - 40);
+  ctx.textAlign = "left";
+
+  return canvas.toDataURL("image/png");
+}
+
 function MonthlyTopContent({ username: usernameProp }) {
   const { user } = useAuth();
   const router = useRouter();
@@ -61,27 +209,8 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
 
   const [wrappedOpen, setWrappedOpen] = useState(false);
-
-  const wrappedSrc =
-    usernameProp && year && month
-      ? `/api/og/wrapped?username=${encodeURIComponent(usernameProp)}&year=${year}&month=${month}&t=${Date.now()}`
-      : null;
-
-  const downloadWrapped = async () => {
-    if (!wrappedSrc) return;
-    try {
-      const res = await fetch(wrappedSrc);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `tornamesa-wrapped-${year}-${String(month).padStart(2, '0')}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const [wrappedUrl, setWrappedUrl] = useState(null);
+  const [wrappedLoading, setWrappedLoading] = useState(false);
 
   useEffect(() => {
     setCalendarYear(year);
@@ -148,6 +277,35 @@ function MonthlyTopContent({ username: usernameProp }) {
     setCalendarYear(availableYears[idx]);
   };
 
+  const openWrapped = async () => {
+    if (!data) return;
+    setWrappedOpen(true);
+    setWrappedLoading(true);
+    setWrappedUrl(null);
+    try {
+      const url = await generateWrappedPng({
+        username: usernameProp,
+        label: data.label,
+        totalListens: data.totalListens,
+        uniqueAlbums: data.uniqueAlbums,
+        albums: data.albums || [],
+      });
+      setWrappedUrl(url);
+    } catch (e) {
+      console.error("Wrapped generate error:", e);
+    } finally {
+      setWrappedLoading(false);
+    }
+  };
+
+  const downloadWrapped = () => {
+    if (!wrappedUrl) return;
+    const a = document.createElement("a");
+    a.href = wrappedUrl;
+    a.download = `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}.png`;
+    a.click();
+  };
+
   if (loading && !data) {
     return (
       <div className="flex-1 flex items-center justify-center py-20">
@@ -188,14 +346,12 @@ function MonthlyTopContent({ username: usernameProp }) {
           <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
         </div>
 
-        {/* Collapsible archive */}
         <div className="relative flex-shrink-0 self-start">
           <button
             type="button"
             onClick={() => setArchiveOpen((o) => !o)}
             className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] transition-colors"
             aria-expanded={archiveOpen}
-            aria-label="Open month archive"
           >
             <CalendarIcon className="w-4 h-4 text-[#7cc7e8]" />
             <span>
@@ -220,7 +376,6 @@ function MonthlyTopContent({ username: usernameProp }) {
                     onClick={() => goCalendarYear(1)}
                     disabled={!canPrevYear && availableYears.length > 0}
                     className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-                    aria-label="Previous year"
                   >
                     ‹
                   </button>
@@ -232,18 +387,15 @@ function MonthlyTopContent({ username: usernameProp }) {
                     onClick={() => goCalendarYear(-1)}
                     disabled={!canNextYear && availableYears.length > 0}
                     className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-                    aria-label="Next year"
                   >
                     ›
                   </button>
                 </div>
-
                 <div className="grid grid-cols-3 gap-1.5">
                   {Array.from({ length: 12 }, (_, i) => {
                     const m = i + 1;
                     const hasData = monthsWithData.has(`${calendarYear}-${m}`);
                     const isSelected = calendarYear === year && m === month;
-
                     return (
                       <button
                         key={m}
@@ -271,19 +423,12 @@ function MonthlyTopContent({ username: usernameProp }) {
                     );
                   })}
                 </div>
-
-                {availableMonths.length === 0 && (
-                  <p className="text-[11px] text-stone-500 text-center mt-3">
-                    No archived months yet
-                  </p>
-                )}
               </div>
             </>
           )}
         </div>
       </div>
 
-      {/* Stats */}
       <div className="mt-6 flex flex-wrap gap-4 sm:gap-6 text-sm">
         <div>
           <span className="text-white font-semibold">
@@ -299,7 +444,6 @@ function MonthlyTopContent({ username: usernameProp }) {
         </div>
       </div>
 
-      {/* Full month + weeks */}
       <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"
@@ -335,18 +479,15 @@ function MonthlyTopContent({ username: usernameProp }) {
         </p>
       )}
 
-      {/* Ranking */}
       <div className="mt-8 space-y-2 sm:space-y-3">
         {loading && (
           <p className="text-stone-500 text-sm text-center py-4">Updating...</p>
         )}
-
         {!loading && albums.length === 0 && (
           <div className="py-14 text-center bg-[#131e2c]/50 border border-[#2a3645] rounded-xl">
             <p className="text-stone-400 text-sm">No listens in this period</p>
           </div>
         )}
-
         {albums.map((item) => {
           const isFirst = item.rank === 1;
           return (
@@ -370,7 +511,6 @@ function MonthlyTopContent({ username: usernameProp }) {
               >
                 {item.rank}
               </span>
-
               <div
                 className={`rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0 relative ${
                   isFirst
@@ -388,7 +528,6 @@ function MonthlyTopContent({ username: usernameProp }) {
                   />
                 )}
               </div>
-
               <div className="flex-1 min-w-0">
                 {isFirst && (
                   <p className="text-[10px] uppercase tracking-widest text-[#7cc7e8] font-bold mb-0.5">
@@ -404,7 +543,6 @@ function MonthlyTopContent({ username: usernameProp }) {
                 </p>
                 <p className="text-xs text-stone-500 truncate">{item.artist}</p>
               </div>
-
               <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
                 <span className="text-xs font-bold text-[#7cc7e8]">
                   ×{item.count}
@@ -420,11 +558,12 @@ function MonthlyTopContent({ username: usernameProp }) {
         })}
       </div>
 
-      {data && (
-        <div className="mt-10 pt-6 border-t border-[#2a3645] flex flex-col sm:flex-row items-center justify-center gap-3">
+      {/* Wrapped CTA — full month only */}
+      {data && week == null && (data.totalListens > 0 || albums.length > 0) && (
+        <div className="mt-10 pt-6 border-t border-[#2a3645] flex justify-center">
           <button
             type="button"
-            onClick={() => setWrappedOpen(true)}
+            onClick={openWrapped}
             className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
           >
             Generate Wrapped
@@ -432,7 +571,7 @@ function MonthlyTopContent({ username: usernameProp }) {
         </div>
       )}
 
-      {wrappedOpen && wrappedSrc && (
+      {wrappedOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4"
           onClick={() => setWrappedOpen(false)}
@@ -454,20 +593,31 @@ function MonthlyTopContent({ username: usernameProp }) {
               </button>
             </div>
 
-            <div className="overflow-y-auto p-4 flex justify-center bg-[#0a0f16]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={wrappedSrc}
-                alt="Monthly Wrapped"
-                className="w-full max-w-sm rounded-lg border border-[#2a3645]"
-              />
+            <div className="overflow-y-auto p-4 flex justify-center bg-[#0a0f16] min-h-[200px]">
+              {wrappedLoading && (
+                <p className="text-stone-500 text-sm py-16">Generating...</p>
+              )}
+              {!wrappedLoading && wrappedUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={wrappedUrl}
+                  alt="Monthly Wrapped"
+                  className="w-full max-w-sm rounded-lg border border-[#2a3645]"
+                />
+              )}
+              {!wrappedLoading && !wrappedUrl && (
+                <p className="text-stone-500 text-sm py-16">
+                  Could not generate image
+                </p>
+              )}
             </div>
 
             <div className="p-4 border-t border-[#2a3645] flex gap-2">
               <button
                 type="button"
                 onClick={downloadWrapped}
-                className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0]"
+                disabled={!wrappedUrl}
+                className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-40"
               >
                 Download PNG
               </button>
