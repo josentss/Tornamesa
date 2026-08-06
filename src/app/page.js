@@ -3,13 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import {
-  Header,
-  Footer,
-  ErrorMessage,
-  LoadingSpinner,
-  EmptyState,
-} from "@/components/shared";
+import { Header, Footer, ErrorMessage, EmptyState } from "@/components/shared";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -33,7 +27,7 @@ const Modal = ({ isOpen, onClose, children }) => {
 
 const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) => {
   const { signIn, signUp } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -64,14 +58,14 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
     e.preventDefault();
     setError("");
     if (!email || !password) return setError("Email and password required");
-    setLoading(true);
+    setSubmitting(true);
     try {
       await signIn(email, password, rememberMe);
       closeAll();
     } catch (err) {
       setError(err.message || "Error logging in");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -85,7 +79,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
       return setError("Password must have at least 6 characters");
     if (!acceptTerms) return setError("You must accept the terms and conditions");
     if (!captchaOk) return setError("Please complete the security captcha");
-    setLoading(true);
+    setSubmitting(true);
     try {
       await signUp(email, password, username);
       alert("Registered successfully. Please log in.");
@@ -95,7 +89,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
     } catch (err) {
       setError(err.message || "Error registering");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -114,7 +108,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-3 text-white placeholder:text-stone-500 focus:outline-none focus:border-[#87ceeb] transition-colors"
             />
             <input
@@ -122,7 +116,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-3 text-white placeholder:text-stone-500 focus:outline-none focus:border-[#87ceeb] transition-colors"
             />
             <label className="flex items-center gap-2 cursor-pointer text-xs text-stone-400">
@@ -136,10 +130,10 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
             </label>
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-[#87ceeb] text-[#0a0f16] py-2 rounded font-bold hover:bg-white transition-all disabled:opacity-50 mt-2"
             >
-              {loading ? "Entering..." : "Log In"}
+              {submitting ? "Entering..." : "Log In"}
             </button>
           </form>
           <div className="text-center text-sm text-stone-400">
@@ -171,7 +165,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-3 text-white placeholder:text-stone-500 focus:outline-none focus:border-[#87ceeb] transition-colors"
             />
             <input
@@ -179,7 +173,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Username"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-3 text-white placeholder:text-stone-500 focus:outline-none focus:border-[#87ceeb] transition-colors"
             />
             <div className="flex gap-2">
@@ -188,7 +182,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                disabled={loading}
+                disabled={submitting}
                 className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-3 text-white placeholder:text-stone-500 focus:outline-none focus:border-[#87ceeb] transition-colors"
               />
               <input
@@ -196,7 +190,7 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm"
-                disabled={loading}
+                disabled={submitting}
                 className="w-full bg-[#0a0f16] border border-[#1e293b] rounded p-3 text-white placeholder:text-stone-500 focus:outline-none focus:border-[#87ceeb] transition-colors"
               />
             </div>
@@ -235,10 +229,10 @@ const AuthModals = ({ showLogin, setShowLogin, showRegister, setShowRegister }) 
             </label>
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-[#00e054] text-[#0a0f16] py-2 mt-2 rounded font-bold hover:bg-[#00c045] transition-all disabled:opacity-50"
             >
-              {loading ? "Registering..." : "Sign Up"}
+              {submitting ? "Registering..." : "Sign Up"}
             </button>
           </form>
           <div className="text-center text-sm text-stone-400">
@@ -343,7 +337,7 @@ const LandingView = ({ onRegister }) => (
   </div>
 );
 
-// ======================= DASHBOARD HELPERS =======================
+// ======================= DASHBOARD =======================
 
 function groupOwnHistory(history) {
   const map = {};
@@ -579,7 +573,6 @@ const DashboardView = ({
         </div>
       </section>
 
-      {/* Friends listens — no blocking spinner */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -635,7 +628,6 @@ const DashboardView = ({
         ) : null}
       </section>
 
-      {/* Your recent activity */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -672,7 +664,6 @@ const DashboardView = ({
         ) : null}
       </section>
 
-      {/* Friends reviews */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -699,7 +690,7 @@ const DashboardView = ({
 // ======================= PAGE =======================
 
 export default function Page() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth(); // no usamos loading → no pantalla "Loading..."
   const [feed, setFeed] = useState([]);
   const [ownHistory, setOwnHistory] = useState([]);
   const [stats, setStats] = useState(null);
@@ -712,8 +703,14 @@ export default function Page() {
   useEffect(() => {
     if (!user) {
       setDataReady(false);
+      setFeed([]);
+      setOwnHistory([]);
+      setStats(null);
+      setFriendsReviews([]);
+      setUsername(null);
       return;
     }
+
     let cancelled = false;
 
     const load = async () => {
@@ -760,17 +757,9 @@ export default function Page() {
     };
   }, [user]);
 
-  // Solo auth: evita flash de landing mientras se restaura la sesión
-  if (loading) {
-    return (
-      <div className="flex flex-col min-h-screen bg-[#0a0f16]">
-        <LoadingSpinner message="Loading..." fullScreen />
-      </div>
-    );
-  }
-
+  // Sin if (loading) → sin "Loading..."
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
+    <div className="flex flex-col flex-1 relative bg-[#0a0f16] min-h-screen overflow-x-hidden text-[#f0f9ff]">
       {user ? (
         <Header user={user} />
       ) : (
