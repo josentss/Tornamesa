@@ -3,7 +3,13 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { Header, Footer, ErrorMessage, LoadingSpinner } from "@/components/shared";
+import {
+  Header,
+  Footer,
+  ErrorMessage,
+  LoadingSpinner,
+  EmptyState,
+} from "@/components/shared";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -306,21 +312,27 @@ const LandingView = ({ onRegister }) => (
     <div className="w-full max-w-6xl mx-auto px-6 py-16 relative z-20">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#131b26]/80 backdrop-blur-sm border border-[#1e293b] p-8 rounded-xl space-y-4 hover:border-[#87ceeb]/50 transition-colors">
-          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">🎧</div>
+          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">
+            🎧
+          </div>
           <h3 className="font-semibold text-lg text-[#f0f9ff]">Track your music</h3>
           <p className="text-stone-400 text-sm leading-relaxed">
             Keep an exact diary of every album you play and rate them.
           </p>
         </div>
         <div className="bg-[#131b26]/80 backdrop-blur-sm border border-[#1e293b] p-8 rounded-xl space-y-4 hover:border-[#87ceeb]/50 transition-colors">
-          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">📌</div>
+          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">
+            📌
+          </div>
           <h3 className="font-semibold text-lg text-[#f0f9ff]">Review records</h3>
           <p className="text-stone-400 text-sm leading-relaxed">
-            Write an article about an album you have listened to.
+            Write about an album you have listened to.
           </p>
         </div>
         <div className="bg-[#131b26]/80 backdrop-blur-sm border border-[#1e293b] p-8 rounded-xl space-y-4 hover:border-[#87ceeb]/50 transition-colors">
-          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">👥</div>
+          <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-xl text-[#87ceeb]">
+            👥
+          </div>
           <h3 className="font-semibold text-lg text-[#f0f9ff]">Interact with users</h3>
           <p className="text-stone-400 text-sm leading-relaxed">
             Discover new music by exploring the recent activity of people you follow.
@@ -390,7 +402,6 @@ function groupFriendsFeed(feed) {
     .slice(0, 6);
 }
 
-/** Same visual language: square cover + title + meta row */
 const AlbumGridCard = ({
   href,
   cover,
@@ -467,7 +478,9 @@ const FriendReviewCard = ({ review }) => (
             <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
               {review.album.title}
             </p>
-            <p className="text-[11px] text-stone-500 truncate">{review.album.artist}</p>
+            <p className="text-[11px] text-stone-500 truncate">
+              {review.album.artist}
+            </p>
           </div>
           <span className="text-yellow-400 text-xs font-semibold flex-shrink-0">
             ★ {review.rating}
@@ -496,7 +509,9 @@ const FriendReviewCard = ({ review }) => (
           </span>
         )}
       </div>
-      <span className="text-[11px] text-stone-400 truncate">@{review.username}</span>
+      <span className="text-[11px] text-stone-400 truncate">
+        @{review.username}
+      </span>
     </div>
   </Link>
 );
@@ -507,7 +522,7 @@ const DashboardView = ({
   ownHistory,
   stats,
   friendsReviews,
-  loadingData,
+  dataReady,
 }) => {
   const ownGrouped = groupOwnHistory(ownHistory);
   const friendsGrouped = groupFriendsFeed(feed);
@@ -515,7 +530,6 @@ const DashboardView = ({
 
   return (
     <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-8 sm:py-12 space-y-10 sm:space-y-14 overflow-x-hidden">
-      {/* Hero */}
       <section className="bg-[#131e2c]/80 border border-[#2a3645] rounded-2xl p-5 sm:p-7">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
           <div className="min-w-0">
@@ -527,11 +541,15 @@ const DashboardView = ({
             </h1>
             <div className="flex flex-wrap gap-4 sm:gap-6 mt-3 text-sm">
               <div>
-                <span className="text-white font-semibold">{stats?.monthlyListens ?? 0}</span>{" "}
+                <span className="text-white font-semibold">
+                  {stats?.monthlyListens ?? 0}
+                </span>{" "}
                 <span className="text-stone-500 text-xs">this month</span>
               </div>
               <div>
-                <span className="text-white font-semibold">{stats?.yearlyListens ?? 0}</span>{" "}
+                <span className="text-white font-semibold">
+                  {stats?.yearlyListens ?? 0}
+                </span>{" "}
                 <span className="text-stone-500 text-xs">this year</span>
               </div>
             </div>
@@ -561,11 +579,7 @@ const DashboardView = ({
         </div>
       </section>
 
-      {loadingData && (
-        <div className="text-center text-stone-500 text-sm py-8">Loading your feed...</div>
-      )}
-
-      {/* Friends listens */}
+      {/* Friends listens — no blocking spinner */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -584,7 +598,10 @@ const DashboardView = ({
                 rating={item.rating}
                 count={item.count}
                 footerLeft={
-                  <Link href={`/${item.username}`} className="flex items-center gap-1.5 min-w-0">
+                  <Link
+                    href={`/${item.username}`}
+                    className="flex items-center gap-1.5 min-w-0"
+                  >
                     <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
                       {item.avatar_url ? (
                         <Image
@@ -608,22 +625,17 @@ const DashboardView = ({
               />
             ))}
           </div>
-        ) : (
-          !loadingData && (
-            <div className="py-10 text-center bg-[#131e2c]/50 rounded-xl border border-[#2a3645]">
-              <p className="text-stone-400 text-sm">No recent activity from people you follow.</p>
-              <Link
-                href="/search"
-                className="text-[#7cc7e8] text-xs font-semibold hover:underline mt-2 inline-block"
-              >
-                Find people or albums
-              </Link>
-            </div>
-          )
-        )}
+        ) : dataReady ? (
+          <EmptyState
+            title="No recent activity from people you follow"
+            description="Follow users to see what they are listening to."
+            actionLabel="Find people or albums"
+            actionHref="/search"
+          />
+        ) : null}
       </section>
 
-      {/* Your recent activity — same grid as friends */}
+      {/* Your recent activity */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -650,22 +662,17 @@ const DashboardView = ({
               />
             ))}
           </div>
-        ) : (
-          !loadingData && (
-            <div className="py-10 text-center bg-[#131e2c]/50 rounded-xl border border-[#2a3645]">
-              <p className="text-stone-400 text-sm">No listens yet</p>
-              <Link
-                href="/search"
-                className="text-[#7cc7e8] text-xs font-semibold hover:underline mt-2 inline-block"
-              >
-                Log your first album
-              </Link>
-            </div>
-          )
-        )}
+        ) : dataReady ? (
+          <EmptyState
+            title="No listens yet"
+            description="Log an album to start your diary."
+            actionLabel="Log your first album"
+            actionHref="/search"
+          />
+        ) : null}
       </section>
 
-      {/* Friends reviews — compact grid, max 6 */}
+      {/* Friends reviews */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -678,13 +685,12 @@ const DashboardView = ({
               <FriendReviewCard key={review.id} review={review} />
             ))}
           </div>
-        ) : (
-          !loadingData && (
-            <div className="py-10 text-center bg-[#131e2c]/50 rounded-xl border border-[#2a3645]">
-              <p className="text-stone-400 text-sm">No reviews from people you follow yet.</p>
-            </div>
-          )
-        )}
+        ) : dataReady ? (
+          <EmptyState
+            title="No reviews from people you follow yet"
+            description="When friends rate albums, their reviews will show up here."
+          />
+        ) : null}
       </section>
     </main>
   );
@@ -699,16 +705,18 @@ export default function Page() {
   const [stats, setStats] = useState(null);
   const [friendsReviews, setFriendsReviews] = useState([]);
   const [username, setUsername] = useState(null);
-  const [loadingData, setLoadingData] = useState(false);
+  const [dataReady, setDataReady] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setDataReady(false);
+      return;
+    }
     let cancelled = false;
 
     const load = async () => {
-      setLoadingData(true);
       try {
         let uname = user.username || user.user_metadata?.username || null;
         if (!uname) {
@@ -720,12 +728,15 @@ export default function Page() {
           }
         }
 
-        const [feedRes, historyRes, statsRes, friendsReviewsRes] = await Promise.all([
-          api.getFriendsFeed(user.id).catch(() => []),
-          api.getUserHistory(user.id, 30, 0).catch(() => ({ history: [] })),
-          uname ? api.getProfileStats(uname).catch(() => null) : Promise.resolve(null),
-          api.getFriendsReviews(user.id).catch(() => []),
-        ]);
+        const [feedRes, historyRes, statsRes, friendsReviewsRes] =
+          await Promise.all([
+            api.getFriendsFeed(user.id).catch(() => []),
+            api.getUserHistory(user.id, 30, 0).catch(() => ({ history: [] })),
+            uname
+              ? api.getProfileStats(uname).catch(() => null)
+              : Promise.resolve(null),
+            api.getFriendsReviews(user.id).catch(() => []),
+          ]);
 
         if (cancelled) return;
 
@@ -733,11 +744,13 @@ export default function Page() {
         setFeed(Array.isArray(feedRes) ? feedRes : []);
         setOwnHistory(historyRes.history || []);
         setStats(statsRes);
-        setFriendsReviews(Array.isArray(friendsReviewsRes) ? friendsReviewsRes : []);
+        setFriendsReviews(
+          Array.isArray(friendsReviewsRes) ? friendsReviewsRes : []
+        );
       } catch (err) {
         console.error("Dashboard load error:", err);
       } finally {
-        if (!cancelled) setLoadingData(false);
+        if (!cancelled) setDataReady(true);
       }
     };
 
@@ -747,16 +760,17 @@ export default function Page() {
     };
   }, [user]);
 
+  // Solo auth: evita flash de landing mientras se restaura la sesión
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-stone-500 bg-[#0a0f16]">
-        <LoadingSpinner message="Loading..." />
+      <div className="flex flex-col min-h-screen bg-[#0a0f16]">
+        <LoadingSpinner message="Loading..." fullScreen />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col flex-1 relative bg-[#0a0f16] min-h-screen overflow-x-hidden">
+    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       {user ? (
         <Header user={user} />
       ) : (
@@ -773,7 +787,7 @@ export default function Page() {
           ownHistory={ownHistory}
           stats={stats}
           friendsReviews={friendsReviews}
-          loadingData={loadingData}
+          dataReady={dataReady}
         />
       ) : (
         <LandingView onRegister={() => setShowRegister(true)} />
