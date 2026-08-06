@@ -16,7 +16,7 @@ const fetchApi = async (endpoint, options = {}) => {
       ...rest,
       headers: {
         'Content-Type': 'application/json',
-        ...optHeaders,
+        ...(optHeaders || {}),
       },
     });
     return await handleResponse(response);
@@ -48,10 +48,9 @@ export const api = {
 
   // profile
   getUserProfile: (userId) =>
-    fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-store' },
-    }),
+      fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {
+        cache: 'no-store',
+      }),
 
     updateUserProfile: async (userId, profileData) => {
       const { createClient } = await import('@/lib/supabase/client');
@@ -67,7 +66,6 @@ export const api = {
       return fetchApi(`/api/users/${userId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(profileData),

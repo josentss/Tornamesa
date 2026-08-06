@@ -28,7 +28,7 @@ const sectionClass =
   "bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl p-5 sm:p-6 space-y-4";
 
 export default function ProfileSettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const router = useRouter();
 
   const [username, setUsername] = useState("");
@@ -56,100 +56,92 @@ export default function ProfileSettingsPage() {
 
     let cancelled = false;
 
-    const applyProfile = (data) => {
-      if (!data || cancelled) return;
-      setUsername(data.username || user.username || "");
+    const apply = (data) => {
+      if (cancelled || !data) return;
+      setUsername(data.username || "");
       setFullName(data.full_name || "");
-      setAvatarUrl(data.avatar_url || user.avatar_url || "");
+      setAvatarUrl(data.avatar_url || "");
       setPronouns(data.pronouns || "");
       setWebsite(data.website || "");
       setBio(data.bio || "");
-
       const slots = [null, null, null];
       if (Array.isArray(data.favorite_albums)) {
-        data.favorite_albums.slice(0, 3).forEach((item, idx) => {
-          slots[idx] = item;
+        data.favorite_albums.slice(0, 3).forEach((item, i) => {
+          slots[i] = item;
         });
       }
       setFavoriteAlbums(slots);
     };
 
-    const loadProfile = async () => {
+    const load = async () => {
       setLoading(true);
       setError("");
 
-      // Seed from session while API loads
+      // Seed from session
       if (user.username) setUsername(user.username);
       if (user.avatar_url) setAvatarUrl(user.avatar_url);
 
       try {
         let data = await api.getUserProfile(user.id);
 
-        // Fallback: public profile by username if row looked empty
-        const empty =
+        const looksEmpty =
           data &&
           !data.username &&
           !data.full_name &&
           !data.bio &&
-          !data.avatar_url;
+          !data.avatar_url &&
+          !(data.favorite_albums && data.favorite_albums.length);
 
-        if (empty && (user.username || data?.username)) {
-          const uname = user.username || data.username;
-          try {
-            const pub = await api.getPublicProfile(uname);
-            if (pub?.profile) data = pub.profile;
-          } catch {
-            /* ignore */
+        // Fallback: public endpoint by username (works if profile exists by name)
+        if (looksEmpty) {
+          const uname =
+            user.username || user.user_metadata?.username || null;
+          if (uname) {
+            try {
+              const pub = await api.getPublicProfile(uname);
+              if (pub?.profile) data = pub.profile;
+            } catch {
+              /* ignore */
+            }
           }
         }
 
-        applyProfile(data);
+        apply(data);
       } catch (err) {
-        console.error("Error loading profile:", err);
-        // Last resort: at least show auth username
-        if (user.username) setUsername(user.username);
-        if (user.avatar_url) setAvatarUrl(user.avatar_url);
-        setError("Could not load full profile data.");
+        console.error("Load profile:", err);
+        setError("Could not load profile data.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
 
-    loadProfile();
+    load();
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.username, user?.avatar_url]);
+  }, [user?.id, user?.username, user?.avatar_url, user?.user_metadata?.username]);
 
   const handleImageFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (file.size > 2 * 1024 * 1024) {
       setError("Image must be 2MB or smaller.");
       return;
     }
-
     setUploadingImage(true);
     setError("");
-
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", "tornamesa_avatars");
-
     try {
       const res = await fetch(
         "https://api.cloudinary.com/v1_1/ctgcewhd/image/upload",
         { method: "POST", body: formData }
       );
       const data = await res.json();
-      if (data.secure_url) {
-        setAvatarUrl(data.secure_url);
-      } else {
-        setError("Could not upload the image.");
-      }
-    } catch (err) {
-      console.error(err);
+      if (data.secure_url) setAvatarUrl(data.secure_url);
+      else setError("Could not upload the image.");
+    } catch {
       setError("Network error while uploading.");
     } finally {
       setUploadingImage(false);
@@ -159,9 +151,7 @@ export default function ProfileSettingsPage() {
   const handleBioChange = (e) => {
     const text = e.target.value;
     const words = text.trim().split(/\s+/).filter(Boolean);
-    if (words.length <= 50 || text.length < bio.length) {
-      setBio(text);
-    }
+    if (words.length <= 50 || text.length < bio.length) setBio(text);
   };
 
   const handleSearchAlbum = async (e) => {
@@ -218,7 +208,7 @@ export default function ProfileSettingsPage() {
 
     setSaving(true);
     try {
-      await api.updateUserProfile(user.id, {
+      const res = await api.updateUserProfile(user.id, {
         username: username.toLowerCase(),
         full_name: fullName,
         avatar_url: avatarUrl,
@@ -228,15 +218,25 @@ export default function ProfileSettingsPage() {
         favorite_albums: favoriteAlbums.filter(Boolean),
       });
 
+      // Prefer server-returned row
+      if (res?.data) {
+        setUsername(res.data.username || username);
+        setFullName(res.data.full_name || "");
+        setAvatarUrl(res.data.avatar_url || "");
+        setPronouns(res.data.pronouns || "");
+        setWebsite(res.data.website || "");
+        setBio(res.data.bio || "");
+      }
+
       if (typeof refreshUser === "function") {
         await refreshUser();
       }
 
-      setSuccess("Profile updated successfully!");
+      setSuccess("Profile updated successfully.");
       setSaving(false);
 
       setTimeout(() => {
-        router.push(`/${username.toLowerCase()}`);
+        router.push(`/${(res?.data?.username || username).toLowerCase()}`);
         router.refresh();
       }, 800);
     } catch (err) {
@@ -249,8 +249,8 @@ export default function ProfileSettingsPage() {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-32 bg-[#131e2c] rounded-2xl border border-[#2a3645]" />
-        <div className="h-48 bg-[#131e2c] rounded-2xl border border-[#2a3645]" />
+        <div className="h-28 bg-[#131e2c] rounded-2xl border border-[#2a3645]" />
+        <div className="h-40 bg-[#131e2c] rounded-2xl border border-[#2a3645]" />
       </div>
     );
   }
@@ -273,7 +273,6 @@ export default function ProfileSettingsPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Photo */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Profile photo</h2>
           <div className="flex items-center gap-5">
@@ -290,7 +289,7 @@ export default function ProfileSettingsPage() {
                 (username || "U").substring(0, 2).toUpperCase()
               )}
             </div>
-            <div className="min-w-0">
+            <div>
               <input
                 type="file"
                 accept="image/*"
@@ -299,18 +298,14 @@ export default function ProfileSettingsPage() {
                 className="text-xs text-stone-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1f2b3a] file:text-[#7cc7e8] hover:file:bg-[#2a3645] cursor-pointer"
               />
               <p className="text-[10px] text-stone-500 mt-1.5">
-                {uploadingImage
-                  ? "Uploading..."
-                  : "JPG or PNG. Max 2MB."}
+                {uploadingImage ? "Uploading..." : "JPG or PNG. Max 2MB."}
               </p>
             </div>
           </div>
         </section>
 
-        {/* Identity */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Identity</h2>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -338,13 +333,7 @@ export default function ProfileSettingsPage() {
                   placeholder="username"
                 />
               </div>
-              {isEditingUsername && (
-                <p className="text-[10px] text-amber-500/90 mt-1">
-                  Changing your username changes your profile URL.
-                </p>
-              )}
             </div>
-
             <div>
               <label className={labelClass}>Display name</label>
               <input
@@ -357,7 +346,6 @@ export default function ProfileSettingsPage() {
               />
             </div>
           </div>
-
           <div>
             <label className={labelClass}>Pronouns</label>
             <select
@@ -376,10 +364,8 @@ export default function ProfileSettingsPage() {
           </div>
         </section>
 
-        {/* About */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">About</h2>
-
           <div>
             <label className={labelClass}>Bio</label>
             <textarea
@@ -394,7 +380,6 @@ export default function ProfileSettingsPage() {
               {wordCount} / 50 words
             </p>
           </div>
-
           <div>
             <label className={labelClass}>Website</label>
             <input
@@ -408,17 +393,9 @@ export default function ProfileSettingsPage() {
           </div>
         </section>
 
-        {/* Favorites */}
         <section className={sectionClass}>
-          <div>
-            <h2 className="text-sm font-semibold text-white">
-              Favorite albums
-            </h2>
-            <p className="text-xs text-stone-500 mt-1">
-              Up to 3 albums shown on your profile
-            </p>
-          </div>
-
+          <h2 className="text-sm font-semibold text-white">Favorite albums</h2>
+          <p className="text-xs text-stone-500">Up to 3 on your profile</p>
           <div className="grid grid-cols-3 gap-3 sm:gap-4">
             {favoriteAlbums.map((album, idx) => (
               <div
@@ -426,10 +403,8 @@ export default function ProfileSettingsPage() {
                 onClick={() =>
                   !album && !saving && !uploadingImage && setActiveSlot(idx)
                 }
-                className={`relative group aspect-square bg-[#0a121c] border border-[#2a3645] rounded-xl flex items-center justify-center overflow-hidden transition-colors ${
-                  !album
-                    ? "cursor-pointer hover:border-[#7cc7e8]/50"
-                    : ""
+                className={`relative group aspect-square bg-[#0a121c] border border-[#2a3645] rounded-xl flex items-center justify-center overflow-hidden ${
+                  !album ? "cursor-pointer hover:border-[#7cc7e8]/50" : ""
                 }`}
               >
                 {album ? (
@@ -444,29 +419,24 @@ export default function ProfileSettingsPage() {
                     <button
                       type="button"
                       onClick={(e) => removeFavoriteAlbum(e, idx)}
-                      disabled={saving || uploadingImage}
-                      className="absolute top-1.5 right-1.5 bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-1.5 right-1.5 bg-black/70 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100"
                     >
                       ✕
                     </button>
                   </>
                 ) : (
-                  <div className="text-stone-500 text-xs group-hover:text-[#7cc7e8] flex flex-col items-center gap-1">
-                    <span className="text-lg leading-none">+</span>
-                    <span>Add</span>
-                  </div>
+                  <span className="text-stone-500 text-xs">+ Add</span>
                 )}
               </div>
             ))}
           </div>
         </section>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-3 pt-1">
+        <div className="flex flex-wrap gap-3">
           <button
             type="submit"
             disabled={saving || uploadingImage}
-            className="bg-[#7cc7e8] text-[#0a121c] px-6 py-2.5 text-sm font-semibold rounded-lg hover:bg-[#a5d8f0] disabled:opacity-50 transition-colors"
+            className="bg-[#7cc7e8] text-[#0a121c] px-6 py-2.5 text-sm font-semibold rounded-lg hover:bg-[#a5d8f0] disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save changes"}
           </button>
@@ -474,7 +444,7 @@ export default function ProfileSettingsPage() {
             type="button"
             onClick={() => router.back()}
             disabled={saving || uploadingImage}
-            className="border border-[#2a3645] text-stone-400 px-6 py-2.5 text-sm rounded-lg hover:border-[#3d5068] hover:text-white disabled:opacity-50 transition-colors"
+            className="border border-[#2a3645] text-stone-400 px-6 py-2.5 text-sm rounded-lg hover:text-white"
           >
             Cancel
           </button>
@@ -483,35 +453,31 @@ export default function ProfileSettingsPage() {
 
       {activeSlot !== null && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#131e2c] border border-[#2a3645] p-5 sm:p-6 rounded-2xl w-full max-w-md shadow-2xl">
-            <h3 className="font-semibold mb-4 text-white">
-              Select favorite album
-            </h3>
+          <div className="bg-[#131e2c] border border-[#2a3645] p-5 rounded-2xl w-full max-w-md">
+            <h3 className="font-semibold mb-4">Select favorite album</h3>
             <form onSubmit={handleSearchAlbum} className="flex gap-2 mb-4">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Album or artist..."
-                className={inputClass + " text-xs"}
+                className={inputClass}
                 autoFocus
               />
               <button
                 type="submit"
-                disabled={searching}
-                className="bg-[#7cc7e8] text-[#0a121c] px-3 py-2 text-xs font-semibold rounded-lg shrink-0"
+                className="bg-[#7cc7e8] text-[#0a121c] px-3 py-2 text-xs font-semibold rounded-lg"
               >
                 {searching ? "..." : "Search"}
               </button>
             </form>
-
             <div className="max-h-60 overflow-y-auto space-y-1.5">
               {searchResults.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => selectFavoriteAlbum(item)}
-                  className="w-full flex items-center gap-3 p-2 bg-[#0a121c] hover:bg-[#1f2b3a] rounded-lg text-left transition-colors"
+                  className="w-full flex items-center gap-3 p-2 bg-[#0a121c] hover:bg-[#1f2b3a] rounded-lg text-left"
                 >
                   {item.coverUrl && (
                     <Image
@@ -532,21 +498,11 @@ export default function ProfileSettingsPage() {
                   </div>
                 </button>
               ))}
-              {!searching && searchResults.length === 0 && searchQuery && (
-                <p className="text-xs text-stone-500 text-center py-4">
-                  No results
-                </p>
-              )}
             </div>
-
             <button
               type="button"
-              onClick={() => {
-                setActiveSlot(null);
-                setSearchQuery("");
-                setSearchResults([]);
-              }}
-              className="mt-4 w-full text-center text-xs text-stone-500 hover:text-white py-2"
+              onClick={() => setActiveSlot(null)}
+              className="mt-4 w-full text-xs text-stone-500 hover:text-white py-2"
             >
               Close
             </button>
