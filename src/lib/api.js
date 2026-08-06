@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 // funciones auxiliares
 const handleResponse = async (response) => {
@@ -93,19 +93,22 @@ export const api = {
 
   // crear o actualizar reseña (con sesión)
   createReview: async (albumId, rating, reviewText) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('Debes iniciar sesión');
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error('You must be logged in');
 
-    const res = await fetchApi(`/api/albums/${albumId}/review`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ rating, review_text: reviewText }),
-    });
+      const res = await fetchApi(`/api/albums/${albumId}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ rating, review_text: reviewText }),
+      });
 
-    return res;
+      return res;
   },
 
   // obtener reseñas de un usuario
