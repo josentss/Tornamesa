@@ -54,35 +54,72 @@ export default function ProfileSettingsPage() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const loadProfile = async () => {
-      try {
-        const data = await api.getUserProfile(user.id);
-        if (data) {
-          setUsername(data.username || "");
-          setFullName(data.full_name || "");
-          setAvatarUrl(data.avatar_url || "");
-          setPronouns(data.pronouns || "");
-          setWebsite(data.website || "");
-          setBio(data.bio || "");
+    let cancelled = false;
 
-          if (Array.isArray(data.favorite_albums)) {
-            const slots = [null, null, null];
-            data.favorite_albums.slice(0, 3).forEach((item, idx) => {
-              slots[idx] = item;
-            });
-            setFavoriteAlbums(slots);
+    const applyProfile = (data) => {
+      if (!data || cancelled) return;
+      setUsername(data.username || user.username || "");
+      setFullName(data.full_name || "");
+      setAvatarUrl(data.avatar_url || user.avatar_url || "");
+      setPronouns(data.pronouns || "");
+      setWebsite(data.website || "");
+      setBio(data.bio || "");
+
+      const slots = [null, null, null];
+      if (Array.isArray(data.favorite_albums)) {
+        data.favorite_albums.slice(0, 3).forEach((item, idx) => {
+          slots[idx] = item;
+        });
+      }
+      setFavoriteAlbums(slots);
+    };
+
+    const loadProfile = async () => {
+      setLoading(true);
+      setError("");
+
+      // Seed from session while API loads
+      if (user.username) setUsername(user.username);
+      if (user.avatar_url) setAvatarUrl(user.avatar_url);
+
+      try {
+        let data = await api.getUserProfile(user.id);
+
+        // Fallback: public profile by username if row looked empty
+        const empty =
+          data &&
+          !data.username &&
+          !data.full_name &&
+          !data.bio &&
+          !data.avatar_url;
+
+        if (empty && (user.username || data?.username)) {
+          const uname = user.username || data.username;
+          try {
+            const pub = await api.getPublicProfile(uname);
+            if (pub?.profile) data = pub.profile;
+          } catch {
+            /* ignore */
           }
         }
+
+        applyProfile(data);
       } catch (err) {
         console.error("Error loading profile:", err);
-        setError("Could not load profile data.");
+        // Last resort: at least show auth username
+        if (user.username) setUsername(user.username);
+        if (user.avatar_url) setAvatarUrl(user.avatar_url);
+        setError("Could not load full profile data.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadProfile();
-  }, [user?.id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.username, user?.avatar_url]);
 
   const handleImageFile = async (e) => {
     const file = e.target.files?.[0];
@@ -191,11 +228,17 @@ export default function ProfileSettingsPage() {
         favorite_albums: favoriteAlbums.filter(Boolean),
       });
 
-      setSuccess("Profile updated successfully.");
+      if (typeof refreshUser === "function") {
+        await refreshUser();
+      }
+
+      setSuccess("Profile updated successfully!");
+      setSaving(false);
+
       setTimeout(() => {
         router.push(`/${username.toLowerCase()}`);
         router.refresh();
-      }, 900);
+      }, 800);
     } catch (err) {
       console.error(err);
       setError(err.message || "Could not save changes.");

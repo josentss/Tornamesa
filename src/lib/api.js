@@ -10,13 +10,14 @@ const handleResponse = async (response) => {
 };
 
 const fetchApi = async (endpoint, options = {}) => {
+  const { headers: optHeaders, ...rest } = options;
   try {
     const response = await fetch(endpoint, {
+      ...rest,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...optHeaders,
       },
-      ...options,
     });
     return await handleResponse(response);
   } catch (error) {
@@ -47,28 +48,31 @@ export const api = {
 
   // profile
   getUserProfile: (userId) =>
-    fetchApi(`/api/users/${userId}?_t=${Date.now()}`, { cache: 'no-store' }),
+    fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-store' },
+    }),
 
-  updateUserProfile: async (userId, profileData) => {
-    const { createClient } = await import('@/lib/supabase/client');
-    const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    updateUserProfile: async (userId, profileData) => {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!session?.access_token) {
+      if (!session?.access_token) {
         throw new Error('You must be logged in');
-    }
+      }
 
-    return fetchApi(`/api/users/${userId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify(profileData),
-    });
-  },
+      return fetchApi(`/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(profileData),
+      });
+    },
 
   // public profiles
   getPublicProfile: (username, currentUserId = null) => {

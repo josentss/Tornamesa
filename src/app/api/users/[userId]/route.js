@@ -35,7 +35,13 @@ export async function GET(request, { params }) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('GET profile error:', error);
+      return NextResponse.json(
+        { error: error.message || 'Failed to load profile' },
+        { status: 500 }
+      );
+    }
 
     if (!data) {
       return NextResponse.json({
@@ -53,7 +59,7 @@ export async function GET(request, { params }) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('GET profile error:', error);
+    console.error('GET profile exception:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to load profile' },
       { status: 500 }
@@ -102,10 +108,7 @@ export async function PUT(request, { params }) {
         .neq('id', userId)
         .maybeSingle();
 
-      if (checkError) {
-        console.error('Username check error:', checkError);
-        throw checkError;
-      }
+      if (checkError) throw checkError;
 
       if (existing) {
         return NextResponse.json(
@@ -115,7 +118,6 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Only defined fields — never send `undefined` to PostgREST
     const payload = {
       id: userId,
       full_name: sanitizeString(full_name),
@@ -131,6 +133,7 @@ export async function PUT(request, { params }) {
       payload.username = username.toLowerCase();
     }
 
+    // No updated_at — avoids 500 if the column does not exist
     const { data, error } = await supabase
       .from('profiles')
       .upsert(payload, { onConflict: 'id' })
