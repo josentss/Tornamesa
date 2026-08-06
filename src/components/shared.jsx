@@ -57,6 +57,7 @@ export function Header({ user: initialUser }) {
       await signOut();
       setShowMenu(false);
       router.push('/');
+      router.refresh();
     } catch (error) {
       console.error('Error signing out:', error);
     }

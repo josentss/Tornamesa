@@ -6,6 +6,26 @@ import { api } from '@/lib/api';
 
 const AuthContext = createContext(null);
 
+function mapAuthError(err, fallback) {
+  const msg = (err?.message || '').toLowerCase();
+  if (msg.includes('already registered') || msg.includes('already been registered')) {
+    return 'This email is already registered. Try logging in.';
+  }
+  if (msg.includes('user already exists')) {
+    return 'This email is already registered. Try logging in.';
+  }
+  if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+    return 'Invalid email or password.';
+  }
+  if (msg.includes('email not confirmed')) {
+    return 'Please confirm your email before logging in.';
+  }
+  if (msg.includes('password')) {
+    return 'Password does not meet requirements.';
+  }
+  return fallback;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,10 +34,8 @@ export function AuthProvider({ children }) {
 
   const enrichUser = async (authUser) => {
     if (!authUser?.id) return authUser;
-
     try {
       const profile = await api.getUserProfile(authUser.id).catch(() => null);
-
       if (profile) {
         return {
           ...authUser,
@@ -25,7 +43,6 @@ export function AuthProvider({ children }) {
           avatar_url: profile.avatar_url || null,
         };
       }
-
       if (authUser.user_metadata?.username) {
         return {
           ...authUser,
@@ -36,7 +53,6 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error('Error enriching user:', err.message);
     }
-
     return authUser;
   };
 
@@ -49,9 +65,7 @@ export function AuthProvider({ children }) {
           data: { session },
           error: sessionError,
         } = await supabase.auth.getSession();
-
         if (sessionError) throw sessionError;
-
         if (session?.user && mounted) {
           const enriched = await enrichUser(session.user);
           if (mounted) setUser(enriched);
@@ -75,7 +89,6 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
-
       if (session?.user) {
         const enriched = await enrichUser(session.user);
         setUser(enriched);
@@ -98,36 +111,34 @@ export function AuthProvider({ children }) {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: {
-        data: { username },
-      },
+      options: { data: { username } },
     });
-
     if (signUpError) {
-      const message =
-        'Could not complete registration. Check the data you entered.';
+      const message = mapAuthError(
+        signUpError,
+        'Could not complete registration. Check your details.'
+      );
       setError(message);
       throw new Error(message);
     }
-
     return { success: true, user: data.user };
   };
 
-  const signIn = async (email, password /*, rememberMe */) => {
+  const signIn = async (email, password) => {
     setError(null);
     const { data, error: signInError } =
       await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       });
-
     if (signInError) {
-      const message =
-        'Invalid credentials. Please check your email and password.';
+      const message = mapAuthError(
+        signInError,
+        'Invalid email or password.'
+      );
       setError(message);
       throw new Error(message);
     }
-
     const enriched = await enrichUser(data.user);
     setUser(enriched);
     return { success: true, user: enriched };
@@ -136,13 +147,11 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     setError(null);
     const { error: signOutError } = await supabase.auth.signOut();
-
     if (signOutError) {
       const message = 'Could not sign out securely.';
       setError(message);
       throw new Error(message);
     }
-
     setUser(null);
     return { success: true };
   };
@@ -151,18 +160,14 @@ export function AuthProvider({ children }) {
     setError(null);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim().toLowerCase(),
-      {
-        redirectTo: `${window.location.origin}/reset-password`,
-      }
+      { redirectTo: `${window.location.origin}/reset-password` }
     );
-
     if (resetError) {
       const message =
         'If the email is registered, you will receive a reset link.';
       setError(message);
       throw new Error(message);
     }
-
     return { success: true };
   };
 
@@ -171,31 +176,31 @@ export function AuthProvider({ children }) {
     const { error: updateError } = await supabase.auth.updateUser({
       password: newPassword,
     });
-
     if (updateError) {
       const message =
         'Could not update password. Check the security requirements.';
       setError(message);
       throw new Error(message);
     }
-
     return { success: true };
   };
 
-  const value = {
-    user,
-    loading,
-    error,
-    isAuthenticated: !!user,
-    signUp,
-    signIn,
-    signOut,
-    resetPassword,
-    updatePassword,
-  };
-
   return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        isAuthenticated: !!user,
+        signUp,
+        signIn,
+        signOut,
+        resetPassword,
+        updatePassword,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 }
 

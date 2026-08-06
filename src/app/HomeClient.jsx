@@ -8,7 +8,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 // public landing
-
 const PublicHeader = () => (
   <header className="absolute top-0 w-full z-20 flex justify-between items-center px-6 py-4">
     <Link
@@ -452,9 +451,8 @@ const DashboardView = ({
 };
 
 // client page
-
 export default function HomeClient({ initialLoggedIn = false }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [feed, setFeed] = useState([]);
   const [ownHistory, setOwnHistory] = useState([]);
   const [stats, setStats] = useState(null);
@@ -462,18 +460,16 @@ export default function HomeClient({ initialLoggedIn = false }) {
   const [username, setUsername] = useState(null);
   const [dataReady, setDataReady] = useState(false);
 
-  const showDashboard = !!user || initialLoggedIn;
+  const showDashboard = loading ? initialLoggedIn || !!user : !!user;
 
   useEffect(() => {
     if (!user) {
-      if (!initialLoggedIn) {
-        setDataReady(false);
-        setFeed([]);
-        setOwnHistory([]);
-        setStats(null);
-        setFriendsReviews([]);
-        setUsername(null);
-      }
+      setDataReady(false);
+      setFeed([]);
+      setOwnHistory([]);
+      setStats(null);
+      setFriendsReviews([]);
+      setUsername(null);
       return;
     }
 
@@ -521,7 +517,7 @@ export default function HomeClient({ initialLoggedIn = false }) {
     return () => {
       cancelled = true;
     };
-  }, [user, initialLoggedIn]);
+  }, [user]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
