@@ -464,12 +464,14 @@ export default function HomeClient({ initialLoggedIn = false }) {
 
   useEffect(() => {
     if (!user) {
-      setDataReady(false);
-      setFeed([]);
-      setOwnHistory([]);
-      setStats(null);
-      setFriendsReviews([]);
-      setUsername(null);
+      if (!initialLoggedIn) {
+        setDataReady(false);
+        setFeed([]);
+        setOwnHistory([]);
+        setStats(null);
+        setFriendsReviews([]);
+        setUsername(null);
+      }
       return;
     }
 
@@ -477,14 +479,14 @@ export default function HomeClient({ initialLoggedIn = false }) {
 
     const load = async () => {
       try {
-        let uname = user.username || user.user_metadata?.username || null;
-        if (!uname) {
-          try {
-            const profile = await api.getUserProfile(user.id);
-            uname = profile?.username || null;
-          } catch {
-            /* ignore */
-          }
+        // ALWAYS resolve username from profiles table (not stale context)
+        let uname = null;
+        try {
+          const profile = await api.getUserProfile(user.id);
+          uname = profile?.username || null;
+        } catch {
+          uname =
+            user.username || user.user_metadata?.username || null;
         }
 
         const [feedRes, historyRes, statsRes, friendsReviewsRes] =
@@ -517,7 +519,7 @@ export default function HomeClient({ initialLoggedIn = false }) {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user?.id, user?.username, initialLoggedIn]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">

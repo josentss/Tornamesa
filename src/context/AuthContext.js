@@ -8,7 +8,11 @@ const AuthContext = createContext(null);
 
 function mapAuthError(err, fallback) {
   const msg = (err?.message || '').toLowerCase();
-  if (msg.includes('already registered') || msg.includes('already been registered')) {
+  if (
+    msg.includes('already registered') ||
+    msg.includes('already been registered') ||
+    msg.includes('user already exists')
+  ) {
     return 'This email is already registered. Try logging in.';
   }
   if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
@@ -16,6 +20,9 @@ function mapAuthError(err, fallback) {
   }
   if (msg.includes('email not confirmed')) {
     return 'Please confirm your email before logging in.';
+  }
+  if (msg.includes('password')) {
+    return 'Password does not meet requirements.';
   }
   return fallback;
 }
@@ -33,7 +40,10 @@ export function AuthProvider({ children }) {
       if (profile) {
         return {
           ...authUser,
-          username: profile.username || authUser.user_metadata?.username || null,
+          username:
+            profile.username ||
+            authUser.user_metadata?.username ||
+            null,
           avatar_url: profile.avatar_url || null,
           full_name: profile.full_name || null,
           bio: profile.bio || null,
@@ -68,7 +78,6 @@ export function AuthProvider({ children }) {
     }
   }, [supabase, enrichUser]);
 
-  /** Merge profile fields into the current user immediately (no extra fetch). */
   const applyProfile = useCallback((profile) => {
     if (!profile) return;
     setUser((prev) => {
@@ -76,11 +85,14 @@ export function AuthProvider({ children }) {
       return {
         ...prev,
         username: profile.username ?? prev.username,
-        avatar_url: profile.avatar_url ?? prev.avatar_url,
+        avatar_url:
+          profile.avatar_url !== undefined
+            ? profile.avatar_url
+            : prev.avatar_url,
         full_name: profile.full_name ?? prev.full_name,
         bio: profile.bio ?? prev.bio,
         user_metadata: {
-          ...prev.user_metadata,
+          ...(prev.user_metadata || {}),
           username: profile.username ?? prev.user_metadata?.username,
         },
       };
@@ -101,7 +113,7 @@ export function AuthProvider({ children }) {
           setUser(await enrichUser(session.user));
         }
       } catch (err) {
-        console.error('Auth init:', err.message);
+        console.error('Auth initialization error:', err.message);
         if (mounted) setError('Could not verify session.');
       } finally {
         if (mounted) setLoading(false);
@@ -154,10 +166,11 @@ export function AuthProvider({ children }) {
 
   const signIn = async (email, password) => {
     setError(null);
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+    const { data, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
     if (signInError) {
       const message = mapAuthError(signInError, 'Invalid email or password.');
       setError(message);

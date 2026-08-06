@@ -21,11 +21,13 @@ export function Header({ user: initialUser }) {
       return;
     }
 
-    // Prefer live context values (updated via applyProfile / refreshUser)
     if (user.username) setUsername(user.username);
-    if (user.avatar_url !== undefined) setAvatarUrl(user.avatar_url || null);
+    if (user.avatar_url !== undefined) {
+      setAvatarUrl(user.avatar_url || null);
+    } else if (user.user_metadata?.username && !user.username) {
+      setUsername(user.user_metadata.username);
+    }
 
-    // Always re-fetch so Header never sticks to a stale username
     let cancelled = false;
     api
       .getUserProfile(user.id)
@@ -34,7 +36,11 @@ export function Header({ user: initialUser }) {
         if (data.username) setUsername(data.username);
         setAvatarUrl(data.avatar_url || null);
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('Error loading header profile:', err);
+        }
+      });
 
     return () => {
       cancelled = true;
