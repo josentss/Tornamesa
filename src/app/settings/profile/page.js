@@ -20,15 +20,8 @@ const PRONOUNS = [
   "Prefer not to say",
 ];
 
-const inputClass =
-  "w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8] transition-colors disabled:opacity-50";
-const labelClass =
-  "block text-[11px] text-stone-500 uppercase tracking-wider font-semibold mb-1.5";
-const sectionClass =
-  "bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl p-5 sm:p-6 space-y-4";
-
 export default function ProfileSettingsPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, applyProfile } = useAuth();
   const router = useRouter();
 
   const [username, setUsername] = useState("");
@@ -53,73 +46,40 @@ export default function ProfileSettingsPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-
     let cancelled = false;
 
-    const apply = (data) => {
-      if (cancelled || !data) return;
-      setUsername(data.username || "");
-      setFullName(data.full_name || "");
-      setAvatarUrl(data.avatar_url || "");
-      setPronouns(data.pronouns || "");
-      setWebsite(data.website || "");
-      setBio(data.bio || "");
-      const slots = [null, null, null];
-      if (Array.isArray(data.favorite_albums)) {
-        data.favorite_albums.slice(0, 3).forEach((item, i) => {
-          slots[i] = item;
-        });
-      }
-      setFavoriteAlbums(slots);
-    };
-
-    const load = async () => {
+    (async () => {
       setLoading(true);
-      setError("");
-
-      // Seed from session
-      if (user.username) setUsername(user.username);
-      if (user.avatar_url) setAvatarUrl(user.avatar_url);
-
       try {
-        let data = await api.getUserProfile(user.id);
+        const data = await api.getUserProfile(user.id);
+        if (cancelled || !data) return;
 
-        const looksEmpty =
-          data &&
-          !data.username &&
-          !data.full_name &&
-          !data.bio &&
-          !data.avatar_url &&
-          !(data.favorite_albums && data.favorite_albums.length);
+        setUsername(data.username || "");
+        setFullName(data.full_name || "");
+        setAvatarUrl(data.avatar_url || "");
+        setPronouns(data.pronouns || "");
+        setWebsite(data.website || "");
+        setBio(data.bio || "");
 
-        // Fallback: public endpoint by username (works if profile exists by name)
-        if (looksEmpty) {
-          const uname =
-            user.username || user.user_metadata?.username || null;
-          if (uname) {
-            try {
-              const pub = await api.getPublicProfile(uname);
-              if (pub?.profile) data = pub.profile;
-            } catch {
-              /* ignore */
-            }
-          }
+        const slots = [null, null, null];
+        if (Array.isArray(data.favorite_albums)) {
+          data.favorite_albums.slice(0, 3).forEach((item, i) => {
+            slots[i] = item;
+          });
         }
-
-        apply(data);
+        setFavoriteAlbums(slots);
       } catch (err) {
-        console.error("Load profile:", err);
-        setError("Could not load profile data.");
+        console.error(err);
+        if (!cancelled) setError("Could not load profile data.");
       } finally {
         if (!cancelled) setLoading(false);
       }
-    };
+    })();
 
-    load();
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.username, user?.avatar_url, user?.user_metadata?.username]);
+  }, [user?.id]);
 
   const handleImageFile = async (e) => {
     const file = e.target.files?.[0];
@@ -159,8 +119,7 @@ export default function ProfileSettingsPage() {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      const results = await api.searchAlbums(searchQuery);
-      setSearchResults(results || []);
+      setSearchResults((await api.searchAlbums(searchQuery)) || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -195,11 +154,12 @@ export default function ProfileSettingsPage() {
     setError("");
     setSuccess("");
 
-    if (!username.trim()) {
+    const cleanUser = username.trim().toLowerCase();
+    if (!cleanUser) {
       setError("Username is required.");
       return;
     }
-    if (!/^[a-z0-9_-]{3,20}$/.test(username.toLowerCase())) {
+    if (!/^[a-z0-9_-]{3,20}$/.test(cleanUser)) {
       setError(
         "Username must be 3–20 characters (letters, numbers, _ or -)."
       );
@@ -209,7 +169,7 @@ export default function ProfileSettingsPage() {
     setSaving(true);
     try {
       const res = await api.updateUserProfile(user.id, {
-        username: username.toLowerCase(),
+        username: cleanUser,
         full_name: fullName,
         avatar_url: avatarUrl,
         pronouns,
@@ -218,27 +178,43 @@ export default function ProfileSettingsPage() {
         favorite_albums: favoriteAlbums.filter(Boolean),
       });
 
-      // Prefer server-returned row
-      if (res?.data) {
-        setUsername(res.data.username || username);
-        setFullName(res.data.full_name || "");
-        setAvatarUrl(res.data.avatar_url || "");
-        setPronouns(res.data.pronouns || "");
-        setWebsite(res.data.website || "");
-        setBio(res.data.bio || "");
+      const saved = res?.data || {
+        username: cleanUser,
+        full_name: fullName,
+        avatar_url: avatarUrl,
+        pronouns,
+        website,
+        bio,
+        favorite_albums: favoriteAlbums.filter(Boolean),
+      };
+
+      // 1) Update context immediately (Header + dashboard)
+      if (typeof applyProfile === "function") {
+        applyProfile(saved);
       }
 
+      // 2) Re-fetch profile into context
       if (typeof refreshUser === "function") {
         await refreshUser();
+      }
+
+      // 3) Keep auth metadata in sync (avoids old username in JWT metadata)
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        await createClient().auth.updateUser({
+          data: { username: cleanUser },
+        });
+      } catch {
+        /* non-fatal */
       }
 
       setSuccess("Profile updated successfully.");
       setSaving(false);
 
       setTimeout(() => {
-        router.push(`/${(res?.data?.username || username).toLowerCase()}`);
+        router.push(`/${cleanUser}`);
         router.refresh();
-      }, 800);
+      }, 600);
     } catch (err) {
       console.error(err);
       setError(err.message || "Could not save changes.");
@@ -248,9 +224,8 @@ export default function ProfileSettingsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-28 bg-[#131e2c] rounded-2xl border border-[#2a3645]" />
-        <div className="h-40 bg-[#131e2c] rounded-2xl border border-[#2a3645]" />
+      <div className="py-16 text-center text-sm text-stone-500">
+        Loading profile...
       </div>
     );
   }
@@ -272,138 +247,143 @@ export default function ProfileSettingsPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <section className={sectionClass}>
-          <h2 className="text-sm font-semibold text-white">Profile photo</h2>
-          <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#2a3645] bg-[#1f2b3a] flex items-center justify-center font-bold text-lg shrink-0 relative">
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt="Avatar"
-                  width={80}
-                  height={80}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                (username || "U").substring(0, 2).toUpperCase()
-              )}
-            </div>
-            <div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageFile}
-                disabled={saving || uploadingImage}
-                className="text-xs text-stone-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1f2b3a] file:text-[#7cc7e8] hover:file:bg-[#2a3645] cursor-pointer"
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-6 bg-[#131e2c] p-5 sm:p-6 rounded-2xl border border-[#2a3645]"
+      >
+        <div className="flex items-center gap-5 pb-5 border-b border-[#2a3645]">
+          <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#2a3645] bg-[#1f2b3a] flex items-center justify-center font-bold text-lg shrink-0">
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt="Avatar"
+                width={80}
+                height={80}
+                className="w-full h-full object-cover"
               />
-              <p className="text-[10px] text-stone-500 mt-1.5">
-                {uploadingImage ? "Uploading..." : "JPG or PNG. Max 2MB."}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className="text-sm font-semibold text-white">Identity</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className={labelClass + " mb-0"}>Username</label>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingUsername((v) => !v)}
-                  className="text-[11px] text-[#7cc7e8] hover:underline"
-                >
-                  {isEditingUsername ? "Lock" : "Edit"}
-                </button>
-              </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm">
-                  @
-                </span>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) =>
-                    setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))
-                  }
-                  disabled={!isEditingUsername || saving || uploadingImage}
-                  className={inputClass + " pl-7"}
-                  placeholder="username"
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Display name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                disabled={saving || uploadingImage}
-                className={inputClass}
-                placeholder="How you want to be shown"
-              />
-            </div>
+            ) : (
+              (username || "U").substring(0, 2).toUpperCase()
+            )}
           </div>
           <div>
-            <label className={labelClass}>Pronouns</label>
-            <select
-              value={pronouns}
-              onChange={(e) => setPronouns(e.target.value)}
+            <label className="text-xs text-[#7cc7e8] font-semibold mb-2 block">
+              Profile picture
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageFile}
               disabled={saving || uploadingImage}
-              className={inputClass}
-            >
-              <option value="">Prefer not to say</option>
-              {PRONOUNS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className="text-sm font-semibold text-white">About</h2>
-          <div>
-            <label className={labelClass}>Bio</label>
-            <textarea
-              value={bio}
-              onChange={handleBioChange}
-              rows={3}
-              disabled={saving || uploadingImage}
-              className={inputClass + " resize-none"}
-              placeholder="A few words about your taste in music..."
+              className="text-xs text-stone-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1f2b3a] file:text-[#7cc7e8]"
             />
-            <p className="text-[10px] text-stone-500 mt-1 text-right">
-              {wordCount} / 50 words
+            <p className="text-[10px] text-stone-500 mt-1">
+              {uploadingImage ? "Uploading..." : "JPG or PNG. Max 2MB."}
             </p>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Website</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-[#7cc7e8] font-semibold">
+                Username
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsEditingUsername((v) => !v)}
+                className="text-[11px] text-[#7cc7e8] hover:underline"
+              >
+                {isEditingUsername ? "Lock" : "Edit"}
+              </button>
+            </div>
             <input
-              type="url"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              disabled={saving || uploadingImage}
-              className={inputClass}
-              placeholder="https://..."
+              type="text"
+              value={username}
+              onChange={(e) =>
+                setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))
+              }
+              disabled={!isEditingUsername || saving || uploadingImage}
+              className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white disabled:opacity-50"
+              placeholder="username"
             />
           </div>
-        </section>
+          <div>
+            <label className="text-xs text-[#7cc7e8] font-semibold mb-1.5 block">
+              Display name
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={saving || uploadingImage}
+              className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white"
+              placeholder="Display name"
+            />
+          </div>
+        </div>
 
-        <section className={sectionClass}>
-          <h2 className="text-sm font-semibold text-white">Favorite albums</h2>
-          <p className="text-xs text-stone-500">Up to 3 on your profile</p>
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <div>
+          <label className="text-xs text-[#7cc7e8] font-semibold mb-1.5 block">
+            Pronouns
+          </label>
+          <select
+            value={pronouns}
+            onChange={(e) => setPronouns(e.target.value)}
+            disabled={saving || uploadingImage}
+            className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white"
+          >
+            <option value="">Prefer not to say</option>
+            {PRONOUNS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs text-[#7cc7e8] font-semibold mb-1.5 block">
+            Bio
+          </label>
+          <textarea
+            value={bio}
+            onChange={handleBioChange}
+            rows={3}
+            disabled={saving || uploadingImage}
+            className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white resize-none"
+            placeholder="About your music taste..."
+          />
+          <p className="text-[10px] text-stone-500 mt-1 text-right">
+            {wordCount} / 50 words
+          </p>
+        </div>
+
+        <div>
+          <label className="text-xs text-[#7cc7e8] font-semibold mb-1.5 block">
+            Website
+          </label>
+          <input
+            type="url"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            disabled={saving || uploadingImage}
+            className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white"
+            placeholder="https://..."
+          />
+        </div>
+
+        <div className="pt-2 border-t border-[#2a3645]">
+          <label className="text-xs text-[#7cc7e8] font-semibold mb-3 block">
+            Favorite albums
+          </label>
+          <div className="grid grid-cols-3 gap-3">
             {favoriteAlbums.map((album, idx) => (
               <div
                 key={idx}
                 onClick={() =>
                   !album && !saving && !uploadingImage && setActiveSlot(idx)
                 }
-                className={`relative group aspect-square bg-[#0a121c] border border-[#2a3645] rounded-xl flex items-center justify-center overflow-hidden ${
+                className={`relative group aspect-square bg-[#0a121c] border border-[#2a3645] rounded-xl overflow-hidden ${
                   !album ? "cursor-pointer hover:border-[#7cc7e8]/50" : ""
                 }`}
               >
@@ -419,32 +399,34 @@ export default function ProfileSettingsPage() {
                     <button
                       type="button"
                       onClick={(e) => removeFavoriteAlbum(e, idx)}
-                      className="absolute top-1.5 right-1.5 bg-black/70 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100"
+                      className="absolute top-1 right-1 bg-black/70 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100"
                     >
                       ✕
                     </button>
                   </>
                 ) : (
-                  <span className="text-stone-500 text-xs">+ Add</span>
+                  <div className="w-full h-full flex items-center justify-center text-stone-500 text-xs">
+                    + Add
+                  </div>
                 )}
               </div>
             ))}
           </div>
-        </section>
+        </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex gap-3 pt-2">
           <button
             type="submit"
             disabled={saving || uploadingImage}
-            className="bg-[#7cc7e8] text-[#0a121c] px-6 py-2.5 text-sm font-semibold rounded-lg hover:bg-[#a5d8f0] disabled:opacity-50"
+            className="bg-[#7cc7e8] text-[#0a121c] px-6 py-2.5 text-sm font-semibold rounded-lg disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save changes"}
           </button>
           <button
             type="button"
             onClick={() => router.back()}
-            disabled={saving || uploadingImage}
-            className="border border-[#2a3645] text-stone-400 px-6 py-2.5 text-sm rounded-lg hover:text-white"
+            disabled={saving}
+            className="border border-[#2a3645] text-stone-400 px-6 py-2.5 text-sm rounded-lg"
           >
             Cancel
           </button>
@@ -452,7 +434,7 @@ export default function ProfileSettingsPage() {
       </form>
 
       {activeSlot !== null && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-[#131e2c] border border-[#2a3645] p-5 rounded-2xl w-full max-w-md">
             <h3 className="font-semibold mb-4">Select favorite album</h3>
             <form onSubmit={handleSearchAlbum} className="flex gap-2 mb-4">
@@ -461,7 +443,7 @@ export default function ProfileSettingsPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Album or artist..."
-                className={inputClass}
+                className="flex-1 bg-[#0a121c] border border-[#2a3645] rounded-lg p-2 text-sm"
                 autoFocus
               />
               <button
@@ -471,13 +453,13 @@ export default function ProfileSettingsPage() {
                 {searching ? "..." : "Search"}
               </button>
             </form>
-            <div className="max-h-60 overflow-y-auto space-y-1.5">
+            <div className="max-h-60 overflow-y-auto space-y-1">
               {searchResults.map((item) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => selectFavoriteAlbum(item)}
-                  className="w-full flex items-center gap-3 p-2 bg-[#0a121c] hover:bg-[#1f2b3a] rounded-lg text-left"
+                  className="w-full flex items-center gap-3 p-2 hover:bg-[#1f2b3a] rounded-lg text-left"
                 >
                   {item.coverUrl && (
                     <Image
@@ -502,7 +484,7 @@ export default function ProfileSettingsPage() {
             <button
               type="button"
               onClick={() => setActiveSlot(null)}
-              className="mt-4 w-full text-xs text-stone-500 hover:text-white py-2"
+              className="mt-4 w-full text-xs text-stone-500 py-2"
             >
               Close
             </button>

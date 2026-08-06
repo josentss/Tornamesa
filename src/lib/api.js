@@ -52,16 +52,21 @@ export const api = {
         cache: 'no-store',
       }),
 
-    updateUserProfile: async (userId, profileData) => {
+  updateUserProfile: async (userId, profileData) => {
+    let session = null;
+    try {
       const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const client = createClient();
+      const res = await client.auth.getSession();
+      session = res.data.session;
+    } catch {
+      const { data } = await supabase.auth.getSession();
+      session = data.session;
+    }
 
-      if (!session?.access_token) {
-        throw new Error('You must be logged in');
-      }
+    if (!session?.access_token) {
+      throw new Error('You must be logged in');
+    }
 
       return fetchApi(`/api/users/${userId}`, {
         method: 'PUT',

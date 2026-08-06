@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api';
 
@@ -8,13 +8,7 @@ const AuthContext = createContext(null);
 
 function mapAuthError(err, fallback) {
   const msg = (err?.message || '').toLowerCase();
-  if (
-    msg.includes('already registered') ||
-    msg.includes('already been registered')
-  ) {
-    return 'This email is already registered. Try logging in.';
-  }
-  if (msg.includes('user already exists')) {
+  if (msg.includes('already registered') || msg.includes('already been registered')) {
     return 'This email is already registered. Try logging in.';
   }
   if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
@@ -22,9 +16,6 @@ function mapAuthError(err, fallback) {
   }
   if (msg.includes('email not confirmed')) {
     return 'Please confirm your email before logging in.';
-  }
-  if (msg.includes('password')) {
-    return 'Password does not meet requirements.';
   }
   return fallback;
 }
@@ -35,30 +26,66 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null);
   const supabase = createClient();
 
-  const enrichUser = async (authUser) => {
+  const enrichUser = useCallback(async (authUser) => {
     if (!authUser?.id) return authUser;
     try {
       const profile = await api.getUserProfile(authUser.id).catch(() => null);
       if (profile) {
         return {
           ...authUser,
-          username:
-            profile.username || authUser.user_metadata?.username || null,
+          username: profile.username || authUser.user_metadata?.username || null,
           avatar_url: profile.avatar_url || null,
+          full_name: profile.full_name || null,
+          bio: profile.bio || null,
         };
       }
-      if (authUser.user_metadata?.username) {
-        return {
-          ...authUser,
-          username: authUser.user_metadata.username,
-          avatar_url: null,
-        };
-      }
+      return {
+        ...authUser,
+        username: authUser.user_metadata?.username || null,
+        avatar_url: null,
+      };
     } catch (err) {
       console.error('Error enriching user:', err.message);
+      return authUser;
     }
-    return authUser;
-  };
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUser(null);
+        return null;
+      }
+      const enriched = await enrichUser(session.user);
+      setUser(enriched);
+      return enriched;
+    } catch (err) {
+      console.error('refreshUser error:', err.message);
+      return null;
+    }
+  }, [supabase, enrichUser]);
+
+  /** Merge profile fields into the current user immediately (no extra fetch). */
+  const applyProfile = useCallback((profile) => {
+    if (!profile) return;
+    setUser((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        username: profile.username ?? prev.username,
+        avatar_url: profile.avatar_url ?? prev.avatar_url,
+        full_name: profile.full_name ?? prev.full_name,
+        bio: profile.bio ?? prev.bio,
+        user_metadata: {
+          ...prev.user_metadata,
+          username: profile.username ?? prev.user_metadata?.username,
+        },
+      };
+    });
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -71,11 +98,10 @@ export function AuthProvider({ children }) {
         } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
         if (session?.user && mounted) {
-          const enriched = await enrichUser(session.user);
-          if (mounted) setUser(enriched);
+          setUser(await enrichUser(session.user));
         }
       } catch (err) {
-        console.error('Auth initialization error:', err.message);
+        console.error('Auth init:', err.message);
         if (mounted) setError('Could not verify session.');
       } finally {
         if (mounted) setLoading(false);
@@ -94,8 +120,7 @@ export function AuthProvider({ children }) {
         return;
       }
       if (session?.user) {
-        const enriched = await enrichUser(session.user);
-        setUser(enriched);
+        setUser(await enrichUser(session.user));
         setError(null);
       } else {
         setUser(null);
@@ -107,26 +132,7 @@ export function AuthProvider({ children }) {
       mounted = false;
       subscription?.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const refreshUser = async () => {
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user) {
-        setUser(null);
-        return null;
-      }
-      const enriched = await enrichUser(session.user);
-      setUser(enriched);
-      return enriched;
-    } catch (err) {
-      console.error('refreshUser error:', err.message);
-      return null;
-    }
-  };
+  }, [supabase, enrichUser]);
 
   const signUp = async (email, password, username) => {
     setError(null);
@@ -148,11 +154,10 @@ export function AuthProvider({ children }) {
 
   const signIn = async (email, password) => {
     setError(null);
-    const { data, error: signInError } =
-      await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
     if (signInError) {
       const message = mapAuthError(signInError, 'Invalid email or password.');
       setError(message);
@@ -217,6 +222,7 @@ export function AuthProvider({ children }) {
         resetPassword,
         updatePassword,
         refreshUser,
+        applyProfile,
       }}
     >
       {children}

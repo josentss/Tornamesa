@@ -21,36 +21,25 @@ export function Header({ user: initialUser }) {
       return;
     }
 
+    // Prefer live context values (updated via applyProfile / refreshUser)
     if (user.username) setUsername(user.username);
-    if (user.avatar_url) setAvatarUrl(user.avatar_url);
+    if (user.avatar_url !== undefined) setAvatarUrl(user.avatar_url || null);
 
-    if (user.username && user.avatar_url) return;
+    // Always re-fetch so Header never sticks to a stale username
+    let cancelled = false;
+    api
+      .getUserProfile(user.id)
+      .then((data) => {
+        if (cancelled || !data) return;
+        if (data.username) setUsername(data.username);
+        setAvatarUrl(data.avatar_url || null);
+      })
+      .catch(() => {});
 
-    if (!user.username && user.user_metadata?.username) {
-      setUsername(user.user_metadata.username);
-    }
-
-    if (!user.username || !user.avatar_url) {
-      let cancelled = false;
-
-      api
-        .getUserProfile(user.id)
-        .then((data) => {
-          if (cancelled) return;
-          if (data?.username) setUsername(data.username);
-          if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-        })
-        .catch((err) => {
-          if (!cancelled) {
-            console.error('Error loading header profile:', err);
-          }
-        });
-
-      return () => {
-        cancelled = true;
-      };
-    }
-  }, [user]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.username, user?.avatar_url]);
 
   const handleSignOut = async () => {
     try {
