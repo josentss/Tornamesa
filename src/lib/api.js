@@ -55,7 +55,10 @@ export const api = {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!session) throw new Error('You must be logged in');
+
+    if (!session?.access_token) {
+        throw new Error('You must be logged in');
+    }
 
     return fetchApi(`/api/users/${userId}`, {
       method: 'PUT',

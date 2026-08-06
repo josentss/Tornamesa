@@ -8,7 +8,10 @@ const AuthContext = createContext(null);
 
 function mapAuthError(err, fallback) {
   const msg = (err?.message || '').toLowerCase();
-  if (msg.includes('already registered') || msg.includes('already been registered')) {
+  if (
+    msg.includes('already registered') ||
+    msg.includes('already been registered')
+  ) {
     return 'This email is already registered. Try logging in.';
   }
   if (msg.includes('user already exists')) {
@@ -39,7 +42,8 @@ export function AuthProvider({ children }) {
       if (profile) {
         return {
           ...authUser,
-          username: profile.username || authUser.user_metadata?.username || null,
+          username:
+            profile.username || authUser.user_metadata?.username || null,
           avatar_url: profile.avatar_url || null,
         };
       }
@@ -106,6 +110,24 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const refreshUser = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUser(null);
+        return null;
+      }
+      const enriched = await enrichUser(session.user);
+      setUser(enriched);
+      return enriched;
+    } catch (err) {
+      console.error('refreshUser error:', err.message);
+      return null;
+    }
+  };
+
   const signUp = async (email, password, username) => {
     setError(null);
     const { data, error: signUpError } = await supabase.auth.signUp({
@@ -132,10 +154,7 @@ export function AuthProvider({ children }) {
         password,
       });
     if (signInError) {
-      const message = mapAuthError(
-        signInError,
-        'Invalid email or password.'
-      );
+      const message = mapAuthError(signInError, 'Invalid email or password.');
       setError(message);
       throw new Error(message);
     }
@@ -197,6 +216,7 @@ export function AuthProvider({ children }) {
         signOut,
         resetPassword,
         updatePassword,
+        refreshUser,
       }}
     >
       {children}

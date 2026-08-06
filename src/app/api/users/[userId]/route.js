@@ -5,20 +5,21 @@ import { validateUsername, sanitizeString } from '@/lib/validators';
 
 async function getRequestUser(request) {
   const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    const client = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-    const {
-      data: { user },
-      error,
-    } = await client.auth.getUser(token);
-    if (error || !user) return null;
-    return user;
-  }
-  return null;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+
+  const token = authHeader.slice(7);
+  const client = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  const {
+    data: { user },
+    error,
+  } = await client.auth.getUser(token);
+
+  if (error || !user) return null;
+  return user;
 }
 
 export async function GET(request, { params }) {
@@ -32,9 +33,11 @@ export async function GET(request, { params }) {
         'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums'
       )
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code === 'PGRST116') {
+    if (error) throw error;
+
+    if (!data) {
       return NextResponse.json({
         id: userId,
         username: '',
@@ -47,55 +50,62 @@ export async function GET(request, { params }) {
         favorite_albums: [],
       });
     }
-    if (error) throw error;
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('GET profile error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to load profile' },
+      { status: 500 }
+    );
   }
 }
 
 export async function PUT(request, { params }) {
   const { userId } = params;
 
-  const authUser = await getRequestUser(request);
-  if (!authUser || authUser.id !== userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const body = await request.json();
-  const {
-    username,
-    full_name,
-    avatar_url,
-    pronouns,
-    country,
-    website,
-    bio,
-    favorite_albums,
-  } = body;
-
-  if (username && !validateUsername(username)) {
-    return NextResponse.json(
-      {
-        error:
-          'Invalid username. Use 3–20 characters: letters, numbers, _ or -.',
-      },
-      { status: 400 }
-    );
-  }
-
-  const supabase = createSupabaseServer();
-
   try {
+    const authUser = await getRequestUser(request);
+    if (!authUser || authUser.id !== userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      username,
+      full_name,
+      avatar_url,
+      pronouns,
+      country,
+      website,
+      bio,
+      favorite_albums,
+    } = body;
+
+    if (username && !validateUsername(username)) {
+      return NextResponse.json(
+        {
+          error:
+            'Invalid username. Use 3–20 characters: letters, numbers, _ or -.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createSupabaseServer();
+
     if (username) {
-      const { data: existing } = await supabase
+      const { data: existing, error: checkError } = await supabase
         .from('profiles')
         .select('id')
         .ilike('username', username)
-        .not('id', 'eq', userId)
+        .neq('id', userId)
         .maybeSingle();
+
+      if (checkError) {
+        console.error('Username check error:', checkError);
+        throw checkError;
+      }
 
       if (existing) {
         return NextResponse.json(
@@ -105,16 +115,16 @@ export async function PUT(request, { params }) {
       }
     }
 
+    // Only defined fields — never send `undefined` to PostgREST
     const payload = {
       id: userId,
       full_name: sanitizeString(full_name),
       avatar_url: avatar_url || null,
-      pronouns: sanitizeString(pronouns),
+      pronouns: sanitizeString(pronouns) || null,
       country: country || null,
-      website: sanitizeString(website),
-      bio: sanitizeString(bio),
-      favorite_albums: favorite_albums || [],
-      updated_at: new Date().toISOString(),
+      website: sanitizeString(website) || null,
+      bio: sanitizeString(bio) || null,
+      favorite_albums: Array.isArray(favorite_albums) ? favorite_albums : [],
     };
 
     if (username) {
@@ -124,10 +134,18 @@ export async function PUT(request, { params }) {
     const { data, error } = await supabase
       .from('profiles')
       .upsert(payload, { onConflict: 'id' })
-      .select()
-      .single();
+      .select(
+        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums'
+      )
+      .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Upsert profile error:', error);
+      return NextResponse.json(
+        { error: error.message || 'Failed to update profile' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -135,7 +153,10 @@ export async function PUT(request, { params }) {
       data,
     });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('PUT profile error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to update profile' },
+      { status: 500 }
+    );
   }
 }
