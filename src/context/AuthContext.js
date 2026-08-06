@@ -1,17 +1,17 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { api } from '../lib/api';
+import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const supabase = createClient();
 
-  // 🔄 Enriquecer el user de Auth con datos de la tabla profiles
   const enrichUser = async (authUser) => {
     if (!authUser?.id) return authUser;
 
@@ -21,15 +21,11 @@ export function AuthProvider({ children }) {
       if (profile) {
         return {
           ...authUser,
-          username:
-            profile.username ||
-            authUser.user_metadata?.username ||
-            null,
+          username: profile.username || authUser.user_metadata?.username || null,
           avatar_url: profile.avatar_url || null,
         };
       }
 
-      // Si no hay perfil, al menos usar metadata
       if (authUser.user_metadata?.username) {
         return {
           ...authUser,
@@ -44,9 +40,10 @@ export function AuthProvider({ children }) {
     return authUser;
   };
 
-  // 🔐 Restaurar sesión al montar
   useEffect(() => {
-    const initializeAuth = async () => {
+    let mounted = true;
+
+    const init = async () => {
       try {
         const {
           data: { session },
@@ -55,145 +52,134 @@ export function AuthProvider({ children }) {
 
         if (sessionError) throw sessionError;
 
-        if (session?.user) {
+        if (session?.user && mounted) {
           const enriched = await enrichUser(session.user);
-          setUser(enriched);
+          if (mounted) setUser(enriched);
         }
       } catch (err) {
         console.error('Auth initialization error:', err.message);
-        setError('Error al verificar la sesión.');
+        if (mounted) setError('Could not verify session.');
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    initializeAuth();
+    init();
 
-    // 👂 Escuchar cambios de sesión
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setUser(null);
         setError(null);
-      } else if (session?.user) {
+        setLoading(false);
+        return;
+      }
+
+      if (session?.user) {
         const enriched = await enrichUser(session.user);
         setUser(enriched);
         setError(null);
       } else {
         setUser(null);
       }
+      setLoading(false);
     });
 
     return () => {
+      mounted = false;
       subscription?.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 📝 SIGN UP
   const signUp = async (email, password, username) => {
-    try {
-      setError(null);
-      const { data, error: signUpError } = await supabase.auth.signUp({
+    setError(null);
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+      options: {
+        data: { username },
+      },
+    });
+
+    if (signUpError) {
+      const message =
+        'Could not complete registration. Check the data you entered.';
+      setError(message);
+      throw new Error(message);
+    }
+
+    return { success: true, user: data.user };
+  };
+
+  const signIn = async (email, password /*, rememberMe */) => {
+    setError(null);
+    const { data, error: signInError } =
+      await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
-        options: {
-          data: {
-            username: username,
-          },
-        },
       });
 
-      if (signUpError) throw signUpError;
-
-      return { success: true, user: data.user };
-    } catch (err) {
+    if (signInError) {
       const message =
-        'No se pudo completar el registro. Verifica los datos ingresados.';
+        'Invalid credentials. Please check your email and password.';
       setError(message);
       throw new Error(message);
     }
+
+    const enriched = await enrichUser(data.user);
+    setUser(enriched);
+    return { success: true, user: enriched };
   };
 
-  // 🔑 SIGN IN
-  const signIn = async (email, password, rememberMe) => {
-    try {
-      setError(null);
-      const { data, error: signInError } =
-        await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
-          password,
-        });
-
-      if (signInError) throw signInError;
-
-      const enriched = await enrichUser(data.user);
-      setUser(enriched);
-      return { success: true, user: enriched };
-    } catch (err) {
-      const message =
-        'Credenciales inválidas. Por favor, verifica tu correo y contraseña.';
-      setError(message);
-      throw new Error(message);
-    }
-  };
-
-  // 🚪 SIGN OUT
   const signOut = async () => {
-    try {
-      setError(null);
-      const { error: signOutError } = await supabase.auth.signOut();
+    setError(null);
+    const { error: signOutError } = await supabase.auth.signOut();
 
-      if (signOutError) throw signOutError;
-
-      setUser(null);
-      return { success: true };
-    } catch (err) {
-      const message = 'Error al cerrar sesión de forma segura.';
+    if (signOutError) {
+      const message = 'Could not sign out securely.';
       setError(message);
       throw new Error(message);
     }
+
+    setUser(null);
+    return { success: true };
   };
 
-  // 🔄 RESET PASSWORD
   const resetPassword = async (email) => {
-    try {
-      setError(null);
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-        {
-          redirectTo: `${window.location.origin}/reset-password`,
-        }
-      );
+    setError(null);
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      {
+        redirectTo: `${window.location.origin}/reset-password`,
+      }
+    );
 
-      if (resetError) throw resetError;
-
-      return { success: true };
-    } catch (err) {
+    if (resetError) {
       const message =
-        'Si el correo está registrado, recibirás un enlace para restablecer tu contraseña.';
+        'If the email is registered, you will receive a reset link.';
       setError(message);
       throw new Error(message);
     }
+
+    return { success: true };
   };
 
-  // 🔐 UPDATE PASSWORD
   const updatePassword = async (newPassword) => {
-    try {
-      setError(null);
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+    setError(null);
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
 
-      if (updateError) throw updateError;
-
-      return { success: true };
-    } catch (err) {
+    if (updateError) {
       const message =
-        'No se pudo actualizar la contraseña. Asegúrate de cumplir con los requisitos de seguridad.';
+        'Could not update password. Check the security requirements.';
       setError(message);
       throw new Error(message);
     }
+
+    return { success: true };
   };
 
   const value = {
@@ -216,7 +202,7 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth debe ser usado dentro de AuthProvider');
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 }
