@@ -49,11 +49,23 @@ export const api = {
   getUserProfile: (userId) =>
     fetchApi(`/api/users/${userId}?_t=${Date.now()}`, { cache: 'no-store' }),
 
-  updateUserProfile: (userId, profileData) =>
-    fetchApi(`/api/users/${userId}`, {
+  updateUserProfile: async (userId, profileData) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) throw new Error('You must be logged in');
+
+    return fetchApi(`/api/users/${userId}`, {
       method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify(profileData),
-    }),
+    });
+  },
 
   // public profiles
   getPublicProfile: (username, currentUserId = null) => {
