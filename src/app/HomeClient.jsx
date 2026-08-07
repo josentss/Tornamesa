@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Header, Footer, EmptyState } from "@/components/shared";
@@ -453,6 +454,7 @@ const DashboardView = ({
 // client page
 export default function HomeClient({ initialLoggedIn = false }) {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [feed, setFeed] = useState([]);
   const [ownHistory, setOwnHistory] = useState([]);
   const [stats, setStats] = useState(null);
@@ -461,6 +463,13 @@ export default function HomeClient({ initialLoggedIn = false }) {
   const [dataReady, setDataReady] = useState(false);
 
   const showDashboard = loading ? initialLoggedIn || !!user : !!user;
+
+  useEffect(() => {
+    if (loading || !user) return;
+    if (user.onboarding_completed === false) {
+      router.replace("/onboarding");
+    }
+  }, [user, loading, router]);
 
   useEffect(() => {
     if (!user) {

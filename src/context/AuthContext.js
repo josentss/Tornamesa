@@ -50,9 +50,12 @@ function mergeAuthAndProfile(authUser, profile, prev) {
         : fromProfile
           ? fromProfile.avatar_url || null
           : prev?.avatar_url ?? null,
-    full_name:
-      fromProfile?.full_name ?? prev?.full_name ?? null,
+    full_name: fromProfile?.full_name ?? prev?.full_name ?? null,
     bio: fromProfile?.bio ?? prev?.bio ?? null,
+    onboarding_completed:
+      fromProfile?.onboarding_completed !== undefined
+        ? !!fromProfile.onboarding_completed
+        : prev?.onboarding_completed ?? false,
   };
 }
 
@@ -91,6 +94,10 @@ export function AuthProvider({ children }) {
             ? profile.full_name
             : prev.full_name,
         bio: profile.bio !== undefined ? profile.bio : prev.bio,
+        onboarding_completed:
+          profile.onboarding_completed !== undefined
+            ? !!profile.onboarding_completed
+            : prev.onboarding_completed,
         user_metadata: {
           ...(prev.user_metadata || {}),
           username: profile.username ?? prev.user_metadata?.username,
@@ -175,6 +182,7 @@ export function AuthProvider({ children }) {
             avatar_url: prev.avatar_url,
             full_name: prev.full_name,
             bio: prev.bio,
+            onboarding_completed: prev.onboarding_completed,
           };
           userRef.current = next;
           return next;
@@ -193,6 +201,7 @@ export function AuthProvider({ children }) {
             avatar_url: prev?.avatar_url ?? null,
             full_name: prev?.full_name ?? null,
             bio: prev?.bio ?? null,
+            onboarding_completed: prev?.onboarding_completed ?? false,
           };
           userRef.current = next;
           return next;

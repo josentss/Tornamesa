@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const PROFILE_COLS =
-  'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums';
+  'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, onboarding_completed';
 
 const noStoreHeaders = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -56,6 +56,7 @@ function normalizeProfile(data, userId) {
       website: '',
       bio: '',
       favorite_albums: [],
+      onboarding_completed: false,
     };
   }
   return {
@@ -70,6 +71,7 @@ function normalizeProfile(data, userId) {
     favorite_albums: Array.isArray(data.favorite_albums)
       ? data.favorite_albums
       : [],
+    onboarding_completed: !!data.onboarding_completed,
   };
 }
 
@@ -113,6 +115,7 @@ export async function PUT(request, { params }) {
       website,
       bio,
       favorite_albums,
+      onboarding_completed,
     } = body;
 
     const cleanUsername = username
@@ -147,15 +150,21 @@ export async function PUT(request, { params }) {
       }
     }
 
-    const fields = {
-      full_name: sanitizeString(full_name) || null,
-      avatar_url: avatar_url || null,
-      pronouns: sanitizeString(pronouns) || null,
-      country: country || null,
-      website: sanitizeString(website) || null,
-      bio: sanitizeString(bio) || null,
-      favorite_albums: Array.isArray(favorite_albums) ? favorite_albums : [],
-    };
+    const fields = {};
+    if (full_name !== undefined) fields.full_name = sanitizeString(full_name) || null;
+    if (avatar_url !== undefined) fields.avatar_url = avatar_url || null;
+    if (pronouns !== undefined) fields.pronouns = sanitizeString(pronouns) || null;
+    if (country !== undefined) fields.country = country || null;
+    if (website !== undefined) fields.website = sanitizeString(website) || null;
+    if (bio !== undefined) fields.bio = sanitizeString(bio) || null;
+    if (favorite_albums !== undefined) {
+      fields.favorite_albums = Array.isArray(favorite_albums)
+        ? favorite_albums
+        : [];
+    }
+    if (typeof onboarding_completed === 'boolean') {
+      fields.onboarding_completed = onboarding_completed;
+    }
     if (cleanUsername) fields.username = cleanUsername;
 
     const existing = await fetchProfileByUserId(supabase, userId);
@@ -181,7 +190,12 @@ export async function PUT(request, { params }) {
       }
       const result = await supabase
         .from('profiles')
-        .insert({ id: userId, username: cleanUsername, ...fields })
+        .insert({
+          id: userId,
+          username: cleanUsername,
+          onboarding_completed: false,
+          ...fields,
+        })
         .select(PROFILE_COLS)
         .maybeSingle();
       data = result.data;

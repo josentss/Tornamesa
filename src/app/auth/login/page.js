@@ -20,7 +20,12 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace("/");
+    if (!user) return;
+    if (user.onboarding_completed === false) {
+      router.replace("/onboarding");
+    } else {
+      router.replace("/");
+    }
   }, [user, router]);
 
   const handleSubmit = async (e) => {
@@ -39,8 +44,13 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await verifyTurnstileToken(turnstileToken);
-      await signIn(email.trim(), password, rememberMe);
-      router.push("/");
+      const result = await signIn(email.trim(), password);
+      const enriched = result?.user;
+      if (enriched && enriched.onboarding_completed === false) {
+        router.push("/onboarding");
+      } else {
+        router.push("/");
+      }
       router.refresh();
     } catch (err) {
       setError(err.message || "Could not log in");
