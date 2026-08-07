@@ -462,17 +462,24 @@ export default function HomeClient({ initialLoggedIn = false }) {
   const [username, setUsername] = useState(null);
   const [dataReady, setDataReady] = useState(false);
 
-  const showDashboard = loading ? initialLoggedIn || !!user : !!user;
+  const needsOnboarding =
+    !!user && user.onboarding_completed === false;
+
+  const showDashboard = needsOnboarding
+    ? false
+    : loading
+      ? initialLoggedIn || !!user
+      : !!user;
 
   useEffect(() => {
-    if (loading || !user) return;
-    if (user.onboarding_completed === false) {
+    if (loading) return;
+    if (user && user.onboarding_completed === false) {
       router.replace("/onboarding");
     }
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || user.onboarding_completed === false) {
       if (!initialLoggedIn) {
         setDataReady(false);
         setFeed([]);
@@ -529,6 +536,15 @@ export default function HomeClient({ initialLoggedIn = false }) {
       cancelled = true;
     };
   }, [user?.id, user?.username, initialLoggedIn]);
+
+  if (needsOnboarding) {
+    return <div className="min-h-screen bg-[#0a0f16]" />;
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
+      {showDashboard ? <Header user={user} /> : <PublicHeader />}
+      {/* ... */}
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">

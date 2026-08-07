@@ -45,11 +45,10 @@ export default function LoginPage() {
     try {
       await verifyTurnstileToken(turnstileToken);
       const result = await signIn(email.trim(), password);
-      const enriched = result?.user;
-      if (enriched && enriched.onboarding_completed === false) {
-        router.push("/onboarding");
+      if (result?.user?.onboarding_completed === false) {
+        router.replace("/onboarding");
       } else {
-        router.push("/");
+        router.replace("/");
       }
       router.refresh();
     } catch (err) {
