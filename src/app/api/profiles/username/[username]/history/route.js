@@ -17,17 +17,19 @@ export async function GET(request, { params }) {
       .from('profiles')
       .select('id, username, diary_public, is_private')
       .ilike('username', username)
-      .single();
+      .maybeSingle();
 
     if (profileError || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const isOwner = currentUserId && currentUserId === profile.id;
-    const diaryPublic = profile.diary_public !== false;
-    const isPrivate = !!profile.is_private;
+    const isOwner = !!(currentUserId && currentUserId === profile.id);
 
-    if (!isOwner && (isPrivate || !diaryPublic)) {
+    // Only block when flags are explicitly restrictive (null/undefined = open)
+    const diaryClosed = profile.diary_public === false;
+    const profilePrivate = profile.is_private === true;
+
+    if (!isOwner && (profilePrivate || diaryClosed)) {
       return NextResponse.json(
         { error: 'This diary is private' },
         { status: 403 }
@@ -61,7 +63,10 @@ export async function GET(request, { params }) {
       history: history || [],
     });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('GET history:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to load diary' },
+      { status: 500 }
+    );
   }
 }
