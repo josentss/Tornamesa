@@ -29,7 +29,7 @@ const sectionClass =
   "bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl p-5 sm:p-6 space-y-4";
 
 export default function ProfileSettingsPage() {
-  const { user, refreshUser, applyProfile } = useAuth();
+  const { user, applyProfile, refreshUser } = useAuth();
   const router = useRouter();
 
   const [username, setUsername] = useState("");
@@ -52,6 +52,7 @@ export default function ProfileSettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // Load from API by id only — never seed stale context username
   useEffect(() => {
     if (!user?.id) return;
 
@@ -198,10 +199,10 @@ export default function ProfileSettingsPage() {
         favorite_albums: favoriteAlbums.filter(Boolean),
       };
 
-      if (typeof applyProfile === "function") {
-        applyProfile(saved);
-      }
+      // 1) Update context immediately (Header + dashboard) — does NOT depend on GET cache
+      applyProfile(saved);
 
+      // 2) Sync JWT user_metadata so future enrich doesn't fall back to old name
       try {
         await createClient().auth.updateUser({
           data: { username: saved.username || cleanUser },
@@ -210,8 +211,11 @@ export default function ProfileSettingsPage() {
         /* non-fatal */
       }
 
-      if (typeof refreshUser === "function") {
+      // 3) Optional re-read (safe: USER_UPDATED no longer overwrites avatar/bio)
+      try {
         await refreshUser();
+      } catch {
+        /* ignore */
       }
 
       setUsername(saved.username || cleanUser);
@@ -224,11 +228,11 @@ export default function ProfileSettingsPage() {
       setSuccess("Profile updated successfully.");
       setSaving(false);
 
-      const nextUser = (saved.username || cleanUser).toLowerCase();
+      const next = (saved.username || cleanUser).toLowerCase();
       setTimeout(() => {
-        router.push(`/${nextUser}`);
+        router.push(`/${next}`);
         router.refresh();
-      }, 500);
+      }, 400);
     } catch (err) {
       console.error(err);
       setError(err.message || "Could not save changes.");

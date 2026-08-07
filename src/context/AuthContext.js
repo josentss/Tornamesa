@@ -1,6 +1,13 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api';
 
@@ -27,37 +34,71 @@ function mapAuthError(err, fallback) {
   return fallback;
 }
 
+function mergeAuthAndProfile(authUser, profile, prev) {
+  if (!authUser) return null;
+  const fromProfile = profile && typeof profile === 'object' ? profile : null;
+  return {
+    ...authUser,
+    username:
+      fromProfile?.username ||
+      prev?.username ||
+      authUser.user_metadata?.username ||
+      null,
+    avatar_url:
+      fromProfile?.avatar_url !== undefined && fromProfile?.avatar_url !== null
+        ? fromProfile.avatar_url
+        : fromProfile
+          ? fromProfile.avatar_url || null
+          : prev?.avatar_url ?? null,
+    full_name:
+      fromProfile?.full_name ?? prev?.full_name ?? null,
+    bio: fromProfile?.bio ?? prev?.bio ?? null,
+  };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const supabase = createClient();
+  const userRef = useRef(null);
+  userRef.current = user;
 
   const enrichUser = useCallback(async (authUser) => {
     if (!authUser?.id) return authUser;
     try {
       const profile = await api.getUserProfile(authUser.id).catch(() => null);
-      if (profile) {
-        return {
-          ...authUser,
-          username:
-            profile.username ||
-            authUser.user_metadata?.username ||
-            null,
-          avatar_url: profile.avatar_url || null,
-          full_name: profile.full_name || null,
-          bio: profile.bio || null,
-        };
-      }
-      return {
-        ...authUser,
-        username: authUser.user_metadata?.username || null,
-        avatar_url: null,
-      };
+      return mergeAuthAndProfile(authUser, profile, userRef.current);
     } catch (err) {
       console.error('Error enriching user:', err.message);
-      return authUser;
+      return mergeAuthAndProfile(authUser, null, userRef.current);
     }
+  }, []);
+
+  const applyProfile = useCallback((profile) => {
+    if (!profile) return;
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = {
+        ...prev,
+        username: profile.username ?? prev.username,
+        avatar_url:
+          profile.avatar_url !== undefined
+            ? profile.avatar_url
+            : prev.avatar_url,
+        full_name:
+          profile.full_name !== undefined
+            ? profile.full_name
+            : prev.full_name,
+        bio: profile.bio !== undefined ? profile.bio : prev.bio,
+        user_metadata: {
+          ...(prev.user_metadata || {}),
+          username: profile.username ?? prev.user_metadata?.username,
+        },
+      };
+      userRef.current = next;
+      return next;
+    });
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -67,37 +108,18 @@ export function AuthProvider({ children }) {
       } = await supabase.auth.getSession();
       if (!session?.user) {
         setUser(null);
+        userRef.current = null;
         return null;
       }
       const enriched = await enrichUser(session.user);
       setUser(enriched);
+      userRef.current = enriched;
       return enriched;
     } catch (err) {
       console.error('refreshUser error:', err.message);
       return null;
     }
   }, [supabase, enrichUser]);
-
-  const applyProfile = useCallback((profile) => {
-    if (!profile) return;
-    setUser((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        username: profile.username ?? prev.username,
-        avatar_url:
-          profile.avatar_url !== undefined
-            ? profile.avatar_url
-            : prev.avatar_url,
-        full_name: profile.full_name ?? prev.full_name,
-        bio: profile.bio ?? prev.bio,
-        user_metadata: {
-          ...(prev.user_metadata || {}),
-          username: profile.username ?? prev.user_metadata?.username,
-        },
-      };
-    });
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -110,7 +132,11 @@ export function AuthProvider({ children }) {
         } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
         if (session?.user && mounted) {
-          setUser(await enrichUser(session.user));
+          const enriched = await enrichUser(session.user);
+          if (mounted) {
+            setUser(enriched);
+            userRef.current = enriched;
+          }
         }
       } catch (err) {
         console.error('Auth initialization error:', err.message);
@@ -127,16 +153,59 @@ export function AuthProvider({ children }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
         setUser(null);
+        userRef.current = null;
         setError(null);
         setLoading(false);
         return;
       }
-      if (session?.user) {
-        setUser(await enrichUser(session.user));
-        setError(null);
-      } else {
+
+      if (!session?.user) {
         setUser(null);
+        userRef.current = null;
+        setLoading(false);
+        return;
       }
+
+      if (event === 'TOKEN_REFRESHED') {
+        setUser((prev) => {
+          if (!prev) return prev;
+          const next = {
+            ...session.user,
+            username: prev.username,
+            avatar_url: prev.avatar_url,
+            full_name: prev.full_name,
+            bio: prev.bio,
+          };
+          userRef.current = next;
+          return next;
+        });
+        return;
+      }
+
+      if (event === 'USER_UPDATED') {
+        setUser((prev) => {
+          const next = {
+            ...session.user,
+            username:
+              session.user.user_metadata?.username ||
+              prev?.username ||
+              null,
+            avatar_url: prev?.avatar_url ?? null,
+            full_name: prev?.full_name ?? null,
+            bio: prev?.bio ?? null,
+          };
+          userRef.current = next;
+          return next;
+        });
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      const enriched = await enrichUser(session.user);
+      setUser(enriched);
+      userRef.current = enriched;
+      setError(null);
       setLoading(false);
     });
 
@@ -178,6 +247,7 @@ export function AuthProvider({ children }) {
     }
     const enriched = await enrichUser(data.user);
     setUser(enriched);
+    userRef.current = enriched;
     return { success: true, user: enriched };
   };
 
@@ -190,6 +260,7 @@ export function AuthProvider({ children }) {
       throw new Error(message);
     }
     setUser(null);
+    userRef.current = null;
     return { success: true };
   };
 
