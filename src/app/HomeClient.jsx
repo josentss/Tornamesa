@@ -495,7 +495,6 @@ export default function HomeClient({ initialLoggedIn = false }) {
 
     const load = async () => {
       try {
-        // ALWAYS resolve username from profiles table (not stale context)
         let uname = null;
         try {
           const profile = await api.getUserProfile(user.id);
@@ -535,16 +534,11 @@ export default function HomeClient({ initialLoggedIn = false }) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.username, initialLoggedIn]);
+  }, [user?.id, user?.username, user?.onboarding_completed, initialLoggedIn]);
 
   if (needsOnboarding) {
     return <div className="min-h-screen bg-[#0a0f16]" />;
   }
-
-  return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
-      {showDashboard ? <Header user={user} /> : <PublicHeader />}
-      {/* ... */}
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
