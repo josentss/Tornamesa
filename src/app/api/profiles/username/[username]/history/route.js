@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  Pragma: 'no-cache',
+};
 
 export async function GET(request, { params }) {
   const { username } = params;
@@ -13,26 +20,33 @@ export async function GET(request, { params }) {
   const supabase = createSupabaseServer();
 
   try {
-    const { data: profile, error: profileError } = await supabase
+    const { data: base, error: baseError } = await supabase
       .from('profiles')
-      .select('id, username, diary_public, is_private')
+      .select('id, username')
       .ilike('username', username)
       .maybeSingle();
 
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (baseError || !base) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404, headers: noStoreHeaders }
+      );
     }
 
-    const isOwner = !!(currentUserId && currentUserId === profile.id);
+    const { data: privacy } = await supabase
+      .from('profiles')
+      .select('is_private, diary_public')
+      .eq('id', base.id)
+      .maybeSingle();
 
-    // Only block when flags are explicitly restrictive (null/undefined = open)
-    const diaryClosed = profile.diary_public === false;
-    const profilePrivate = profile.is_private === true;
+    const isOwner = !!(currentUserId && currentUserId === base.id);
+    const isPrivate = privacy?.is_private === true;
+    const diaryClosed = privacy?.diary_public === false;
 
-    if (!isOwner && (profilePrivate || diaryClosed)) {
+    if (!isOwner && (isPrivate || diaryClosed)) {
       return NextResponse.json(
         { error: 'This diary is private' },
-        { status: 403 }
+        { status: 403, headers: noStoreHeaders }
       );
     }
 
@@ -52,21 +66,24 @@ export async function GET(request, { params }) {
         )
       `
       )
-      .eq('user_id', profile.id)
+      .eq('user_id', base.id)
       .order('listened_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
-    return NextResponse.json({
-      username: profile.username,
-      history: history || [],
-    });
+    return NextResponse.json(
+      {
+        username: base.username,
+        history: history || [],
+      },
+      { headers: noStoreHeaders }
+    );
   } catch (error) {
     console.error('GET history:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to load diary' },
-      { status: 500 }
+      { status: 500, headers: noStoreHeaders }
     );
   }
 }

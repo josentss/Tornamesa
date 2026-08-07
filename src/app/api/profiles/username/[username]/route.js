@@ -3,6 +3,13 @@ import { createSupabaseServer } from '@/lib/supabase-server';
 import { getLastFmNowPlaying, getLastFmUsername } from '@/lib/lastfm';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  Pragma: 'no-cache',
+};
 
 export async function GET(request, { params }) {
   const { username } = params;
@@ -12,30 +19,51 @@ export async function GET(request, { params }) {
   const supabase = createSupabaseServer();
 
   try {
-    const { data: profile, error: profileError } = await supabase
+    // 1) Resolve user by username
+    const { data: base, error: baseError } = await supabase
       .from('profiles')
       .select(
-        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at, is_private, diary_public, show_activity'
+        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at'
       )
-      .eq('username', username.toLowerCase())
-      .single();
+      .ilike('username', username)
+      .maybeSingle();
 
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (baseError || !base) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404, headers: noStoreHeaders }
+      );
     }
 
-    const isOwner = !!(currentUserId && currentUserId === profile.id);
-    const isPrivate = profile.is_private === true;
+    // 2) Re-read privacy by id (same path as GET /api/users/[id])
+    const { data: privacy, error: privacyError } = await supabase
+      .from('profiles')
+      .select('is_private, diary_public, show_activity')
+      .eq('id', base.id)
+      .maybeSingle();
+
+    if (privacyError) {
+      return NextResponse.json(
+        { error: privacyError.message },
+        { status: 500, headers: noStoreHeaders }
+      );
+    }
+
+    const is_private = privacy?.is_private === true;
+    const diary_public = privacy?.diary_public !== false;
+    const show_activity = privacy?.show_activity !== false;
+
+    const isOwner = !!(currentUserId && currentUserId === base.id);
 
     const [{ count: followers }, { count: following }] = await Promise.all([
       supabase
         .from('follows')
         .select('*', { count: 'exact', head: true })
-        .eq('following_id', profile.id),
+        .eq('following_id', base.id),
       supabase
         .from('follows')
         .select('*', { count: 'exact', head: true })
-        .eq('follower_id', profile.id),
+        .eq('follower_id', base.id),
     ]);
 
     let isFollowing = false;
@@ -44,33 +72,37 @@ export async function GET(request, { params }) {
         .from('follows')
         .select('follower_id')
         .eq('follower_id', currentUserId)
-        .eq('following_id', profile.id)
+        .eq('following_id', base.id)
         .maybeSingle();
       if (followCheck) isFollowing = true;
     }
 
-    if (isPrivate && !isOwner) {
-      return NextResponse.json({
-        profile: {
-          id: profile.id,
-          username: profile.username,
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-          is_private: true,
-          diary_public: false,
-          show_activity: false,
-          followers,
-          following,
-          isFollowing,
-          nowPlaying: null,
-          favorite_albums: [],
-          bio: null,
-          website: null,
-          pronouns: null,
+    // Private + visitor → limited view
+    if (is_private && !isOwner) {
+      return NextResponse.json(
+        {
+          profile: {
+            id: base.id,
+            username: base.username,
+            full_name: base.full_name,
+            avatar_url: base.avatar_url,
+            is_private: true,
+            diary_public: false,
+            show_activity: false,
+            followers: followers || 0,
+            following: following || 0,
+            isFollowing,
+            nowPlaying: null,
+            favorite_albums: [],
+            bio: null,
+            website: null,
+            pronouns: null,
+          },
+          listens: [],
+          restricted: true,
         },
-        listens: [],
-        restricted: true,
-      });
+        { headers: noStoreHeaders }
+      );
     }
 
     const { data: listensData, error: listensError } = await supabase
@@ -81,13 +113,13 @@ export async function GET(request, { params }) {
         albums (spotify_id, title, artist, cover_url)
       `
       )
-      .eq('user_id', profile.id)
+      .eq('user_id', base.id)
       .order('created_at', { ascending: false });
 
     if (listensError) {
       return NextResponse.json(
         { error: 'Error loading history' },
-        { status: 500 }
+        { status: 500, headers: noStoreHeaders }
       );
     }
 
@@ -104,7 +136,7 @@ export async function GET(request, { params }) {
 
     let nowPlaying = null;
     try {
-      const lastfmUser = await getLastFmUsername(profile.id);
+      const lastfmUser = await getLastFmUsername(base.id);
       if (lastfmUser) {
         nowPlaying = await getLastFmNowPlaying(lastfmUser);
       }
@@ -112,22 +144,28 @@ export async function GET(request, { params }) {
       console.error('Error Now Playing Last.fm:', err.message);
     }
 
-    return NextResponse.json({
-      profile: {
-        ...profile,
-        is_private: profile.is_private === true,
-        diary_public: profile.diary_public !== false,
-        show_activity: profile.show_activity !== false,
-        followers,
-        following,
-        isFollowing,
-        nowPlaying,
+    return NextResponse.json(
+      {
+        profile: {
+          ...base,
+          is_private,
+          diary_public,
+          show_activity,
+          followers: followers || 0,
+          following: following || 0,
+          isFollowing,
+          nowPlaying,
+        },
+        listens,
+        restricted: false,
       },
-      listens,
-      restricted: false,
-    });
+      { headers: noStoreHeaders }
+    );
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: noStoreHeaders }
+    );
   }
 }

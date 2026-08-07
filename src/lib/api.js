@@ -97,10 +97,12 @@ export const api = {
 
   // public profiles
   getPublicProfile: (username, currentUserId = null) => {
-    const url = currentUserId
-      ? `/api/profiles/username/${username}?currentUserId=${currentUserId}`
-      : `/api/profiles/username/${username}`;
-    return fetchApi(url);
+    const params = new URLSearchParams({ _t: String(Date.now()) });
+    if (currentUserId) params.set('currentUserId', currentUserId);
+    return fetchApi(
+      `/api/profiles/username/${encodeURIComponent(username)}?${params}`,
+      { cache: 'no-store' }
+    );
   },
 
   getPublicHistory: (username, limit = 40, offset = 0, currentUserId = null) => {
