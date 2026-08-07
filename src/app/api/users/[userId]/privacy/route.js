@@ -33,6 +33,13 @@ export async function PATCH(request, { params }) {
   const { userId } = params;
 
   try {
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: 'Server misconfigured: missing SUPABASE_SERVICE_ROLE_KEY' },
+        { status: 500, headers: noStoreHeaders }
+      );
+    }
+
     const authUser = await getRequestUser(request);
     if (!authUser || authUser.id !== userId) {
       return NextResponse.json(
@@ -44,15 +51,11 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const fields = {};
 
-    if (typeof body.is_private === 'boolean') {
-      fields.is_private = body.is_private;
-    }
-    if (typeof body.diary_public === 'boolean') {
+    if (typeof body.is_private === 'boolean') fields.is_private = body.is_private;
+    if (typeof body.diary_public === 'boolean')
       fields.diary_public = body.diary_public;
-    }
-    if (typeof body.show_activity === 'boolean') {
+    if (typeof body.show_activity === 'boolean')
       fields.show_activity = body.show_activity;
-    }
 
     if (Object.keys(fields).length === 0) {
       return NextResponse.json(
@@ -63,39 +66,68 @@ export async function PATCH(request, { params }) {
 
     const supabase = createSupabaseServer();
 
-    const { data, error } = await supabase
+    // 1) Confirm profile exists
+    const { data: before, error: beforeErr } = await supabase
       .from('profiles')
-      .update(fields)
+      .select('id, username, is_private, diary_public, show_activity')
       .eq('id', userId)
-      .select('id, is_private, diary_public, show_activity')
       .maybeSingle();
 
-    if (error) {
-      console.error('PATCH privacy error:', error);
+    if (beforeErr) {
       return NextResponse.json(
-        {
-          error:
-            error.message ||
-            'Failed to update privacy. Check that columns exist in profiles.',
-        },
+        { error: beforeErr.message },
+        { status: 500, headers: noStoreHeaders }
+      );
+    }
+    if (!before) {
+      return NextResponse.json(
+        { error: 'Profile not found for this user id', userId },
+        { status: 404, headers: noStoreHeaders }
+      );
+    }
+
+    // 2) Update
+    const { error: updateErr } = await supabase
+      .from('profiles')
+      .update(fields)
+      .eq('id', userId);
+
+    if (updateErr) {
+      console.error('PATCH privacy update error:', updateErr);
+      return NextResponse.json(
+        { error: updateErr.message },
         { status: 500, headers: noStoreHeaders }
       );
     }
 
-    if (!data) {
+    // 3) Re-read (independent query)
+    const { data: after, error: afterErr } = await supabase
+      .from('profiles')
+      .select('id, username, is_private, diary_public, show_activity')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (afterErr || !after) {
       return NextResponse.json(
-        { error: 'Profile not found' },
-        { status: 404, headers: noStoreHeaders }
+        { error: afterErr?.message || 'Update could not be verified' },
+        { status: 500, headers: noStoreHeaders }
       );
     }
 
     return NextResponse.json(
       {
         success: true,
+        userId: after.id,
+        username: after.username,
+        before: {
+          is_private: before.is_private === true,
+          diary_public: before.diary_public !== false,
+          show_activity: before.show_activity !== false,
+        },
         data: {
-          is_private: data.is_private === true,
-          diary_public: data.diary_public !== false,
-          show_activity: data.show_activity !== false,
+          is_private: after.is_private === true,
+          diary_public: after.diary_public !== false,
+          show_activity: after.show_activity !== false,
         },
       },
       { headers: noStoreHeaders }
