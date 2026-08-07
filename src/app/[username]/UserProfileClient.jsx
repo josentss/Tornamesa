@@ -49,15 +49,32 @@ export default function UserProfileClient({ params }) {
         setLoading(true);
         setError(null);
 
-        const [profileRes, statsRes, reviewsRes] = await Promise.all([
-          api.getPublicProfile(resolvedUsername, currentUser?.id),
-          api.getProfileStats(resolvedUsername),
-          api.getUserReviews(resolvedUsername, 5, 0).catch(() => ({ reviews: [] })),
-        ]);
+        const profileRes = await api.getPublicProfile(
+          resolvedUsername,
+          currentUser?.id
+        );
 
         if (cancelled) return;
 
         setProfileData(profileRes.profile);
+
+        // Private profile viewed by non-owner: skip heavy data
+        if (profileRes.restricted) {
+          setStats(null);
+          setRecentReviews([]);
+          setUserLists([]);
+          return;
+        }
+
+        const [statsRes, reviewsRes] = await Promise.all([
+          api.getProfileStats(resolvedUsername).catch(() => null),
+          api
+            .getUserReviews(resolvedUsername, 5, 0)
+            .catch(() => ({ reviews: [] })),
+        ]);
+
+        if (cancelled) return;
+
         setStats(statsRes);
         setRecentReviews(reviewsRes.reviews || []);
 
@@ -82,7 +99,14 @@ export default function UserProfileClient({ params }) {
     };
   }, [resolvedUsername, currentUser?.id]);
 
-  const isOwner = currentUser && profileData && currentUser.id === profileData.id;
+  const isOwner =
+    currentUser && profileData && currentUser.id === profileData.id;
+  const isPrivateLocked = !!profileData?.is_private && !isOwner;
+  const canShowActivity = isOwner || profileData?.show_activity !== false;
+  const canShowDiaryLink =
+    isOwner ||
+    (profileData?.diary_public !== false && !isPrivateLocked);
+
   const diaryBase = profileData
     ? isOwner
       ? "/diary"
@@ -91,6 +115,13 @@ export default function UserProfileClient({ params }) {
 
   const toListenList = userLists.find((l) => l.isSystem);
   const toListenCount = toListenList?.count ?? 0;
+
+  useEffect(() => {
+    if (!profileData) return;
+    if (!canShowActivity && activeTab === "activity") {
+      setActiveTab("reviews");
+    }
+  }, [profileData, canShowActivity, activeTab]);
 
   const handleFollowToggle = async () => {
     if (!currentUser) return router.push("/auth/login");
@@ -103,7 +134,10 @@ export default function UserProfileClient({ params }) {
           isFollowing: false,
           followers: Math.max(0, (prev.followers || 0) - 1),
         }));
-        setToast({ message: `Unfollowed @${profileData.username}`, type: "success" });
+        setToast({
+          message: `Unfollowed @${profileData.username}`,
+          type: "success",
+        });
       } else {
         await api.followUser(currentUser.id, profileData.id);
         setProfileData((prev) => ({
@@ -111,7 +145,10 @@ export default function UserProfileClient({ params }) {
           isFollowing: true,
           followers: (prev.followers || 0) + 1,
         }));
-        setToast({ message: `Now following @${profileData.username}`, type: "success" });
+        setToast({
+          message: `Now following @${profileData.username}`,
+          type: "success",
+        });
       }
     } catch (err) {
       console.error(err);
@@ -144,7 +181,10 @@ export default function UserProfileClient({ params }) {
       setShowNewList(false);
       setToast({ message: "List created", type: "success" });
     } catch (err) {
-      setToast({ message: err.message || "Could not create list", type: "error" });
+      setToast({
+        message: err.message || "Could not create list",
+        type: "error",
+      });
     } finally {
       setCreatingList(false);
     }
@@ -183,12 +223,22 @@ export default function UserProfileClient({ params }) {
     );
   }
 
+  const tabs = [
+    canShowActivity && { id: "activity", label: "Recent Activity" },
+    { id: "reviews", label: "Reviews" },
+    { id: "lists", label: "Lists" },
+  ].filter(Boolean);
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={currentUser} />
 
       {toast && (
-        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
 
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
@@ -217,45 +267,62 @@ export default function UserProfileClient({ params }) {
 
           <div className="flex flex-col gap-6 sm:gap-8">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 lg:gap-10">
-              <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
-                <div className="space-y-5 text-left">
-                  <button
-                    onClick={() => router.push(`${diaryBase}?period=year`)}
-                    className="group text-left w-full focus:outline-none"
-                  >
-                    <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                      {stats?.yearlyListens || 0}
-                    </p>
-                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
-                      This Year
-                    </p>
-                  </button>
-                  <button
-                    onClick={() => router.push(`${diaryBase}?period=month`)}
-                    className="group text-left w-full focus:outline-none"
-                  >
-                    <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                      {stats?.monthlyListens || 0}
-                    </p>
-                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
-                      This Month
-                    </p>
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (toListenList?.id) router.push(`/list/${toListenList.id}`);
-                    }}
-                    className="group text-left w-full focus:outline-none"
-                  >
-                    <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                      {toListenCount}
-                    </p>
-                    <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
-                      To Listen
-                    </p>
-                  </button>
+              {/* Desktop stats — hidden when private to visitors */}
+              {!isPrivateLocked && (
+                <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
+                  <div className="space-y-5 text-left">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        canShowDiaryLink &&
+                        router.push(`${diaryBase}?period=year`)
+                      }
+                      className={`group text-left w-full focus:outline-none ${
+                        !canShowDiaryLink ? "cursor-default" : ""
+                      }`}
+                    >
+                      <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
+                        {stats?.yearlyListens || 0}
+                      </p>
+                      <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
+                        This Year
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        canShowDiaryLink &&
+                        router.push(`${diaryBase}?period=month`)
+                      }
+                      className={`group text-left w-full focus:outline-none ${
+                        !canShowDiaryLink ? "cursor-default" : ""
+                      }`}
+                    >
+                      <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
+                        {stats?.monthlyListens || 0}
+                      </p>
+                      <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
+                        This Month
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (toListenList?.id)
+                          router.push(`/list/${toListenList.id}`);
+                      }}
+                      className="group text-left w-full focus:outline-none"
+                    >
+                      <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
+                        {toListenCount}
+                      </p>
+                      <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
+                        To Listen
+                      </p>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex-1 text-center order-1 md:order-2 w-full">
                 <div className="flex items-center justify-center gap-2 sm:gap-2.5 flex-wrap">
@@ -267,24 +334,35 @@ export default function UserProfileClient({ params }) {
                       {profileData.pronouns}
                     </span>
                   )}
+                  {profileData.is_private && isOwner && (
+                    <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-stone-400 px-2 py-0.5 rounded-md border border-[#2a3645]">
+                      Private
+                    </span>
+                  )}
                 </div>
-                <p className="text-stone-400 text-sm mt-1 sm:mt-1.5">@{profileData.username}</p>
+                <p className="text-stone-400 text-sm mt-1 sm:mt-1.5">
+                  @{profileData.username}
+                </p>
                 <div className="flex justify-center gap-6 sm:gap-8 mt-3 sm:mt-4 text-sm">
                   <span>
-                    <strong className="text-white font-semibold">{profileData.followers || 0}</strong>{" "}
+                    <strong className="text-white font-semibold">
+                      {profileData.followers || 0}
+                    </strong>{" "}
                     <span className="text-stone-400">Followers</span>
                   </span>
                   <span>
-                    <strong className="text-white font-semibold">{profileData.following || 0}</strong>{" "}
+                    <strong className="text-white font-semibold">
+                      {profileData.following || 0}
+                    </strong>{" "}
                     <span className="text-stone-400">Following</span>
                   </span>
                 </div>
-                {profileData.bio && (
+                {!isPrivateLocked && profileData.bio && (
                   <p className="text-stone-300 text-sm mt-4 sm:mt-5 leading-relaxed max-w-md mx-auto px-2">
                     {profileData.bio}
                   </p>
                 )}
-                {profileData.website && (
+                {!isPrivateLocked && profileData.website && (
                   <a
                     href={profileData.website}
                     target="_blank"
@@ -298,6 +376,7 @@ export default function UserProfileClient({ params }) {
 
               <div className="w-full md:w-40 lg:w-44 flex-shrink-0 flex flex-col items-center md:items-end gap-3 order-3">
                 <button
+                  type="button"
                   onClick={handleShare}
                   className={`w-full sm:w-auto text-sm font-semibold px-4 py-2.5 rounded-lg border transition-all flex items-center justify-center gap-2 ${
                     shareCopied
@@ -309,6 +388,7 @@ export default function UserProfileClient({ params }) {
                 </button>
                 {isOwner ? (
                   <button
+                    type="button"
                     onClick={() => router.push("/settings")}
                     className="w-full sm:w-auto bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645]"
                   >
@@ -316,6 +396,7 @@ export default function UserProfileClient({ params }) {
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleFollowToggle}
                     disabled={actionLoading}
                     className={`w-full sm:w-auto text-sm font-semibold px-6 py-2.5 rounded-lg border transition-all ${
@@ -324,254 +405,323 @@ export default function UserProfileClient({ params }) {
                         : "bg-[#7cc7e8] text-[#0a121c] border-transparent"
                     }`}
                   >
-                    {actionLoading ? "..." : profileData.isFollowing ? "Following" : "Follow"}
+                    {actionLoading
+                      ? "..."
+                      : profileData.isFollowing
+                        ? "Following"
+                        : "Follow"}
                   </button>
                 )}
               </div>
             </div>
 
-            <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
-              <button
-                onClick={() => router.push(`${diaryBase}?period=year`)}
-                className="text-center focus:outline-none"
-              >
-                <p className="text-xl font-bold text-white">{stats?.yearlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Year</p>
-              </button>
-              <button
-                onClick={() => router.push(`${diaryBase}?period=month`)}
-                className="text-center focus:outline-none"
-              >
-                <p className="text-xl font-bold text-white">{stats?.monthlyListens || 0}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">This Month</p>
-              </button>
-              <button
-                onClick={() => {
-                  if (toListenList?.id) router.push(`/list/${toListenList.id}`);
-                }}
-                className="text-center focus:outline-none"
-              >
-                <p className="text-xl font-bold text-white">{toListenCount}</p>
-                <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">To Listen</p>
-              </button>
-            </div>
+            {!isPrivateLocked && (
+              <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
+                <button
+                  type="button"
+                  onClick={() =>
+                    canShowDiaryLink &&
+                    router.push(`${diaryBase}?period=year`)
+                  }
+                  className="text-center focus:outline-none"
+                >
+                  <p className="text-xl font-bold text-white">
+                    {stats?.yearlyListens || 0}
+                  </p>
+                  <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
+                    This Year
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    canShowDiaryLink &&
+                    router.push(`${diaryBase}?period=month`)
+                  }
+                  className="text-center focus:outline-none"
+                >
+                  <p className="text-xl font-bold text-white">
+                    {stats?.monthlyListens || 0}
+                  </p>
+                  <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
+                    This Month
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (toListenList?.id)
+                      router.push(`/list/${toListenList.id}`);
+                  }}
+                  className="text-center focus:outline-none"
+                >
+                  <p className="text-xl font-bold text-white">{toListenCount}</p>
+                  <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
+                    To Listen
+                  </p>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {profileData.favorite_albums?.length > 0 && (
-        <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14">
-          <h2 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-5 text-center">
-            Favorite Albums
-          </h2>
-          <div className="grid grid-cols-3 gap-3 sm:gap-5 max-w-xs sm:max-w-md mx-auto">
-            {profileData.favorite_albums.map((fav, idx) => (
-              <a key={idx} href={`/album/${fav.id}`} className="block group">
-                <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] group-hover:border-[#7cc7e8]/50">
-                  {fav.coverUrl ? (
-                    <Image
-                      src={fav.coverUrl}
-                      alt={fav.title}
-                      width={160}
-                      height={160}
-                      className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-[#1f2b3a]" />
-                  )}
-                </div>
-                <p className="text-[11px] sm:text-xs font-semibold truncate text-center group-hover:text-[#7cc7e8]">
-                  {fav.title}
-                </p>
-                <p className="text-[10px] text-stone-500 truncate text-center">{fav.artist}</p>
-              </a>
-            ))}
+      {/* Private locked view for visitors */}
+      {isPrivateLocked ? (
+        <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14 pb-20">
+          <div className="bg-[#131e2c]/80 border border-[#2a3645] rounded-2xl p-8 text-center">
+            <p className="text-stone-300 text-sm font-medium">
+              This profile is private
+            </p>
+            <p className="text-stone-500 text-xs mt-2">
+              Only @{profileData.username} can see their activity, lists and
+              stats.
+            </p>
           </div>
         </section>
-      )}
-
-      <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-12 sm:mt-16 flex-1 pb-16 sm:pb-20">
-        <div className="flex border-b border-[#2a3645] mb-6 sm:mb-8 overflow-x-auto scrollbar-hide">
-          {[
-            { id: "activity", label: "Recent Activity" },
-            { id: "reviews", label: "Reviews" },
-            { id: "lists", label: "Lists" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`pb-3 sm:pb-3.5 px-4 sm:px-5 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "border-[#7cc7e8] text-[#7cc7e8]"
-                  : "border-transparent text-stone-400 hover:text-white"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
-          <div className="flex-1 min-w-0">
-            {activeTab === "activity" && (
-              <div>
-                <ActivityFeed activities={stats?.recentActivity || []} />
-                <div className="mt-5 text-center sm:text-left">
-                  <button
-                    onClick={() => router.push(diaryBase)}
-                    className="text-xs text-[#7cc7e8] hover:underline"
+      ) : (
+        <>
+          {profileData.favorite_albums?.length > 0 && (
+            <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14">
+              <h2 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-5 text-center">
+                Favorite Albums
+              </h2>
+              <div className="grid grid-cols-3 gap-3 sm:gap-5 max-w-xs sm:max-w-md mx-auto">
+                {profileData.favorite_albums.map((fav, idx) => (
+                  <a
+                    key={idx}
+                    href={`/album/${fav.id}`}
+                    className="block group"
                   >
-                    View full diary
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "reviews" && (
-              <div>
-                <ReviewsList
-                  reviews={recentReviews}
-                  emptyMessage="Reviews written by this user will appear here."
-                />
-                {recentReviews.length > 0 && (
-                  <div className="mt-5 text-center sm:text-left">
-                    <button
-                      onClick={() => router.push(`/${profileData.username}/reviews`)}
-                      className="text-xs text-[#7cc7e8] hover:underline"
-                    >
-                      View all reviews
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === "lists" && (
-              <div className="space-y-4">
-                {isOwner && (
-                  <div className="mb-2">
-                    {showNewList ? (
-                      <form
-                        onSubmit={handleCreateList}
-                        className="flex flex-col sm:flex-row gap-2"
-                      >
-                        <input
-                          value={newListName}
-                          onChange={(e) => setNewListName(e.target.value)}
-                          placeholder="New list name"
-                          className="flex-1 min-w-0 bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7cc7e8]"
+                    <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] group-hover:border-[#7cc7e8]/50">
+                      {fav.coverUrl ? (
+                        <Image
+                          src={fav.coverUrl}
+                          alt={fav.title}
+                          width={160}
+                          height={160}
+                          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
                         />
-                        <div className="flex gap-2">
-                          <button
-                            type="submit"
-                            disabled={creatingList || !newListName.trim()}
-                            className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#7cc7e8] text-[#0a121c] disabled:opacity-50"
-                          >
-                            {creatingList ? "..." : "Create"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowNewList(false);
-                              setNewListName("");
-                            }}
-                            className="text-sm px-3 py-2 text-stone-400"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    ) : (
-                      <button
-                        onClick={() => setShowNewList(true)}
-                        className="text-xs text-[#7cc7e8] hover:underline"
-                      >
-                        + Create new list
-                      </button>
+                      ) : (
+                        <div className="w-full h-full bg-[#1f2b3a]" />
+                      )}
+                    </div>
+                    <p className="text-[11px] sm:text-xs font-semibold truncate text-center group-hover:text-[#7cc7e8]">
+                      {fav.title}
+                    </p>
+                    <p className="text-[10px] text-stone-500 truncate text-center">
+                      {fav.artist}
+                    </p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-12 sm:mt-16 flex-1 pb-16 sm:pb-20">
+            <div className="flex border-b border-[#2a3645] mb-6 sm:mb-8 overflow-x-auto scrollbar-hide">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`pb-3 sm:pb-3.5 px-4 sm:px-5 text-sm font-semibold uppercase tracking-wider transition-colors border-b-2 whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? "border-[#7cc7e8] text-[#7cc7e8]"
+                      : "border-transparent text-stone-400 hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
+              <div className="flex-1 min-w-0">
+                {activeTab === "activity" && canShowActivity && (
+                  <div>
+                    <ActivityFeed activities={stats?.recentActivity || []} />
+                    {canShowDiaryLink && (
+                      <div className="mt-5 text-center sm:text-left">
+                        <button
+                          type="button"
+                          onClick={() => router.push(diaryBase)}
+                          className="text-xs text-[#7cc7e8] hover:underline"
+                        >
+                          View full diary
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
 
-                {userLists.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {userLists.map((list) => (
-                      <button
-                        key={list.id}
-                        onClick={() => router.push(`/list/${list.id}`)}
-                        className="text-left bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors group flex items-center gap-3 overflow-hidden"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors truncate">
-                            {list.name}
-                          </h4>
-                          {list.description && (
-                            <p className="text-xs text-stone-500 mt-1 line-clamp-2">
-                              {list.description}
-                            </p>
-                          )}
-                          <p className="text-xs text-stone-400 mt-2">
-                            {list.count} album{list.count !== 1 ? "s" : ""}
-                          </p>
-                        </div>
-                        {list.previewCovers?.length > 0 && (
-                          <div className="relative flex-shrink-0 w-[72px] h-12">
-                            {list.previewCovers.slice(0, 3).map((cover, i) => (
-                              <div
-                                key={i}
-                                className="absolute top-0 w-12 h-12 rounded-md overflow-hidden border border-[#0a0f16] shadow-md bg-[#1f2b3a]"
-                                style={{
-                                  right: `${i * 10}px`,
-                                  zIndex: 3 - i,
-                                  opacity: 1 - i * 0.15,
-                                }}
-                              >
-                                <Image
-                                  src={cover}
-                                  alt=""
-                                  width={48}
-                                  height={48}
-                                  className="object-cover w-full h-full"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </button>
-                    ))}
+                {activeTab === "activity" && !canShowActivity && (
+                  <p className="text-sm text-stone-500 py-8 text-center">
+                    Recent activity is hidden.
+                  </p>
+                )}
+
+                {activeTab === "reviews" && (
+                  <div>
+                    <ReviewsList
+                      reviews={recentReviews}
+                      emptyMessage="Reviews written by this user will appear here."
+                    />
+                    {recentReviews.length > 0 && (
+                      <div className="mt-5 text-center sm:text-left">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(`/${profileData.username}/reviews`)
+                          }
+                          className="text-xs text-[#7cc7e8] hover:underline"
+                        >
+                          View all reviews
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-center">
-                    <p className="text-stone-400 text-sm font-medium">No lists yet</p>
-                    <p className="text-stone-500 text-xs mt-1">
-                      Lists created by this user will appear here.
-                    </p>
+                )}
+
+                {activeTab === "lists" && (
+                  <div className="space-y-4">
+                    {isOwner && (
+                      <div className="mb-2">
+                        {showNewList ? (
+                          <form
+                            onSubmit={handleCreateList}
+                            className="flex flex-col sm:flex-row gap-2"
+                          >
+                            <input
+                              value={newListName}
+                              onChange={(e) => setNewListName(e.target.value)}
+                              placeholder="New list name"
+                              className="flex-1 min-w-0 bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#7cc7e8]"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                disabled={
+                                  creatingList || !newListName.trim()
+                                }
+                                className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#7cc7e8] text-[#0a121c] disabled:opacity-50"
+                              >
+                                {creatingList ? "..." : "Create"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowNewList(false);
+                                  setNewListName("");
+                                }}
+                                className="text-sm px-3 py-2 text-stone-400"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowNewList(true)}
+                            className="text-xs text-[#7cc7e8] hover:underline"
+                          >
+                            + Create new list
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {userLists.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {userLists.map((list) => (
+                          <button
+                            key={list.id}
+                            type="button"
+                            onClick={() => router.push(`/list/${list.id}`)}
+                            className="text-left bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors group flex items-center gap-3 overflow-hidden"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors truncate">
+                                {list.name}
+                              </h4>
+                              {list.description && (
+                                <p className="text-xs text-stone-500 mt-1 line-clamp-2">
+                                  {list.description}
+                                </p>
+                              )}
+                              <p className="text-xs text-stone-400 mt-2">
+                                {list.count} album
+                                {list.count !== 1 ? "s" : ""}
+                              </p>
+                            </div>
+                            {list.previewCovers?.length > 0 && (
+                              <div className="relative flex-shrink-0 w-[72px] h-12">
+                                {list.previewCovers
+                                  .slice(0, 3)
+                                  .map((cover, i) => (
+                                    <div
+                                      key={i}
+                                      className="absolute top-0 w-12 h-12 rounded-md overflow-hidden border border-[#0a0f16] shadow-md bg-[#1f2b3a]"
+                                      style={{
+                                        right: `${i * 10}px`,
+                                        zIndex: 3 - i,
+                                        opacity: 1 - i * 0.15,
+                                      }}
+                                    >
+                                      <Image
+                                        src={cover}
+                                        alt=""
+                                        width={48}
+                                        height={48}
+                                        className="object-cover w-full h-full"
+                                      />
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <p className="text-stone-400 text-sm font-medium">
+                          No lists yet
+                        </p>
+                        <p className="text-stone-500 text-xs mt-1">
+                          Lists created by this user will appear here.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <div className="w-full lg:w-72 space-y-5 sm:space-y-6 flex-shrink-0">
-            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5">
-              <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
-                Monthly Top
-              </h3>
-              <MonthlyTopWidget
-                albums={stats?.monthlyTop || []}
-                username={profileData.username}
-              />
-            </div>
-            <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5">
-              <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
-                Rating Distribution
-              </h3>
-              <div className="overflow-x-auto">
-                <RatingChart distribution={stats?.ratingDistribution || {}} />
+              <div className="w-full lg:w-72 space-y-5 sm:space-y-6 flex-shrink-0">
+                <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5">
+                  <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
+                    Monthly Top
+                  </h3>
+                  <MonthlyTopWidget
+                    albums={stats?.monthlyTop || []}
+                    username={profileData.username}
+                  />
+                </div>
+                <div className="bg-[#131e2c] border border-[#2a3645] rounded-xl p-4 sm:p-5">
+                  <h3 className="text-[11px] font-bold text-stone-400 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
+                    Rating Distribution
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <RatingChart
+                      distribution={stats?.ratingDistribution || {}}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        </>
+      )}
 
       <Footer />
     </div>

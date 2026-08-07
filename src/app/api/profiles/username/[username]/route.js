@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getLastFmNowPlaying, getLastFmUsername } from '@/lib/lastfm';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request, { params }) {
   const { username } = params;
   const { searchParams } = new URL(request.url);
@@ -13,7 +15,7 @@ export async function GET(request, { params }) {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select(
-        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at'
+        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at, is_private, diary_public, show_activity'
       )
       .eq('username', username.toLowerCase())
       .single();
@@ -21,6 +23,9 @@ export async function GET(request, { params }) {
     if (profileError || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    const isOwner = currentUserId && currentUserId === profile.id;
+    const isPrivate = !!profile.is_private;
 
     const [{ count: followers }, { count: following }] = await Promise.all([
       supabase
@@ -40,8 +45,33 @@ export async function GET(request, { params }) {
         .select('follower_id')
         .eq('follower_id', currentUserId)
         .eq('following_id', profile.id)
-        .single();
+        .maybeSingle();
       if (followCheck) isFollowing = true;
+    }
+
+    // Limited public view for private profiles (non-owner)
+    if (isPrivate && !isOwner) {
+      return NextResponse.json({
+        profile: {
+          id: profile.id,
+          username: profile.username,
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+          is_private: true,
+          diary_public: false,
+          show_activity: false,
+          followers,
+          following,
+          isFollowing,
+          nowPlaying: null,
+          favorite_albums: [],
+          bio: null,
+          website: null,
+          pronouns: null,
+        },
+        listens: [],
+        restricted: true,
+      });
     }
 
     const { data: listensData, error: listensError } = await supabase
@@ -57,7 +87,7 @@ export async function GET(request, { params }) {
 
     if (listensError) {
       return NextResponse.json(
-        { error: 'Error al obtener el historial' },
+        { error: 'Error loading history' },
         { status: 500 }
       );
     }
@@ -73,7 +103,6 @@ export async function GET(request, { params }) {
       album_cover: item.albums?.cover_url || null,
     }));
 
-    // Last.fm Now Playing
     let nowPlaying = null;
     try {
       const lastfmUser = await getLastFmUsername(profile.id);
@@ -87,12 +116,16 @@ export async function GET(request, { params }) {
     return NextResponse.json({
       profile: {
         ...profile,
+        is_private: !!profile.is_private,
+        diary_public: profile.diary_public !== false,
+        show_activity: profile.show_activity !== false,
         followers,
         following,
         isFollowing,
         nowPlaying,
       },
       listens,
+      restricted: false,
     });
   } catch (error) {
     console.error(error);

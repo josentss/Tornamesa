@@ -85,10 +85,18 @@ export const api = {
     return fetchApi(url);
   },
 
-  getPublicHistory: (username, limit = 40, offset = 0) =>
-    fetchApi(
-      `/api/profiles/username/${username}/history?limit=${limit}&offset=${offset}`
-    ),
+  getPublicHistory: (username, limit = 40, offset = 0, currentUserId = null) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+      _t: String(Date.now()),
+    });
+    if (currentUserId) params.set('currentUserId', currentUserId);
+    return fetchApi(
+      `/api/profiles/username/${username}/history?${params}`,
+      { cache: 'no-store' }
+    );
+  },
 
   getProfileStats: (username) =>
     fetchApi(

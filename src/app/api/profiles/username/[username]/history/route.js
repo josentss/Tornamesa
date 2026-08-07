@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request, { params }) {
   const { username } = params;
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 100);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const currentUserId = searchParams.get('currentUserId');
 
   const supabase = createSupabaseServer();
 
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username')
+      .select('id, username, diary_public, is_private')
       .ilike('username', username)
       .single();
 
@@ -20,9 +23,21 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const isOwner = currentUserId && currentUserId === profile.id;
+    const diaryPublic = profile.diary_public !== false;
+    const isPrivate = !!profile.is_private;
+
+    if (!isOwner && (isPrivate || !diaryPublic)) {
+      return NextResponse.json(
+        { error: 'This diary is private' },
+        { status: 403 }
+      );
+    }
+
     const { data: history, error } = await supabase
       .from('listens')
-      .select(`
+      .select(
+        `
         id,
         listened_at,
         rating,
@@ -33,7 +48,8 @@ export async function GET(request, { params }) {
           artist,
           cover_url
         )
-      `)
+      `
+      )
       .eq('user_id', profile.id)
       .order('listened_at', { ascending: false })
       .range(offset, offset + limit - 1);

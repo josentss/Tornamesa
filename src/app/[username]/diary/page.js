@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
@@ -13,12 +12,12 @@ export default function PublicDiaryPage({ params }) {
     typeof params?.then === "function" ? null : params?.username;
   const [resolvedUsername, setResolvedUsername] = useState(username);
   const { user } = useAuth();
-  const router = useRouter();
 
   const [period, setPeriod] = useState("all");
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [forbidden, setForbidden] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -40,15 +39,30 @@ export default function PublicDiaryPage({ params }) {
       try {
         setLoading(true);
         setError(null);
-        const data = await api.getPublicHistory(resolvedUsername, limit, 0);
+        setForbidden(false);
+        const data = await api.getPublicHistory(
+          resolvedUsername,
+          limit,
+          0,
+          user?.id || null
+        );
         if (cancelled) return;
-        // Compatible con respuesta array (vieja) u objeto { history }
         const items = Array.isArray(data) ? data : data.history || [];
         setHistory(items);
         setOffset(limit);
         setHasMore(items.length >= limit);
       } catch (err) {
-        if (!cancelled) setError(err.message || "Could not load diary");
+        if (cancelled) return;
+        const msg = err.message || "Could not load diary";
+        if (
+          msg.toLowerCase().includes("private") ||
+          msg.includes("403")
+        ) {
+          setForbidden(true);
+          setError("This diary is private");
+        } else {
+          setError(msg);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -57,7 +71,7 @@ export default function PublicDiaryPage({ params }) {
     return () => {
       cancelled = true;
     };
-  }, [resolvedUsername]);
+  }, [resolvedUsername, user?.id]);
 
   const handlePeriodChange = useCallback((p) => setPeriod(p), []);
 
@@ -65,7 +79,12 @@ export default function PublicDiaryPage({ params }) {
     if (!resolvedUsername || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const data = await api.getPublicHistory(resolvedUsername, limit, offset);
+      const data = await api.getPublicHistory(
+        resolvedUsername,
+        limit,
+        offset,
+        user?.id || null
+      );
       const more = Array.isArray(data) ? data : data.history || [];
       setHistory((prev) => [...prev, ...more]);
       setOffset((prev) => prev + limit);
@@ -104,8 +123,19 @@ export default function PublicDiaryPage({ params }) {
           </h1>
           <p className="text-stone-400 text-sm mt-1">Full listening history</p>
         </div>
-        {error && <ErrorMessage message={error} />}
-        {!error && (
+
+        {forbidden ? (
+          <div className="bg-[#131e2c]/80 border border-[#2a3645] rounded-2xl p-8 text-center">
+            <p className="text-stone-300 text-sm font-medium">
+              This diary is private
+            </p>
+            <p className="text-stone-500 text-xs mt-2">
+              The owner has chosen not to share their listening history.
+            </p>
+          </div>
+        ) : error ? (
+          <ErrorMessage message={error} />
+        ) : (
           <DiaryView
             history={history}
             period={period}
