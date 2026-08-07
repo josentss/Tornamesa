@@ -268,7 +268,7 @@ export default function AccountSettingsPage() {
         setDiaryPublic(data.diary_public !== false);
         setShowActivity(data.show_activity !== false);
       } catch {
-        /* .... */
+        /* ignore */
       }
     } finally {
       setSavingPrivacy(false);

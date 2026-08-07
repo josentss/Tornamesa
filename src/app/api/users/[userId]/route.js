@@ -159,7 +159,6 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Partial update: only fields present in the body
     const fields = {};
     if (full_name !== undefined)
       fields.full_name = sanitizeString(full_name) || null;

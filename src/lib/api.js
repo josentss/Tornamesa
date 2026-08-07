@@ -68,32 +68,32 @@ export const api = {
       throw new Error('You must be logged in');
     }
 
-      return fetchApi(`/api/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(profileData),
-      });
-    },
+    return fetchApi(`/api/users/${userId}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(profileData),
+    });
+  },
 
-    updatePrivacy: async (userId, { is_private, diary_public, show_activity }) => {
-      const { createClient } = await import('@/lib/supabase/client');
-      const client = createClient();
-      const {
-        data: { session },
-      } = await client.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('You must be logged in');
-      }
-      return fetchApi(`/api/users/${userId}/privacy`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ is_private, diary_public, show_activity }),
-      });
-    },
+  updatePrivacy: async (userId, { is_private, diary_public, show_activity }) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('You must be logged in');
+    }
+    return fetchApi(`/api/users/${userId}/privacy`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ is_private, diary_public, show_activity }),
+    });
+  },
 
   // public profiles
   getPublicProfile: (username, currentUserId = null) => {
