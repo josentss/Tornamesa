@@ -49,6 +49,7 @@ export async function GET(request, { params }) {
       if (followCheck) isFollowing = true;
     }
 
+    // Private profile + visitor → limited view
     if (isPrivate && !isOwner) {
       return NextResponse.json({
         profile: {

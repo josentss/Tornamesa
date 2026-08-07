@@ -243,18 +243,33 @@ export default function AccountSettingsPage() {
     setSavingPrivacy(true);
     setPrivacyMsg({ type: "", text: "" });
     try {
-      await api.updateUserProfile(user.id, {
+      const res = await api.updatePrivacy(user.id, {
         is_private: next.isPrivate,
         diary_public: next.diaryPublic,
         show_activity: next.showActivity,
-        username: user.username || undefined,
       });
+
+      const saved = res?.data;
+      if (saved) {
+        setIsPrivate(saved.is_private === true);
+        setDiaryPublic(saved.diary_public !== false);
+        setShowActivity(saved.show_activity !== false);
+      }
+
       setPrivacyMsg({ type: "success", text: "Privacy settings saved." });
     } catch (err) {
       setPrivacyMsg({
         type: "error",
         text: err.message || "Could not save privacy settings.",
       });
+      try {
+        const data = await api.getUserProfile(user.id);
+        setIsPrivate(data.is_private === true);
+        setDiaryPublic(data.diary_public !== false);
+        setShowActivity(data.show_activity !== false);
+      } catch {
+        /* .... */
+      }
     } finally {
       setSavingPrivacy(false);
     }
