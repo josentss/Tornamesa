@@ -18,13 +18,12 @@ export default function SettingsLayout({ children }) {
   }, [loading, user, router]);
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-[#0a0f16]" />
-    );
+    return <div className="min-h-screen bg-[#0a0f16]" />;
   }
 
   const tabs = [
     { href: "/settings/profile", label: "Profile" },
+    { href: "/settings/account", label: "Account" },
     { href: "/settings/connections", label: "Connections" },
   ];
 
@@ -38,7 +37,7 @@ export default function SettingsLayout({ children }) {
             Account settings
           </h1>
           <p className="text-sm text-stone-500 mt-1">
-            Manage how you appear on Tornamesa
+            Manage your account, privacy and connections
           </p>
         </div>
 

@@ -13,6 +13,9 @@ const PRONOUNS = [
   "They/them",
   "He/they",
   "She/they",
+  "Xe/xyr",
+  "Ze/hir",
+  "It/its",
   "Any pronouns",
   "Prefer not to say",
 ];
