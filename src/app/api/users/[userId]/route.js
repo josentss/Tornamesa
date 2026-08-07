@@ -75,7 +75,7 @@ function normalizeProfile(data, userId) {
       ? data.favorite_albums
       : [],
     onboarding_completed: !!data.onboarding_completed,
-    is_private: !!data.is_private,
+    is_private: data.is_private === true,
     diary_public: data.diary_public !== false,
     show_activity: data.show_activity !== false,
   };
@@ -159,7 +159,7 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Only set fields that were actually sent (partial updates safe)
+    // Partial update: only fields present in the body
     const fields = {};
     if (full_name !== undefined)
       fields.full_name = sanitizeString(full_name) || null;
@@ -183,6 +183,18 @@ export async function PUT(request, { params }) {
     if (typeof show_activity === 'boolean')
       fields.show_activity = show_activity;
     if (cleanUsername) fields.username = cleanUsername;
+
+    if (Object.keys(fields).length === 0) {
+      const existing = await fetchProfileByUserId(supabase, userId);
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Nothing to update',
+          data: normalizeProfile(existing, userId),
+        },
+        { headers: noStoreHeaders }
+      );
+    }
 
     const existing = await fetchProfileByUserId(supabase, userId);
 
@@ -261,7 +273,6 @@ export async function DELETE(request, { params }) {
 
     const supabase = createSupabaseServer();
 
-    // Best-effort cleanup of related rows (ignore errors if tables/FKs differ)
     const related = [
       'listens',
       'reviews',
@@ -278,7 +289,6 @@ export async function DELETE(request, { params }) {
             .delete()
             .or(`follower_id.eq.${userId},following_id.eq.${userId}`);
         } else if (table === 'list_items') {
-          // list_items usually via list_id — skip if no user_id column
           await supabase.from('list_items').delete().eq('user_id', userId);
         } else {
           await supabase.from(table).delete().eq('user_id', userId);

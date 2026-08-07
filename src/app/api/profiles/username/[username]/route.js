@@ -24,8 +24,8 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const isOwner = currentUserId && currentUserId === profile.id;
-    const isPrivate = !!profile.is_private;
+    const isOwner = !!(currentUserId && currentUserId === profile.id);
+    const isPrivate = profile.is_private === true;
 
     const [{ count: followers }, { count: following }] = await Promise.all([
       supabase
@@ -49,7 +49,6 @@ export async function GET(request, { params }) {
       if (followCheck) isFollowing = true;
     }
 
-    // Limited public view for private profiles (non-owner)
     if (isPrivate && !isOwner) {
       return NextResponse.json({
         profile: {
@@ -116,7 +115,7 @@ export async function GET(request, { params }) {
     return NextResponse.json({
       profile: {
         ...profile,
-        is_private: !!profile.is_private,
+        is_private: profile.is_private === true,
         diary_public: profile.diary_public !== false,
         show_activity: profile.show_activity !== false,
         followers,
