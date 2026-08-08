@@ -344,18 +344,30 @@ export default function UserProfileClient({ params }) {
                   @{profileData.username}
                 </p>
                 <div className="flex justify-center gap-6 sm:gap-8 mt-3 sm:mt-4 text-sm">
-                  <span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(`/${profileData.username}/followers`)
+                    }
+                    className="hover:opacity-80 transition-opacity focus:outline-none"
+                  >
                     <strong className="text-white font-semibold">
                       {profileData.followers || 0}
                     </strong>{" "}
                     <span className="text-stone-400">Followers</span>
-                  </span>
-                  <span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      router.push(`/${profileData.username}/following`)
+                    }
+                    className="hover:opacity-80 transition-opacity focus:outline-none"
+                  >
                     <strong className="text-white font-semibold">
                       {profileData.following || 0}
                     </strong>{" "}
                     <span className="text-stone-400">Following</span>
-                  </span>
+                  </button>
                 </div>
                 {!isPrivateLocked && profileData.bio && (
                   <p className="text-stone-300 text-sm mt-4 sm:mt-5 leading-relaxed max-w-md mx-auto px-2">
