@@ -23,6 +23,13 @@ export default function PublicDiaryPage({ params }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 50;
 
+  const isOwner =
+    !!(
+      user?.username &&
+      resolvedUsername &&
+      user.username.toLowerCase() === resolvedUsername.toLowerCase()
+    );
+
   useEffect(() => {
     if (params && typeof params.then === "function") {
       params.then((p) => setResolvedUsername(p.username));
@@ -96,6 +103,22 @@ export default function PublicDiaryPage({ params }) {
     }
   };
 
+  const handleHistoryPatch = (updated) => {
+    if (!updated?.id) return;
+    setHistory((prev) =>
+      prev.map((item) =>
+        item.id === updated.id
+          ? {
+              ...item,
+              listened_at: updated.listened_at,
+              rating: updated.rating,
+              review: updated.review,
+            }
+          : item
+      )
+    );
+  };
+
   if (loading || !resolvedUsername) {
     return (
       <div className="flex flex-col min-h-screen bg-[#0a0f16]">
@@ -143,8 +166,8 @@ export default function PublicDiaryPage({ params }) {
             hasMore={hasMore}
             loadingMore={loadingMore}
             onLoadMore={loadMore}
-            isOwner={false}
-            username={resolvedUsername}
+            isOwner={isOwner}
+            onHistoryPatch={isOwner ? handleHistoryPatch : undefined}
           />
         )}
       </main>

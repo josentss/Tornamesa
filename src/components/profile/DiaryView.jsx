@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { api } from "@/lib/api";
 
 function formatDate(isoDay) {
   if (!isoDay || isoDay === "Unknown") return "Unknown date";
@@ -13,6 +14,11 @@ function formatDate(isoDay) {
     month: "short",
     day: "numeric",
   });
+}
+
+function toDateInputValue(iso) {
+  if (!iso) return "";
+  return String(iso).slice(0, 10);
 }
 
 function groupListens(history) {
@@ -31,7 +37,9 @@ function groupListens(history) {
         day,
         count: 0,
         rating: null,
+        review: null,
         listened_at: item.listened_at,
+        listenId: item.id,
         album: {
           id: album.spotify_id,
           title: album.title,
@@ -42,12 +50,21 @@ function groupListens(history) {
     }
 
     map[key].count += 1;
-    if (item.rating != null) map[key].rating = item.rating;
+
+    // Prefer most recent listen as the editable one
     if (
       item.listened_at &&
-      (!map[key].listened_at || item.listened_at > map[key].listened_at)
+      (!map[key].listened_at || item.listened_at >= map[key].listened_at)
     ) {
       map[key].listened_at = item.listened_at;
+      map[key].listenId = item.id;
+      if (item.rating != null) map[key].rating = item.rating;
+      if (item.review) map[key].review = item.review;
+    } else {
+      if (item.rating != null && map[key].rating == null) {
+        map[key].rating = item.rating;
+      }
+      if (item.review && !map[key].review) map[key].review = item.review;
     }
   });
 
@@ -64,8 +81,8 @@ function filterByPeriod(history, period) {
     period === "year"
       ? new Date(now.getFullYear(), 0, 1)
       : period === "month"
-      ? new Date(now.getFullYear(), now.getMonth(), 1)
-      : null;
+        ? new Date(now.getFullYear(), now.getMonth(), 1)
+        : null;
   if (!start) return history;
   return history.filter((item) => {
     if (!item.listened_at) return false;
@@ -82,6 +99,160 @@ function groupByDay(entries) {
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
+function EditLogModal({ entry, onClose, onSaved }) {
+  const [date, setDate] = useState(toDateInputValue(entry.listened_at));
+  const [rating, setRating] = useState(
+    entry.rating != null ? String(entry.rating) : ""
+  );
+  const [review, setReview] = useState(entry.review || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!entry.listenId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        listened_at: date,
+        rating: rating === "" ? null : Number(rating),
+        review: review.trim() || null,
+      };
+      const res = await api.updateListen(entry.listenId, payload);
+      onSaved?.(res.data, entry);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Close"
+      />
+      <div className="relative w-full sm:max-w-md bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <h2 className="text-lg font-semibold text-white">Edit log</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-stone-500 hover:text-white text-sm"
+            >
+              Close
+            </button>
+          </div>
+
+          {/* Album */}
+          <Link
+            href={`/album/${entry.album.id}`}
+            className="flex flex-col items-center text-center mb-6 group"
+            onClick={onClose}
+          >
+            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden bg-[#0a121c] border border-[#2a3645] shadow-lg">
+              {entry.album.cover_url ? (
+                <Image
+                  src={entry.album.cover_url}
+                  alt=""
+                  width={128}
+                  height={128}
+                  className="object-cover w-full h-full"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-stone-600 text-xs">
+                  —
+                </div>
+              )}
+            </div>
+            <p className="mt-3 text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors line-clamp-2">
+              {entry.album.title}
+            </p>
+            <p className="text-xs text-stone-400 mt-0.5">{entry.album.artist}</p>
+          </Link>
+
+          <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-1.5">
+                Listened on
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7cc7e8]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-1.5">
+                Rating
+              </label>
+              <select
+                value={rating}
+                onChange={(e) => setRating(e.target.value)}
+                className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7cc7e8]"
+              >
+                <option value="">No rating</option>
+                {Array.from({ length: 10 }, (_, i) => 10 - i).map((n) => (
+                  <option key={n} value={n}>
+                    ★ {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-1.5">
+                Review
+              </label>
+              <textarea
+                value={review}
+                onChange={(e) => setReview(e.target.value)}
+                rows={4}
+                placeholder="Optional notes..."
+                className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8] resize-y min-h-[96px]"
+              />
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-400">{error}</p>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 text-sm py-2.5 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DiaryView({
   history,
   period = "all",
@@ -90,9 +261,11 @@ export default function DiaryView({
   loadingMore,
   onLoadMore,
   isOwner = false,
+  onHistoryPatch,
 }) {
   const [query, setQuery] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
+  const [editing, setEditing] = useState(null);
 
   const processed = useMemo(() => {
     let list = filterByPeriod(history, period);
@@ -117,12 +290,15 @@ export default function DiaryView({
 
   const entryCount = processed.reduce((acc, [, items]) => acc + items.length, 0);
 
+  const handleSaved = (updated, entry) => {
+    onHistoryPatch?.(updated, entry);
+  };
+
   return (
     <div className="w-full min-w-0">
       {/* Filters */}
       <div className="flex flex-col gap-3 mb-6 sm:mb-8 w-full min-w-0">
-        {/* Period chips – scroll horizontal en móvil si hace falta */}
-        <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-0 scrollbar-hide">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           {[
             { id: "all", label: "All" },
             { id: "year", label: "This year" },
@@ -130,6 +306,7 @@ export default function DiaryView({
           ].map((p) => (
             <button
               key={p.id}
+              type="button"
               onClick={() => onPeriodChange?.(p.id)}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap flex-shrink-0 ${
                 period === p.id
@@ -142,10 +319,9 @@ export default function DiaryView({
           ))}
         </div>
 
-        {/* Search + rating – apilados en móvil */}
-        <div className="flex flex-col xs:flex-row sm:flex-row gap-2 w-full min-w-0">
+        <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
           <input
-            type="search"
+            type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search album or artist..."
@@ -184,35 +360,39 @@ export default function DiaryView({
               </h2>
               <div className="space-y-2">
                 {entries.map((entry) => (
-                  <Link
+                  <div
                     key={entry.key}
-                    href={`/album/${entry.album.id}`}
-                    className="flex items-center gap-3 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-2.5 sm:p-3 hover:border-[#3d5068] transition-colors group w-full min-w-0"
+                    className="flex items-center gap-2.5 sm:gap-3 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-2.5 sm:p-3 hover:border-[#3d5068] transition-colors w-full min-w-0"
                   >
-                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
-                      {entry.album.cover_url ? (
-                        <Image
-                          src={entry.album.cover_url}
-                          alt={entry.album.title}
-                          width={56}
-                          height={56}
-                          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-stone-600 text-[10px]">
-                          —
-                        </div>
-                      )}
-                    </div>
+                    <Link
+                      href={`/album/${entry.album.id}`}
+                      className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 group"
+                    >
+                      <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
+                        {entry.album.cover_url ? (
+                          <Image
+                            src={entry.album.cover_url}
+                            alt={entry.album.title}
+                            width={56}
+                            height={56}
+                            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-stone-600 text-[10px]">
+                            —
+                          </div>
+                        )}
+                      </div>
 
-                    <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
-                        {entry.album.title}
-                      </p>
-                      <p className="text-xs text-stone-400 truncate">
-                        {entry.album.artist}
-                      </p>
-                    </div>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
+                          {entry.album.title}
+                        </p>
+                        <p className="text-xs text-stone-400 truncate">
+                          {entry.album.artist}
+                        </p>
+                      </div>
+                    </Link>
 
                     <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                       {entry.count > 1 && (
@@ -225,8 +405,28 @@ export default function DiaryView({
                           ★ {entry.rating}
                         </span>
                       )}
+
+                      {isOwner && entry.listenId && (
+                        <button
+                          type="button"
+                          onClick={() => setEditing(entry)}
+                          className="p-1.5 rounded-lg text-stone-500 hover:text-[#7cc7e8] hover:bg-[#0a121c] transition-colors"
+                          title="Edit log"
+                          aria-label="Edit log"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83l3.75 3.75z" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             </section>
@@ -237,6 +437,7 @@ export default function DiaryView({
       {hasMore && (
         <div className="mt-8 text-center">
           <button
+            type="button"
             onClick={onLoadMore}
             disabled={loadingMore}
             className="text-sm text-[#7cc7e8] hover:underline disabled:opacity-50"
@@ -244,6 +445,14 @@ export default function DiaryView({
             {loadingMore ? "Loading..." : "Load more"}
           </button>
         </div>
+      )}
+
+      {editing && (
+        <EditLogModal
+          entry={editing}
+          onClose={() => setEditing(null)}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   );

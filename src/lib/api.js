@@ -44,6 +44,23 @@ export const api = {
       body: JSON.stringify({ albumId, userId, rating, review }),
     }),
 
+  updateListen: async (listenId, { listened_at, rating, review }) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) throw new Error('You must be logged in');
+
+    return fetchApi(`/api/listen/${listenId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ listened_at, rating, review }),
+    });
+  },
+
   getUserHistory: (userId, limit = 50, offset = 0) =>
     fetchApi(`/api/users/${userId}/history?limit=${limit}&offset=${offset}`),
 
