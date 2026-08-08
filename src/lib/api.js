@@ -31,7 +31,8 @@ const fetchApi = async (endpoint, options = {}) => {
 export const api = {
   // buscar y obtener detalles
   searchAlbums: (query, type = 'album') =>
-    fetchApi(`/api/search?q=${encodeURIComponent(query)}&type=${type}`),
+      fetchApi(
+        `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}`),
 
   getAlbumDetails: (id) =>
     fetchApi(`/api/albums/${id}`),
