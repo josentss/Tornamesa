@@ -5,193 +5,168 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import Image from "next/image";
-import { Header, Footer, ErrorMessage, LoadingSpinner } from "@/components/shared";
+import { Header, Footer, ErrorMessage } from "@/components/shared";
 
-const AlbumCard = ({ album }) => (
-  <Link href={`/album/${album.id}`} className="group block cursor-pointer">
-    <div className="aspect-square bg-[#131b26] border border-[#1e293b] rounded overflow-hidden mb-2 group-hover:border-[#87ceeb] transition-all">
-      {album.coverUrl ? (
-        <Image
-          src={album.coverUrl}
-          alt={album.title}
-          width={300}
-          height={300}
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-stone-600 text-xs">
-          No cover
-        </div>
-      )}
-    </div>
-    <h3 className="text-xs md:text-sm font-medium text-[#f0f9ff] truncate group-hover:text-[#87ceeb] transition-colors">
-      {album.title}
-    </h3>
-    <p className="text-[10px] md:text-xs text-stone-400 truncate">{album.artist}</p>
-  </Link>
-);
-
-const UserCard = ({ user }) => {
-  const safeUsername = user?.username || "usuario";
-  const initial = safeUsername.charAt(0).toUpperCase();
-
+function AlbumCard({ album }) {
   return (
-    <Link
-      href={`/${safeUsername}`}
-      className="group flex items-center gap-4 bg-[#131b26] border border-[#1e293b] p-4 rounded-lg hover:border-[#87ceeb] transition-all"
-    >
-      <div className="w-12 h-12 bg-[#0a0f16] rounded-full overflow-hidden flex items-center justify-center text-[#87ceeb] font-bold text-lg shrink-0">
-        {user?.avatar_url ? (
+    <Link href={`/album/${album.id}`} className="group block">
+      <div className="aspect-square bg-[#131e2c] border border-[#2a3645] rounded-xl overflow-hidden mb-2.5 group-hover:border-[#7cc7e8]/60 transition-all shadow-sm group-hover:shadow-[0_8px_24px_-8px_rgba(124,199,232,0.25)]">
+        {album.coverUrl ? (
           <Image
-            src={user.avatar_url}
-            alt={safeUsername}
-            width={48}
-            height={48}
-            className="w-full h-full object-cover"
+            src={album.coverUrl}
+            alt={album.title}
+            width={300}
+            height={300}
+            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
           />
         ) : (
-          initial
+          <div className="w-full h-full flex items-center justify-center text-stone-600 text-xs">
+            No cover
+          </div>
         )}
       </div>
-      <div className="flex-1 overflow-hidden">
-        <h3 className="text-sm font-bold text-[#f0f9ff] truncate group-hover:text-[#87ceeb] transition-colors">
-          {user?.full_name || safeUsername}
-        </h3>
-        <p className="text-xs text-stone-400 truncate">@{safeUsername}</p>
-      </div>
+      <h3 className="text-sm font-semibold text-[#f0f9ff] truncate group-hover:text-[#7cc7e8] transition-colors">
+        {album.title}
+      </h3>
+      <p className="text-xs text-stone-400 truncate mt-0.5">{album.artist}</p>
+      {album.releaseDate && album.releaseDate !== "N/A" && (
+        <p className="text-[10px] text-stone-600 mt-0.5">
+          {String(album.releaseDate).slice(0, 4)}
+        </p>
+      )}
     </Link>
   );
-};
+}
 
-export default function BuscarPage() {
+export default function SearchPage() {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
-  const [searchType, setSearchType] = useState("album");
-  const [resultados, setResultados] = useState([]);
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState(null);
 
-  const performSearch = useCallback(
-    async (q, type) => {
-      if (!q.trim() || q.trim().length < 2) {
-        setError("Minimum 2 characters required");
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      setSearched(true);
-
-      try {
-        const data = await api.searchAlbums(q, type);
-        setResultados(Array.isArray(data) ? data : []);
-        if (!Array.isArray(data) || data.length === 0) {
-          setError("No results found");
-        }
-      } catch (err) {
-        console.error("Error:", err);
-        setError("Connection error");
-        setResultados([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    performSearch(query, searchType);
-  };
-
-  const changeType = (type) => {
-    setSearchType(type);
-    setResultados([]);
-    setSearched(false);
-    setError(null);
-
-    if (query.trim().length >= 2) {
-      performSearch(query, type);
+  const performSearch = useCallback(async (q) => {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) {
+      setError("Type at least 2 characters");
+      return;
     }
+
+    setLoading(true);
+    setError(null);
+    setSearched(true);
+
+    try {
+      const data = await api.searchAlbums(trimmed);
+      setResults(Array.isArray(data) ? data : []);
+      if (!Array.isArray(data) || data.length === 0) {
+        setError(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Search temporarily unavailable");
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    performSearch(query);
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f16]">
+    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={user} />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 md:px-6 py-6 md:py-12">
-        <form onSubmit={handleSearch} className="mb-6">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={
-              searchType === "album" ? "Search albums..." : "Search users..."
-            }
-            className="w-full max-w-md bg-[#131b26] border border-[#1e293b] text-[#f0f9ff] placeholder:text-stone-500 p-3 rounded focus:outline-none focus:border-[#87ceeb] transition-colors"
-            autoFocus
-          />
-        </form>
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+        {/* Centered search */}
+        <div className="max-w-xl mx-auto text-center mb-10 sm:mb-14">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
+            Search albums
+          </h1>
+          <p className="text-stone-400 text-sm mb-6">
+            Find a record to log, rate, or add to a list
+          </p>
 
-        <div className="flex gap-4 mb-8 border-b border-[#1e293b] pb-4">
-          <button
-            type="button"
-            onClick={() => changeType("album")}
-            className={`text-sm font-bold tracking-wider uppercase transition-colors ${
-              searchType === "album"
-                ? "text-[#87ceeb]"
-                : "text-stone-500 hover:text-stone-300"
-            }`}
-          >
-            Albums
-          </button>
-          <button
-            type="button"
-            onClick={() => changeType("user")}
-            className={`text-sm font-bold tracking-wider uppercase transition-colors ${
-              searchType === "user"
-                ? "text-[#87ceeb]"
-                : "text-stone-500 hover:text-stone-300"
-            }`}
-          >
-            Users
-          </button>
+          <form onSubmit={handleSubmit} className="relative">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Album or artist..."
+              className="w-full bg-[#131e2c] border border-[#2a3645] rounded-2xl pl-5 pr-14 py-4 text-base text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8] focus:ring-1 focus:ring-[#7cc7e8]/30 transition-all shadow-lg"
+              autoFocus
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-[#7cc7e8] text-[#0a121c] flex items-center justify-center hover:bg-[#a5d8f0] disabled:opacity-50 transition-colors"
+              aria-label="Search"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5A6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5S14 7.01 14 9.5S11.99 14 9.5 14" />
+              </svg>
+            </button>
+          </form>
+
+          <p className="text-xs text-stone-600 mt-4">
+            Looking for people?{" "}
+            <Link
+              href="/discover"
+              className="text-[#7cc7e8] hover:underline"
+            >
+              Discover listeners
+            </Link>
+          </p>
         </div>
 
         {error && (
-          <ErrorMessage message={error} onDismiss={() => setError(null)} />
+          <div className="max-w-xl mx-auto mb-6">
+            <ErrorMessage message={error} onDismiss={() => setError(null)} />
+          </div>
         )}
 
-        {loading && <LoadingSpinner message="Searching..." />}
+        {loading && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="aspect-square rounded-xl bg-[#131e2c] border border-[#2a3645]" />
+                <div className="h-3 w-3/4 bg-[#1f2b3a] rounded mt-2.5" />
+                <div className="h-2.5 w-1/2 bg-[#1f2b3a] rounded mt-1.5" />
+              </div>
+            ))}
+          </div>
+        )}
 
-        {!loading && searched && resultados.length > 0 && (
-          <div
-            className={
-              searchType === "album"
-                ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6"
-                : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
-            }
-          >
-            {resultados.map((item) =>
-              searchType === "album" ? (
-                <AlbumCard key={item.id} album={item} />
-              ) : (
-                <UserCard key={item.id} user={item} />
-              )
-            )}
+        {!loading && searched && results.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">
+            {results.map((album) => (
+              <AlbumCard key={album.id} album={album} />
+            ))}
+          </div>
+        )}
+
+        {!loading && searched && results.length === 0 && !error && (
+          <div className="text-center py-16">
+            <p className="text-stone-400 text-sm">
+              No albums found for &quot;{query.trim()}&quot;
+            </p>
           </div>
         )}
 
         {!loading && !searched && (
-          <div className="text-center py-20 text-stone-400">
-            Type to start searching
-          </div>
-        )}
-
-        {!loading && searched && resultados.length === 0 && !error && (
-          <div className="text-center py-20 text-stone-400">
-            No results for &quot;{query}&quot;
+          <div className="text-center py-8 text-stone-600 text-sm">
+            Start typing to search Spotify
           </div>
         )}
       </main>

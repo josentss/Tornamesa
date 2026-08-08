@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
+
+export const dynamic = 'force-dynamic';
 
 async function searchSpotify(query) {
   const response = await spotifyFetch(
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=10`
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=20`
   );
 
   if (response.status === 429) {
@@ -32,7 +33,6 @@ async function searchSpotify(query) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
-  const type = searchParams.get('type') || 'album';
 
   if (!q || q.trim().length < 2) {
     return NextResponse.json(
@@ -42,19 +42,7 @@ export async function GET(request) {
   }
 
   try {
-    if (type === 'user') {
-      const supabase = createSupabaseServer();
-      const { data: users, error } = await supabase
-        .from('profiles')
-        .select('id, username, full_name, avatar_url')
-        .ilike('username', `%${q}%`)
-        .limit(10);
-
-      if (error) throw error;
-      return NextResponse.json(users);
-    }
-
-    const albums = await searchSpotify(q);
+    const albums = await searchSpotify(q.trim());
     return NextResponse.json(albums);
   } catch (error) {
     console.error('Search error:', error.message);
