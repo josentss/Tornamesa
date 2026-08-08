@@ -21,6 +21,56 @@ function toDateInputValue(iso) {
   return String(iso).slice(0, 10);
 }
 
+function StarRating({ value, onChange, size = "md" }) {
+  const [hovered, setHovered] = useState(0);
+  const display = hovered || value || 0;
+  const starSize = size === "sm" ? "w-5 h-5" : "w-6 h-6";
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-0.5"
+      onMouseLeave={() => setHovered(0)}
+    >
+      {Array.from({ length: 10 }, (_, i) => {
+        const n = i + 1;
+        const active = n <= display;
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n === value ? null : n)}
+            onMouseEnter={() => setHovered(n)}
+            className={`${starSize} flex items-center justify-center transition-transform hover:scale-110 focus:outline-none`}
+            aria-label={`Rate ${n} out of 10`}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className={`w-full h-full transition-colors duration-100 ${
+                active
+                  ? "fill-yellow-400 text-yellow-400"
+                  : "fill-transparent text-stone-600"
+              }`}
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"
+              />
+            </svg>
+          </button>
+        );
+      })}
+      {value > 0 && (
+        <span className="ml-1.5 text-sm font-semibold text-yellow-400 tabular-nums">
+          {value}/10
+        </span>
+      )}
+    </div>
+  );
+}
+
 function groupListens(history) {
   const map = {};
 
@@ -51,7 +101,6 @@ function groupListens(history) {
 
     map[key].count += 1;
 
-    // Prefer most recent listen as the editable one
     if (
       item.listened_at &&
       (!map[key].listened_at || item.listened_at >= map[key].listened_at)
@@ -102,7 +151,7 @@ function groupByDay(entries) {
 function EditLogModal({ entry, onClose, onSaved }) {
   const [date, setDate] = useState(toDateInputValue(entry.listened_at));
   const [rating, setRating] = useState(
-    entry.rating != null ? String(entry.rating) : ""
+    entry.rating != null ? Number(entry.rating) : null
   );
   const [review, setReview] = useState(entry.review || "");
   const [saving, setSaving] = useState(false);
@@ -114,12 +163,11 @@ function EditLogModal({ entry, onClose, onSaved }) {
     setSaving(true);
     setError(null);
     try {
-      const payload = {
+      const res = await api.updateListen(entry.listenId, {
         listened_at: date,
-        rating: rating === "" ? null : Number(rating),
+        rating: rating == null ? null : Number(rating),
         review: review.trim() || null,
-      };
-      const res = await api.updateListen(entry.listenId, payload);
+      });
       onSaved?.(res.data, entry);
       onClose();
     } catch (err) {
@@ -143,18 +191,10 @@ function EditLogModal({ entry, onClose, onSaved }) {
       />
       <div className="relative w-full sm:max-w-md bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-3 mb-5">
-            <h2 className="text-lg font-semibold text-white">Edit log</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-stone-500 hover:text-white text-sm"
-            >
-              Close
-            </button>
-          </div>
+          <h2 className="text-lg font-semibold text-white text-center mb-5">
+            Edit log
+          </h2>
 
-          {/* Album */}
           <Link
             href={`/album/${entry.album.id}`}
             className="flex flex-col items-center text-center mb-6 group"
@@ -181,7 +221,7 @@ function EditLogModal({ entry, onClose, onSaved }) {
             <p className="text-xs text-stone-400 mt-0.5">{entry.album.artist}</p>
           </Link>
 
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-5">
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-1.5">
                 Listened on
@@ -196,21 +236,13 @@ function EditLogModal({ entry, onClose, onSaved }) {
             </div>
 
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-1.5">
+              <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-2">
                 Rating
               </label>
-              <select
-                value={rating}
-                onChange={(e) => setRating(e.target.value)}
-                className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#7cc7e8]"
-              >
-                <option value="">No rating</option>
-                {Array.from({ length: 10 }, (_, i) => 10 - i).map((n) => (
-                  <option key={n} value={n}>
-                    ★ {n}
-                  </option>
-                ))}
-              </select>
+              <StarRating value={rating} onChange={setRating} size="sm" />
+              <p className="text-[10px] text-stone-600 mt-1.5">
+                Tap the same star again to clear
+              </p>
             </div>
 
             <div>
@@ -226,9 +258,7 @@ function EditLogModal({ entry, onClose, onSaved }) {
               />
             </div>
 
-            {error && (
-              <p className="text-xs text-red-400">{error}</p>
-            )}
+            {error && <p className="text-xs text-red-400">{error}</p>}
 
             <div className="flex gap-2 pt-1">
               <button
@@ -290,13 +320,8 @@ export default function DiaryView({
 
   const entryCount = processed.reduce((acc, [, items]) => acc + items.length, 0);
 
-  const handleSaved = (updated, entry) => {
-    onHistoryPatch?.(updated, entry);
-  };
-
   return (
     <div className="w-full min-w-0">
-      {/* Filters */}
       <div className="flex flex-col gap-3 mb-6 sm:mb-8 w-full min-w-0">
         <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
           {[
@@ -383,7 +408,6 @@ export default function DiaryView({
                           </div>
                         )}
                       </div>
-
                       <div className="flex-1 min-w-0 overflow-hidden">
                         <p className="text-sm font-medium text-white truncate group-hover:text-[#7cc7e8] transition-colors">
                           {entry.album.title}
@@ -405,7 +429,6 @@ export default function DiaryView({
                           ★ {entry.rating}
                         </span>
                       )}
-
                       {isOwner && entry.listenId && (
                         <button
                           type="button"
@@ -451,7 +474,7 @@ export default function DiaryView({
         <EditLogModal
           entry={editing}
           onClose={() => setEditing(null)}
-          onSaved={handleSaved}
+          onSaved={(updated) => onHistoryPatch?.(updated, editing)}
         />
       )}
     </div>

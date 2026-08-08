@@ -66,11 +66,9 @@ export async function PATCH(request, { params }) {
       ? new Date(existing.listened_at)
       : null;
 
-    // listened_at: accept YYYY-MM-DD or full ISO
     if (body.listened_at != null && body.listened_at !== '') {
       let iso = String(body.listened_at).trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
-        // Keep midday UTC to avoid timezone day-shift
         iso = `${iso}T12:00:00.000Z`;
       }
       const d = new Date(iso);
@@ -83,9 +81,13 @@ export async function PATCH(request, { params }) {
       fields.listened_at = d.toISOString();
     }
 
+    let ratingTouched = false;
+    let ratingValue = undefined;
     if (body.rating !== undefined) {
+      ratingTouched = true;
       if (body.rating === null || body.rating === '') {
         fields.rating = null;
+        ratingValue = null;
       } else {
         const num = Number(body.rating);
         if (Number.isNaN(num) || num < 1 || num > 10) {
@@ -95,14 +97,19 @@ export async function PATCH(request, { params }) {
           );
         }
         fields.rating = num;
+        ratingValue = num;
       }
     }
 
+    let reviewTouched = false;
+    let reviewValue = undefined;
     if (body.review !== undefined) {
-      fields.review =
+      reviewTouched = true;
+      reviewValue =
         body.review && String(body.review).trim()
           ? sanitizeString(String(body.review).trim())
           : null;
+      fields.review = reviewValue;
     }
 
     if (Object.keys(fields).length === 0) {
@@ -130,7 +137,47 @@ export async function PATCH(request, { params }) {
 
     if (updateErr) throw updateErr;
 
-    // Monthly top: recompute old + new month if date moved
+    const albumId = existing.album_id;
+    if (albumId && (ratingTouched || reviewTouched)) {
+      const { data: existingReview } = await supabase
+        .from('reviews')
+        .select('id, rating, review_text')
+        .eq('user_id', authUser.id)
+        .eq('album_id', albumId)
+        .maybeSingle();
+
+      const finalRating =
+        ratingTouched
+          ? ratingValue
+          : existingReview?.rating ?? existing.rating ?? null;
+      const finalReviewText =
+        reviewTouched
+          ? reviewValue
+          : existingReview?.review_text ?? existing.review ?? null;
+
+      if (finalRating != null && finalRating >= 1 && finalRating <= 10) {
+        if (existingReview) {
+          await supabase
+            .from('reviews')
+            .update({
+              rating: finalRating,
+              review_text: finalReviewText,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingReview.id);
+        } else {
+          await supabase.from('reviews').insert({
+            user_id: authUser.id,
+            album_id: albumId,
+            rating: finalRating,
+            review_text: finalReviewText,
+          });
+        }
+      } else if (ratingTouched && ratingValue === null && existingReview) {
+        await supabase.from('reviews').delete().eq('id', existingReview.id);
+      }
+    }
+
     try {
       const newDate = new Date(updated.listened_at);
       const months = new Set();
