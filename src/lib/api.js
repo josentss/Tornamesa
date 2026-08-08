@@ -134,6 +134,43 @@ export const api = {
   unfollowUser: (userId, targetId) =>
     fetchApi(`/api/users/${userId}/follow/${targetId}`, { method: 'DELETE' }),
 
+  getFollowers: (username, currentUserId = null, limit = 40, offset = 0) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+      _t: String(Date.now()),
+    });
+    if (currentUserId) params.set('currentUserId', currentUserId);
+    return fetchApi(
+      `/api/profiles/username/${encodeURIComponent(username)}/followers?${params}`,
+      { cache: 'no-store' }
+    );
+  },
+
+  getFollowing: (username, currentUserId = null, limit = 40, offset = 0) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+      _t: String(Date.now()),
+    });
+    if (currentUserId) params.set('currentUserId', currentUserId);
+    return fetchApi(
+      `/api/profiles/username/${encodeURIComponent(username)}/following?${params}`,
+      { cache: 'no-store' }
+    );
+  },
+
+  discoverUsers: (q = '', currentUserId = null, limit = 24, offset = 0) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+      _t: String(Date.now()),
+    });
+    if (q) params.set('q', q);
+    if (currentUserId) params.set('currentUserId', currentUserId);
+    return fetchApi(`/api/discover/users?${params}`, { cache: 'no-store' });
+  },
+
   getFriendsFeed: (userId) =>
     fetchApi(`/api/users/${userId}/feed`),
 
