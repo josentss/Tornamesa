@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -28,7 +28,7 @@ function StarRating({ value, onChange, size = "md" }) {
 
   return (
     <div
-      className="flex flex-wrap items-center gap-0.5"
+      className="flex flex-wrap items-center justify-center sm:justify-start gap-0.5"
       onMouseLeave={() => setHovered(0)}
     >
       {Array.from({ length: 10 }, (_, i) => {
@@ -179,34 +179,48 @@ function EditLogModal({ entry, onClose, onSaved }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
       role="dialog"
       aria-modal="true"
     >
       <button
         type="button"
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 sm:bg-black/70 backdrop-blur-[2px]"
         onClick={onClose}
         aria-label="Close"
       />
-      <div className="relative w-full sm:max-w-md bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-white text-center mb-5">
+
+      {/* Sheet on mobile, centered card on desktop */}
+      <div
+        className="
+          relative w-full sm:max-w-md
+          bg-[#131e2c] border border-[#2a3645]
+          rounded-t-2xl sm:rounded-2xl shadow-2xl
+          max-h-[min(88vh,720px)] overflow-y-auto
+          pb-[env(safe-area-inset-bottom,0px)]
+        "
+      >
+        <div className="flex justify-center pt-2.5 pb-1 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-[#2a3645]" />
+        </div>
+
+        <div className="px-4 pt-2 pb-5 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold text-white text-center mb-4">
             Edit log
           </h2>
 
           <Link
             href={`/album/${entry.album.id}`}
-            className="flex flex-col items-center text-center mb-6 group"
+            className="flex flex-col items-center text-center mb-5 group"
             onClick={onClose}
           >
-            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-xl overflow-hidden bg-[#0a121c] border border-[#2a3645] shadow-lg">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-[#0a121c] border border-[#2a3645] shadow-lg">
               {entry.album.cover_url ? (
                 <Image
                   src={entry.album.cover_url}
                   alt=""
-                  width={128}
-                  height={128}
+                  width={112}
+                  height={112}
                   className="object-cover w-full h-full"
                 />
               ) : (
@@ -215,13 +229,13 @@ function EditLogModal({ entry, onClose, onSaved }) {
                 </div>
               )}
             </div>
-            <p className="mt-3 text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors line-clamp-2">
+            <p className="mt-2.5 text-sm font-semibold text-white group-hover:text-[#7cc7e8] transition-colors line-clamp-2 px-2">
               {entry.album.title}
             </p>
             <p className="text-xs text-stone-400 mt-0.5">{entry.album.artist}</p>
           </Link>
 
-          <form onSubmit={handleSave} className="space-y-5">
+          <form onSubmit={handleSave} className="space-y-4">
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-1.5">
                 Listened on
@@ -236,13 +250,10 @@ function EditLogModal({ entry, onClose, onSaved }) {
             </div>
 
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-2">
+              <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-2 text-center sm:text-left">
                 Rating
               </label>
               <StarRating value={rating} onChange={setRating} size="sm" />
-              <p className="text-[10px] text-stone-600 mt-1.5">
-                Tap the same star again to clear
-              </p>
             </div>
 
             <div>
@@ -252,9 +263,9 @@ function EditLogModal({ entry, onClose, onSaved }) {
               <textarea
                 value={review}
                 onChange={(e) => setReview(e.target.value)}
-                rows={4}
+                rows={3}
                 placeholder="Optional notes..."
-                className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8] resize-y min-h-[96px]"
+                className="w-full bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8] resize-y min-h-[80px]"
               />
             </div>
 
@@ -293,12 +304,18 @@ export default function DiaryView({
   isOwner = false,
   onHistoryPatch,
 }) {
+  // Local copy so Save updates UI without full reload
+  const [items, setItems] = useState(history || []);
   const [query, setQuery] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
   const [editing, setEditing] = useState(null);
 
+  useEffect(() => {
+    setItems(history || []);
+  }, [history]);
+
   const processed = useMemo(() => {
-    let list = filterByPeriod(history, period);
+    let list = filterByPeriod(items, period);
     let grouped = groupListens(list);
 
     if (query.trim()) {
@@ -316,9 +333,31 @@ export default function DiaryView({
     }
 
     return groupByDay(grouped);
-  }, [history, period, query, ratingFilter]);
+  }, [items, period, query, ratingFilter]);
 
   const entryCount = processed.reduce((acc, [, items]) => acc + items.length, 0);
+
+  const applyPatch = (updated) => {
+    if (!updated?.id) return;
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === updated.id
+          ? {
+              ...item,
+              listened_at: updated.listened_at ?? item.listened_at,
+              rating:
+                updated.rating !== undefined ? updated.rating : item.rating,
+              review:
+                updated.review !== undefined ? updated.review : item.review,
+              albums: updated.albums
+                ? { ...item.albums, ...updated.albums }
+                : item.albums,
+            }
+          : item
+      )
+    );
+    onHistoryPatch?.(updated);
+  };
 
   return (
     <div className="w-full min-w-0">
@@ -387,13 +426,13 @@ export default function DiaryView({
                 {entries.map((entry) => (
                   <div
                     key={entry.key}
-                    className="flex items-center gap-2.5 sm:gap-3 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-2.5 sm:p-3 hover:border-[#3d5068] transition-colors w-full min-w-0"
+                    className="flex items-center gap-2 sm:gap-3 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-2 sm:p-3 hover:border-[#3d5068] transition-colors w-full min-w-0"
                   >
                     <Link
                       href={`/album/${entry.album.id}`}
-                      className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 group"
+                      className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 group"
                     >
-                      <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
                         {entry.album.cover_url ? (
                           <Image
                             src={entry.album.cover_url}
@@ -418,7 +457,7 @@ export default function DiaryView({
                       </div>
                     </Link>
 
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                       {entry.count > 1 && (
                         <span className="text-[10px] sm:text-xs font-bold text-[#7cc7e8] bg-[#0a121c] px-1.5 sm:px-2 py-0.5 rounded border border-[#2a3645]">
                           ×{entry.count}
@@ -474,7 +513,7 @@ export default function DiaryView({
         <EditLogModal
           entry={editing}
           onClose={() => setEditing(null)}
-          onSaved={(updated) => onHistoryPatch?.(updated, editing)}
+          onSaved={applyPatch}
         />
       )}
     </div>

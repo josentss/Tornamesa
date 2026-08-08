@@ -1,75 +1,49 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
-import Link from "next/link";
 
-export default function PublicDiaryPage({ params }) {
-  const username =
-    typeof params?.then === "function" ? null : params?.username;
-  const [resolvedUsername, setResolvedUsername] = useState(username);
-  const { user } = useAuth();
+function DiaryContent() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [period, setPeriod] = useState("all");
+  const initialPeriod = searchParams.get("period") || "all";
+  const [period, setPeriod] = useState(
+    ["all", "year", "month"].includes(initialPeriod) ? initialPeriod : "all"
+  );
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [forbidden, setForbidden] = useState(false);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 50;
 
-  const isOwner =
-    !!(
-      user?.username &&
-      resolvedUsername &&
-      user.username.toLowerCase() === resolvedUsername.toLowerCase()
-    );
-
   useEffect(() => {
-    if (params && typeof params.then === "function") {
-      params.then((p) => setResolvedUsername(p.username));
-    } else if (params?.username) {
-      setResolvedUsername(params.username);
+    if (authLoading) return;
+    if (!user) {
+      router.push("/");
+      return;
     }
-  }, [params]);
 
-  useEffect(() => {
-    if (!resolvedUsername) return;
     let cancelled = false;
-
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-        setForbidden(false);
-        const data = await api.getPublicHistory(
-          resolvedUsername,
-          limit,
-          0,
-          user?.id || null
-        );
+        const data = await api.getUserHistory(user.id, limit, 0);
         if (cancelled) return;
-        const items = Array.isArray(data) ? data : data.history || [];
+        const items = data.history || [];
         setHistory(items);
         setOffset(limit);
         setHasMore(items.length >= limit);
       } catch (err) {
-        if (cancelled) return;
-        const msg = err.message || "Could not load diary";
-        if (
-          msg.toLowerCase().includes("private") ||
-          msg.includes("403")
-        ) {
-          setForbidden(true);
-          setError("This diary is private");
-        } else {
-          setError(msg);
-        }
+        if (!cancelled) setError(err.message || "Could not load diary");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -78,21 +52,23 @@ export default function PublicDiaryPage({ params }) {
     return () => {
       cancelled = true;
     };
-  }, [resolvedUsername, user?.id]);
+  }, [user, authLoading, router]);
 
-  const handlePeriodChange = useCallback((p) => setPeriod(p), []);
+  const handlePeriodChange = useCallback(
+    (p) => {
+      setPeriod(p);
+      const url = p === "all" ? "/diary" : `/diary?period=${p}`;
+      router.replace(url, { scroll: false });
+    },
+    [router]
+  );
 
   const loadMore = async () => {
-    if (!resolvedUsername || loadingMore || !hasMore) return;
+    if (!user || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const data = await api.getPublicHistory(
-        resolvedUsername,
-        limit,
-        offset,
-        user?.id || null
-      );
-      const more = Array.isArray(data) ? data : data.history || [];
+      const data = await api.getUserHistory(user.id, limit, offset);
+      const more = data.history || [];
       setHistory((prev) => [...prev, ...more]);
       setOffset((prev) => prev + limit);
       setHasMore(more.length >= limit);
@@ -103,74 +79,72 @@ export default function PublicDiaryPage({ params }) {
     }
   };
 
-  const handleHistoryPatch = (updated) => {
+  const handleHistoryPatch = useCallback((updated) => {
     if (!updated?.id) return;
     setHistory((prev) =>
       prev.map((item) =>
         item.id === updated.id
           ? {
               ...item,
-              listened_at: updated.listened_at,
-              rating: updated.rating,
-              review: updated.review,
+              listened_at: updated.listened_at ?? item.listened_at,
+              rating:
+                updated.rating !== undefined ? updated.rating : item.rating,
+              review:
+                updated.review !== undefined ? updated.review : item.review,
             }
           : item
       )
     );
-  };
+  }, []);
 
-  if (loading || !resolvedUsername) {
+  if (authLoading || loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-[#0a0f16]">
-        <Header user={user} />
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner message="Loading diary..." />
-        </div>
+      <div className="flex-1 flex items-center justify-center">
+        <LoadingSpinner message="Loading diary..." />
       </div>
     );
   }
 
+  if (!user) return null;
+
+  return (
+    <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14 overflow-x-hidden">
+      <div className="mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
+        <p className="text-stone-400 text-sm mt-1">Your listening history</p>
+      </div>
+      {error && <ErrorMessage message={error} />}
+      {!error && (
+        <DiaryView
+          history={history}
+          period={period}
+          onPeriodChange={handlePeriodChange}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          isOwner
+          onHistoryPatch={handleHistoryPatch}
+        />
+      )}
+    </main>
+  );
+}
+
+export default function DiaryPage() {
+  const { user } = useAuth();
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff] overflow-x-hidden">
       <Header user={user} />
-      <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14 overflow-x-hidden">
-        <div className="mb-8">
-          <Link
-            href={`/${resolvedUsername}`}
-            className="text-xs text-stone-500 hover:text-[#7cc7e8] transition-colors"
-          >
-            ← @{resolvedUsername}
-          </Link>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mt-2">
-            @{resolvedUsername}&apos;s diary
-          </h1>
-          <p className="text-stone-400 text-sm mt-1">Full listening history</p>
-        </div>
-
-        {forbidden ? (
-          <div className="bg-[#131e2c]/80 border border-[#2a3645] rounded-2xl p-8 text-center">
-            <p className="text-stone-300 text-sm font-medium">
-              This diary is private
-            </p>
-            <p className="text-stone-500 text-xs mt-2">
-              The owner has chosen not to share their listening history.
-            </p>
+      <Suspense
+        fallback={
+          <div className="flex-1 flex items-center justify-center">
+            <LoadingSpinner message="Loading diary..." />
           </div>
-        ) : error ? (
-          <ErrorMessage message={error} />
-        ) : (
-          <DiaryView
-            history={history}
-            period={period}
-            onPeriodChange={handlePeriodChange}
-            hasMore={hasMore}
-            loadingMore={loadingMore}
-            onLoadMore={loadMore}
-            isOwner={isOwner}
-            onHistoryPatch={isOwner ? handleHistoryPatch : undefined}
-          />
-        )}
-      </main>
+        }
+      >
+        <DiaryContent />
+      </Suspense>
       <Footer />
     </div>
   );
