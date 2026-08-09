@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import ImportLogsModal from "@/components/monthly-top/ImportLogsModal";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -307,6 +307,8 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [wrappedOpen, setWrappedOpen] = useState(false);
   const [wrappedUrl, setWrappedUrl] = useState(null);
   const [wrappedLoading, setWrappedLoading] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const isOwner =
     !!user?.username &&
@@ -341,7 +343,7 @@ function MonthlyTopContent({ username: usernameProp }) {
     return () => {
       cancelled = true;
     };
-  }, [usernameProp, year, month, week]);
+  }, [usernameProp, year, month, week, reloadKey]);
 
   const setPeriod = (next) => {
     const params = new URLSearchParams();
@@ -468,86 +470,98 @@ function MonthlyTopContent({ username: usernameProp }) {
           <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
         </div>
 
-        <div className="relative flex-shrink-0 self-start">
-          <button
-            type="button"
-            onClick={() => setArchiveOpen((o) => !o)}
-            className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] transition-colors"
-            aria-expanded={archiveOpen}
-          >
-            <CalendarIcon className="w-4 h-4 text-[#7cc7e8]" />
-            <span>
-              {MONTH_SHORT[month - 1]} {year}
-            </span>
-            <span className="text-stone-500 text-[10px]">
-              {archiveOpen ? "▲" : "▼"}
-            </span>
-          </button>
-
-          {archiveOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                aria-hidden
-                onClick={() => setArchiveOpen(false)}
-              />
-              <div className="absolute left-0 sm:left-auto sm:right-0 z-20 mt-2 w-[min(100vw-2rem,18rem)] bg-[#131e2c] border border-[#2a3645] rounded-xl p-3 sm:p-4 shadow-xl">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => goCalendarYear(1)}
-                    disabled={!canPrevYear && availableYears.length > 0}
-                    className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-                  >
-                    ‹
-                  </button>
-                  <span className="text-sm font-bold text-white">
-                    {calendarYear}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => goCalendarYear(-1)}
-                    disabled={!canNextYear && availableYears.length > 0}
-                    className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
-                  >
-                    ›
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {Array.from({ length: 12 }, (_, i) => {
-                    const m = i + 1;
-                    const hasData = monthsWithData.has(`${calendarYear}-${m}`);
-                    const isSelected = calendarYear === year && m === month;
-                    return (
-                      <button
-                        key={m}
-                        type="button"
-                        disabled={!hasData}
-                        onClick={() => {
-                          if (!hasData) return;
-                          setPeriod({
-                            year: calendarYear,
-                            month: m,
-                            week: null,
-                          });
-                          setArchiveOpen(false);
-                        }}
-                        className={`min-w-0 py-2 rounded-lg text-xs font-semibold border transition-colors ${
-                          isSelected
-                            ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/50 text-[#7cc7e8]"
-                            : hasData
-                            ? "bg-[#1f2b3a] border-[#2a3645] text-stone-200 hover:border-[#3d5068] hover:text-white"
-                            : "bg-transparent border-transparent text-stone-600 opacity-40 cursor-not-allowed"
-                        }`}
-                      >
-                        {MONTH_SHORT[i]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
+        <div className="flex items-center gap-2 flex-shrink-0 self-start">
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-[#7cc7e8] hover:border-[#7cc7e8]/40 transition-colors"
+            >
+              Import logs
+            </button>
           )}
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setArchiveOpen((o) => !o)}
+              className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white hover:border-[#3d5068] transition-colors"
+              aria-expanded={archiveOpen}
+            >
+              <CalendarIcon className="w-4 h-4 text-[#7cc7e8]" />
+              <span>
+                {MONTH_SHORT[month - 1]} {year}
+              </span>
+              <span className="text-stone-500 text-[10px]">
+                {archiveOpen ? "▲" : "▼"}
+              </span>
+            </button>
+
+            {archiveOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  aria-hidden
+                  onClick={() => setArchiveOpen(false)}
+                />
+                <div className="absolute left-0 sm:left-auto sm:right-0 z-20 mt-2 w-[min(100vw-2rem,18rem)] bg-[#131e2c] border border-[#2a3645] rounded-xl p-3 sm:p-4 shadow-xl">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => goCalendarYear(1)}
+                      disabled={!canPrevYear && availableYears.length > 0}
+                      className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                    >
+                      ‹
+                    </button>
+                    <span className="text-sm font-bold text-white">
+                      {calendarYear}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => goCalendarYear(-1)}
+                      disabled={!canNextYear && availableYears.length > 0}
+                      className="w-8 h-8 rounded-lg bg-[#1f2b3a] border border-[#2a3645] text-stone-300 hover:text-white flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none"
+                    >
+                      ›
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const m = i + 1;
+                      const hasData = monthsWithData.has(`${calendarYear}-${m}`);
+                      const isSelected = calendarYear === year && m === month;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          disabled={!hasData}
+                          onClick={() => {
+                            if (!hasData) return;
+                            setPeriod({
+                              year: calendarYear,
+                              month: m,
+                              week: null,
+                            });
+                            setArchiveOpen(false);
+                          }}
+                          className={`min-w-0 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                            isSelected
+                              ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/50 text-[#7cc7e8]"
+                              : hasData
+                              ? "bg-[#1f2b3a] border-[#2a3645] text-stone-200 hover:border-[#3d5068] hover:text-white"
+                              : "bg-transparent border-transparent text-stone-600 opacity-40 cursor-not-allowed"
+                          }`}
+                        >
+                          {MONTH_SHORT[i]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -762,6 +776,16 @@ function MonthlyTopContent({ username: usernameProp }) {
             </div>
           </div>
         </div>
+      )}
+
+      {isOwner && (
+        <ImportLogsModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            setReloadKey((k) => k + 1);
+          }}
+        />
       )}
     </main>
   );

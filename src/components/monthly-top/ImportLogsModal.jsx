@@ -3,13 +3,15 @@
 import { useState, useRef } from "react";
 import { api } from "@/lib/api";
 
+const MAX_FILES_PER_RUN = 3;
+
 export default function ImportLogsModal({ open, onClose, onImported }) {
   const inputRef = useRef(null);
-  const [step, setStep] = useState("upload"); // upload | preview | done
+  const [step, setStep] = useState("upload");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [selectedAmbiguous, setSelectedAmbiguous] = useState({}); // key -> albumId
+  const [selectedAmbiguous, setSelectedAmbiguous] = useState({});
   const [commitResult, setCommitResult] = useState(null);
 
   if (!open) return null;
@@ -32,12 +34,31 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     const files = Array.from(fileList || []);
     if (!files.length) return;
 
+    if (files.length > MAX_FILES_PER_RUN) {
+      setError(
+        `Please select at most ${MAX_FILES_PER_RUN} month files at a time (avoids timeouts).`
+      );
+      return;
+    }
+
+    for (const f of files) {
+      if (!/^\d{4}-\d{2}\.txt$/i.test(f.name)) {
+        setError(
+          `Invalid filename: "${f.name}". Use YYYY-MM.txt (e.g. 2025-03.txt).`
+        );
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
       const payload = [];
       for (const f of files) {
         const content = await f.text();
+        if (content.length > 200_000) {
+          throw new Error(`File too large: ${f.name}`);
+        }
         payload.push({ name: f.name, content });
       }
       const data = await api.previewNotesImport(payload);
@@ -47,11 +68,11 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
       setError(err.message || "Preview failed");
     } finally {
       setLoading(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
   };
 
-  const ambKey = (row, i) =>
-    `${row.sourceFile}|${row.raw}|${i}`;
+  const ambKey = (row, i) => `${row.sourceFile}|${row.raw}|${i}`;
 
   const itemsToImport = () => {
     if (!preview) return [];
@@ -114,7 +135,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
       <div className="relative w-full sm:max-w-lg bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">Import logs</h2>
+            <h2 className="text-lg font-semibold text-white">Import month logs</h2>
             <button
               type="button"
               onClick={handleClose}
@@ -127,9 +148,11 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
           {step === "upload" && (
             <div className="space-y-4">
               <p className="text-sm text-stone-400">
-                Upload one or more month files named{" "}
-                <code className="text-[#7cc7e8] text-xs">YYYY-MM.txt</code>{" "}
-                (e.g. <code className="text-xs">2025-03.txt</code>). Format:
+                Import historical listens into your monthly tops. Files must be
+                named{" "}
+                <code className="text-[#7cc7e8] text-xs">YYYY-MM.txt</code>.
+                Upload up to <strong className="text-stone-300">{MAX_FILES_PER_RUN}</strong>{" "}
+                months per run.
               </p>
               <pre className="text-xs bg-[#0a121c] border border-[#2a3645] rounded-lg p-3 text-stone-300 overflow-x-auto">
 {`Discos escuchados
@@ -151,7 +174,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 onClick={() => inputRef.current?.click()}
                 className="w-full py-3 rounded-xl bg-[#7cc7e8] text-[#0a121c] text-sm font-semibold hover:bg-[#a5d8f0] disabled:opacity-50"
               >
-                {loading ? "Analyzing..." : "Choose .txt files"}
+                {loading ? "Analyzing (may take a minute)..." : "Choose .txt files"}
               </button>
             </div>
           )}
@@ -273,8 +296,13 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 <span className="text-[#7cc7e8] font-semibold">
                   {commitResult?.inserted ?? 0}
                 </span>{" "}
-                listens
+                listens. Monthly tops for those months were recomputed.
               </p>
+              {commitResult?.monthsRecomputed?.length > 0 && (
+                <p className="text-xs text-stone-500">
+                  Updated: {commitResult.monthsRecomputed.join(", ")}
+                </p>
+              )}
               {commitResult?.failures?.length > 0 && (
                 <p className="text-xs text-amber-400">
                   {commitResult.failures.length} item(s) failed
@@ -290,9 +318,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
             </div>
           )}
 
-          {error && (
-            <p className="text-xs text-red-400 mt-3">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
         </div>
       </div>
     </div>
