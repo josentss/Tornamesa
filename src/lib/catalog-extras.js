@@ -15,6 +15,20 @@ export const CATALOG_EXTRAS = [
       'lift your skinny',
       'godspeed you',
       'godspeed you black emperor',
+      'gybe',
+    ],
+  },
+
+  {
+    id: '0XKw8i6Hlz6oV9moQcjjR5',
+    title: 'Yanqui U.X.O.',
+    artist: 'Godspeed You! Black Emperor',
+    keywords: [
+      'yanqui uxo',
+      'yanqui',
+      'godspeed you black emperor',
+      'godspeed you',
+      'gybe',
     ],
   },
 
