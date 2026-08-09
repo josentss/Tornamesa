@@ -1,7 +1,20 @@
 import { NextResponse } from 'next/server';
 import { spotifyFetch } from '@/lib/spotify';
+import { matchCatalogExtras } from '@/lib/catalog-extras';
 
 export const dynamic = 'force-dynamic';
+
+function mapAlbum(album) {
+  if (!album?.id) return null;
+  return {
+    id: album.id,
+    title: album.name,
+    artist: album.artists?.[0]?.name || 'Unknown',
+    coverUrl: album.images?.[0]?.url || null,
+    releaseDate: album.release_date || 'N/A',
+    spotifyLink: album.external_urls?.spotify || '',
+  };
+}
 
 async function searchSpotify(query) {
   const response = await spotifyFetch(
@@ -22,14 +35,17 @@ async function searchSpotify(query) {
 
   return (data.albums?.items || [])
     .filter((album) => album && album.id)
-    .map((album) => ({
-      id: album.id,
-      title: album.name,
-      artist: album.artists?.[0]?.name || 'Unknown',
-      coverUrl: album.images?.[0]?.url || null,
-      releaseDate: album.release_date || 'N/A',
-      spotifyLink: album.external_urls?.spotify || '',
-    }));
+    .map(mapAlbum)
+    .filter(Boolean);
+}
+
+async function fetchAlbumById(id) {
+  const response = await spotifyFetch(
+    `https://api.spotify.com/v1/albums/${id}`
+  );
+  if (!response.ok) return null;
+  const album = await response.json();
+  return mapAlbum(album);
 }
 
 export async function GET(request) {
@@ -44,8 +60,23 @@ export async function GET(request) {
   }
 
   try {
-    const albums = await searchSpotify(q.trim());
-    return NextResponse.json(albums);
+    const trimmed = q.trim();
+
+    // 1) Normal Spotify search
+    const fromSearch = await searchSpotify(trimmed);
+
+    // 2) Curated extras (hidden / poorly ranked albums)
+    const extraIds = matchCatalogExtras(trimmed);
+    const extras = [];
+    for (const id of extraIds) {
+      // skip if already in search results
+      if (fromSearch.some((a) => a.id === id)) continue;
+      const album = await fetchAlbumById(id);
+      if (album) extras.push(album);
+    }
+
+    // Extras first so the “hard to find” album is visible
+    return NextResponse.json([...extras, ...fromSearch]);
   } catch (error) {
     console.error('Search error:', error.message);
     return NextResponse.json(
