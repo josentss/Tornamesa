@@ -4,7 +4,7 @@ import { spotifyFetch } from '@/lib/spotify';
 export const dynamic = 'force-dynamic';
 
 function mapAlbum(album) {
-  if (!album?.id) return null;
+  if (!album || !album.id) return null;
   return {
     id: album.id,
     title: album.name,
@@ -42,52 +42,71 @@ export async function GET(request) {
     );
   }
 
-  try {
-    const trimmed = q.trim();
-    const albumId = extractAlbumId(trimmed);
+  const trimmed = q.trim();
 
-    // Paste URL / URI / id
+  try {
+    const albumId = extractAlbumId(trimmed);
     if (albumId) {
-      const response = await spotifyFetch(
+      const albumRes = await spotifyFetch(
         `https://api.spotify.com/v1/albums/${albumId}`
       );
-      if (!response.ok) return NextResponse.json([]);
-      const album = await response.json();
+      if (!albumRes.ok) {
+        const body = await albumRes.text();
+        return NextResponse.json(
+          {
+            error: 'Could not load album',
+            spotifyStatus: albumRes.status,
+            detail: body.slice(0, 300),
+          },
+          { status: 503 }
+        );
+      }
+      const album = await albumRes.json();
       const mapped = mapAlbum(album);
       return NextResponse.json(mapped ? [mapped] : []);
     }
 
-    // Same simple search that worked before (no include_external)
-    const response = await spotifyFetch(
-      `https://api.spotify.com/v1/search?q=${encodeURIComponent(trimmed)}&type=album&limit=20`
-    );
+    const searchUrl =
+      'https://api.spotify.com/v1/search' +
+      `?q=${encodeURIComponent(trimmed)}` +
+      '&type=album&limit=20';
 
-    if (response.status === 429) {
-      return NextResponse.json(
-        { error: 'Rate limited, try again in a moment' },
-        { status: 429 }
-      );
-    }
+    const searchRes = await spotifyFetch(searchUrl);
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      console.error('Spotify search failed:', response.status, text.slice(0, 300));
+    if (!searchRes.ok) {
+      const body = await searchRes.text();
+      console.error('Spotify search failed:', searchRes.status, body);
       return NextResponse.json(
-        { error: 'Search temporarily unavailable' },
+        {
+          error: 'Search temporarily unavailable',
+          spotifyStatus: searchRes.status,
+          detail: body.slice(0, 400),
+        },
         { status: 503 }
       );
     }
 
-    const data = await response.json();
-    const albums = (data.albums?.items || [])
-      .map(mapAlbum)
-      .filter(Boolean);
+    const data = await searchRes.json();
+    const items = data?.albums?.items;
+    if (!Array.isArray(items)) {
+      return NextResponse.json(
+        {
+          error: 'Unexpected Spotify response',
+          detail: JSON.stringify(data).slice(0, 400),
+        },
+        { status: 503 }
+      );
+    }
 
+    const albums = items.map(mapAlbum).filter(Boolean);
     return NextResponse.json(albums);
   } catch (error) {
-    console.error('Search error:', error.message);
+    console.error('Search exception:', error);
     return NextResponse.json(
-      { error: 'Search temporarily unavailable' },
+      {
+        error: 'Search temporarily unavailable',
+        detail: error?.message || String(error),
+      },
       { status: 503 }
     );
   }
