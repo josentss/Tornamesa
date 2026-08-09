@@ -3,32 +3,33 @@ import { spotifyFetch } from '@/lib/spotify';
 
 export const dynamic = 'force-dynamic';
 
-function mapAlbum(album) {
-  if (!album || !album.id) return null;
-  return {
-    id: album.id,
-    title: album.name,
-    artist: album.artists?.[0]?.name || 'Unknown',
-    coverUrl: album.images?.[0]?.url || null,
-    releaseDate: album.release_date || 'N/A',
-    spotifyLink: album.external_urls?.spotify || '',
-  };
-}
-
-function extractAlbumId(input) {
-  const s = String(input).trim();
-
-  const urlMatch = s.match(
-    /open\.spotify\.com\/(?:intl-[a-z]{2}\/)?album\/([a-zA-Z0-9]{22})/i
+async function searchSpotify(query) {
+  const response = await spotifyFetch(
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=10`
   );
-  if (urlMatch) return urlMatch[1];
 
-  const uriMatch = s.match(/spotify:album:([a-zA-Z0-9]{22})/i);
-  if (uriMatch) return uriMatch[1];
+  if (response.status === 429) {
+    console.warn('Spotify rate limited');
+    return [];
+  }
 
-  if (/^[a-zA-Z0-9]{22}$/.test(s)) return s;
+  if (!response.ok) {
+    console.error(`Spotify search failed with status ${response.status}`);
+    return [];
+  }
 
-  return null;
+  const data = await response.json();
+
+  return (data.albums?.items || [])
+    .filter((album) => album && album.id)
+    .map((album) => ({
+      id: album.id,
+      title: album.name,
+      artist: album.artists?.[0]?.name || 'Unknown',
+      coverUrl: album.images?.[0]?.url || null,
+      releaseDate: album.release_date || 'N/A',
+      spotifyLink: album.external_urls?.spotify || '',
+    }));
 }
 
 export async function GET(request) {
@@ -42,58 +43,13 @@ export async function GET(request) {
     );
   }
 
-  const trimmed = q.trim();
-
   try {
-    const albumId = extractAlbumId(trimmed);
-
-    if (albumId) {
-      const albumRes = await spotifyFetch(
-        `https://api.spotify.com/v1/albums/${albumId}`
-      );
-      if (!albumRes.ok) {
-        return NextResponse.json([]);
-      }
-      const album = await albumRes.json();
-      const mapped = mapAlbum(album);
-      return NextResponse.json(mapped ? [mapped] : []);
-    }
-
-    const params = new URLSearchParams();
-    params.set('q', trimmed);
-    params.set('type', 'album');
-    params.set('limit', '20');
-
-    const searchRes = await spotifyFetch(
-      `https://api.spotify.com/v1/search?${params.toString()}`
-    );
-
-    if (!searchRes.ok) {
-      const body = await searchRes.text();
-      console.error('Spotify search failed:', searchRes.status, body);
-      return NextResponse.json(
-        {
-          error: 'Search temporarily unavailable',
-          spotifyStatus: searchRes.status,
-          detail: body.slice(0, 400),
-        },
-        { status: 503 }
-      );
-    }
-
-    const data = await searchRes.json();
-    const albums = (data.albums?.items || [])
-      .map(mapAlbum)
-      .filter(Boolean);
-
+    const albums = await searchSpotify(q.trim());
     return NextResponse.json(albums);
   } catch (error) {
-    console.error('Search exception:', error);
+    console.error('Search error:', error.message);
     return NextResponse.json(
-      {
-        error: 'Search temporarily unavailable',
-        detail: error?.message || String(error),
-      },
+      { error: 'Search temporarily unavailable' },
       { status: 503 }
     );
   }
