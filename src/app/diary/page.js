@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
-import ImportLogsModal from "@/components/diary/ImportLogsModal";
 
 function DiaryContent() {
   const { user, loading: authLoading } = useAuth();
@@ -23,8 +22,6 @@ function DiaryContent() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
   const limit = 50;
 
   useEffect(() => {
@@ -55,7 +52,7 @@ function DiaryContent() {
     return () => {
       cancelled = true;
     };
-  }, [user, authLoading, router, reloadKey]);
+  }, [user, authLoading, router]);
 
   const handlePeriodChange = useCallback(
     (p) => {
@@ -82,24 +79,6 @@ function DiaryContent() {
     }
   };
 
-  const handleHistoryPatch = useCallback((updated) => {
-    if (!updated?.id) return;
-    setHistory((prev) =>
-      prev.map((item) =>
-        item.id === updated.id
-          ? {
-              ...item,
-              listened_at: updated.listened_at ?? item.listened_at,
-              rating:
-                updated.rating !== undefined ? updated.rating : item.rating,
-              review:
-                updated.review !== undefined ? updated.review : item.review,
-            }
-          : item
-      )
-    );
-  }, []);
-
   if (authLoading || loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -112,22 +91,10 @@ function DiaryContent() {
 
   return (
     <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14 overflow-x-hidden">
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Diary
-          </h1>
-          <p className="text-stone-400 text-sm mt-1">Your listening history</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setImportOpen(true)}
-          className="text-sm font-semibold px-4 py-2 rounded-lg border border-[#2a3645] bg-[#131e2c] text-[#7cc7e8] hover:border-[#7cc7e8]/40 transition-colors self-start sm:self-auto"
-        >
-          Import logs
-        </button>
+      <div className="mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
+        <p className="text-stone-400 text-sm mt-1">Your listening history</p>
       </div>
-
       {error && <ErrorMessage message={error} />}
       {!error && (
         <DiaryView
@@ -138,17 +105,8 @@ function DiaryContent() {
           loadingMore={loadingMore}
           onLoadMore={loadMore}
           isOwner
-          onHistoryPatch={handleHistoryPatch}
         />
       )}
-
-      <ImportLogsModal
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onImported={() => {
-          setReloadKey((k) => k + 1);
-        }}
-      />
     </main>
   );
 }
