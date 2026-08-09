@@ -5,6 +5,11 @@ import {
   parseNotesFile,
   matchCatalogExtra,
   scoreAlbumMatch,
+  buildSearchQueries,
+  sortByNotesOrder,
+  isTitleExtension,
+  normalize,
+  coreTitle,
 } from '@/lib/notesImport';
 
 export const dynamic = 'force-dynamic';
@@ -36,14 +41,44 @@ function mapAlbum(album) {
   };
 }
 
-async function searchSpotify(title, artist) {
-  const q = `${title} ${artist}`;
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function searchOnce(q) {
   const url =
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=album&limit=10`;
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}` +
+    `&type=album&limit=15`;
   const res = await spotifyFetch(url);
+
+  if (res.status === 429) {
+    const retry = Number(res.headers.get('retry-after') || 2);
+    await sleep(Math.min(retry, 5) * 1000);
+    const res2 = await spotifyFetch(url);
+    if (!res2.ok) return [];
+    const data2 = await res2.json();
+    return (data2.albums?.items || []).filter((a) => a?.id);
+  }
+
   if (!res.ok) return [];
   const data = await res.json();
   return (data.albums?.items || []).filter((a) => a?.id);
+}
+
+async function searchSpotifyMulti(row) {
+  const queries = buildSearchQueries(row);
+  const byId = new Map();
+
+  for (const q of queries) {
+    const items = await searchOnce(q);
+    await sleep(80);
+    for (const a of items) {
+      if (!byId.has(a.id)) byId.set(a.id, a);
+    }
+    if (byId.size >= 12) break;
+  }
+
+  return [...byId.values()];
 }
 
 async function fetchAlbum(id) {
@@ -52,8 +87,70 @@ async function fetchAlbum(id) {
   return res.json();
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+function classifyMatch(row, ranked) {
+  if (!ranked.length) {
+    return { status: 'unmatched', score: 0, candidates: [] };
+  }
+
+  const best = ranked[0];
+  const second = ranked[1];
+  const gap = second ? best.score - second.score : 99;
+  const mapped = mapAlbum(best.album);
+  const candidates = ranked.slice(0, 8).map((r) => ({
+    id: r.album.id,
+    title: r.album.name,
+    artist: r.album.artists?.[0]?.name,
+    coverUrl: r.album.images?.[0]?.url || null,
+    score: r.score,
+  }));
+
+  const extension = isTitleExtension(row.title, best.album.name);
+  const exactTitle =
+    normalize(row.title) === normalize(best.album.name) ||
+    coreTitle(row.title) === coreTitle(best.album.name);
+
+  if (!extension && exactTitle && best.score >= 70 && gap >= 10) {
+    return {
+      status: 'matched',
+      albumId: mapped.id,
+      albumTitle: mapped.title,
+      albumArtist: mapped.artist,
+      coverUrl: mapped.coverUrl,
+      matchSource: 'spotify_search',
+      score: best.score,
+      candidates,
+    };
+  }
+
+  if (!extension && best.score >= 78 && gap >= 15) {
+    return {
+      status: 'matched',
+      albumId: mapped.id,
+      albumTitle: mapped.title,
+      albumArtist: mapped.artist,
+      coverUrl: mapped.coverUrl,
+      matchSource: 'spotify_search',
+      score: best.score,
+      candidates,
+    };
+  }
+
+  if (best.score >= 25 || candidates.length > 0) {
+    return {
+      status: 'ambiguous',
+      albumId: mapped.id,
+      albumTitle: mapped.title,
+      albumArtist: mapped.artist,
+      coverUrl: mapped.coverUrl,
+      matchSource: extension
+        ? 'title_extension_review'
+        : 'spotify_search_low_confidence',
+      score: best.score,
+      candidates,
+    };
+  }
+
+  return { status: 'unmatched', score: best.score, candidates };
 }
 
 export async function POST(request) {
@@ -72,9 +169,16 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    if (files.length > 24) {
-      return NextResponse.json({ error: 'Too many files' }, { status: 400 });
+    if (files.length > 6) {
+      return NextResponse.json(
+        { error: 'Max 6 files per run (use smaller batches)' },
+        { status: 400 }
+      );
     }
+
+    const sortedFiles = [...files].sort((a, b) =>
+      String(a.name || '').localeCompare(String(b.name || ''))
+    );
 
     const matched = [];
     const ambiguous = [];
@@ -82,7 +186,7 @@ export async function POST(request) {
     const parseErrors = [];
     const cache = new Map();
 
-    for (const file of files) {
+    for (const file of sortedFiles) {
       const name = String(file.name || 'notes.txt');
       const content = String(file.content || '');
       if (content.length > 200_000) {
@@ -100,12 +204,12 @@ export async function POST(request) {
           file: name,
           reason: 'filename_must_be_YYYY-MM.txt',
         });
+        continue;
       }
 
       for (const row of parsed.rows) {
-        if (!row.year || !row.month) continue;
-
         const cacheKey = `${row.title.toLowerCase()}|${row.artist.toLowerCase()}`;
+
         if (cache.has(cacheKey)) {
           const prev = cache.get(cacheKey);
           const entry = { ...row, ...prev, cached: true };
@@ -115,11 +219,10 @@ export async function POST(request) {
           continue;
         }
 
-        // catalog extras
         const extra = matchCatalogExtra(row);
         if (extra) {
           const album = await fetchAlbum(extra.id);
-          await sleep(60);
+          await sleep(50);
           if (album) {
             const mapped = mapAlbum(album);
             const result = {
@@ -137,11 +240,22 @@ export async function POST(request) {
           }
         }
 
-        const items = await searchSpotify(row.title, row.artist);
-        await sleep(100);
+        let items = await searchSpotifyMulti(row);
+
+        if (items.length < 3) {
+          const artistItems = await searchOnce(
+            `artist:${row.artist.trim()}`
+          );
+          await sleep(80);
+          const byId = new Map(items.map((a) => [a.id, a]));
+          for (const a of artistItems) {
+            if (!byId.has(a.id)) byId.set(a.id, a);
+          }
+          items = [...byId.values()];
+        }
 
         if (!items.length) {
-          const result = { status: 'unmatched', score: 0 };
+          const result = { status: 'unmatched', score: 0, candidates: [] };
           cache.set(cacheKey, result);
           unmatched.push({ ...row, ...result });
           continue;
@@ -151,76 +265,45 @@ export async function POST(request) {
           .map((album) => ({ album, score: scoreAlbumMatch(row, album) }))
           .sort((a, b) => b.score - a.score);
 
-        const best = ranked[0];
-        const second = ranked[1];
-
-        if (best.score >= 60 && (!second || best.score - second.score >= 10)) {
-          const mapped = mapAlbum(best.album);
-          const result = {
-            status: 'matched',
-            albumId: mapped.id,
-            albumTitle: mapped.title,
-            albumArtist: mapped.artist,
-            coverUrl: mapped.coverUrl,
-            matchSource: 'spotify_search',
-            score: best.score,
-          };
-          cache.set(cacheKey, result);
-          matched.push({ ...row, ...result });
-          continue;
-        }
-
-        if (best.score >= 40) {
-          const mapped = mapAlbum(best.album);
-          const result = {
-            status: 'ambiguous',
-            albumId: mapped.id,
-            albumTitle: mapped.title,
-            albumArtist: mapped.artist,
-            coverUrl: mapped.coverUrl,
-            matchSource: 'spotify_search_low_confidence',
-            score: best.score,
-            candidates: ranked.slice(0, 5).map((r) => ({
-              id: r.album.id,
-              title: r.album.name,
-              artist: r.album.artists?.[0]?.name,
-              coverUrl: r.album.images?.[0]?.url || null,
-              score: r.score,
-            })),
-          };
-          cache.set(cacheKey, result);
-          ambiguous.push({ ...row, ...result });
-          continue;
-        }
-
-        const result = {
-          status: 'unmatched',
-          score: best.score,
-          candidates: ranked.slice(0, 3).map((r) => ({
-            id: r.album.id,
-            title: r.album.name,
-            artist: r.album.artists?.[0]?.name,
-            score: r.score,
-          })),
-        };
+        const result = classifyMatch(row, ranked);
         cache.set(cacheKey, result);
-        unmatched.push({ ...row, ...result });
+
+        const entry = { ...row, ...result };
+        if (result.status === 'matched') matched.push(entry);
+        else if (result.status === 'ambiguous') ambiguous.push(entry);
+        else unmatched.push(entry);
       }
     }
 
-    const totalListens = matched.reduce((s, r) => s + (r.count || 0), 0);
+    const matchedSorted = sortByNotesOrder(matched);
+    const ambiguousSorted = sortByNotesOrder(ambiguous);
+    const unmatchedSorted = sortByNotesOrder(unmatched);
+
+    const totalListens = matchedSorted.reduce(
+      (s, r) => s + (r.count || 0),
+      0
+    );
+    const ambiguousListens = ambiguousSorted.reduce(
+      (s, r) => s + (r.count || 0),
+      0
+    );
 
     return NextResponse.json({
-      matched,
-      ambiguous,
-      unmatched,
+      matched: matchedSorted,
+      ambiguous: ambiguousSorted,
+      unmatched: unmatchedSorted,
       parseErrors,
       summary: {
-        matched: matched.length,
-        ambiguous: ambiguous.length,
-        unmatched: unmatched.length,
+        matched: matchedSorted.length,
+        ambiguous: ambiguousSorted.length,
+        unmatched: unmatchedSorted.length,
         parseErrors: parseErrors.length,
         totalListensIfImported: totalListens,
+        totalListensIncludingReview: totalListens + ambiguousListens,
+        rowsParsed:
+          matchedSorted.length +
+          ambiguousSorted.length +
+          unmatchedSorted.length,
       },
     });
   } catch (error) {

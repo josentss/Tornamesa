@@ -148,13 +148,15 @@ function groupByDay(entries) {
   return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
 }
 
-function EditLogModal({ entry, onClose, onSaved }) {
+function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
   const [date, setDate] = useState(toDateInputValue(entry.listened_at));
   const [rating, setRating] = useState(
     entry.rating != null ? Number(entry.rating) : null
   );
   const [review, setReview] = useState(entry.review || "");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState(null);
 
   const handleSave = async (e) => {
@@ -162,6 +164,7 @@ function EditLogModal({ entry, onClose, onSaved }) {
     if (!entry.listenId) return;
     setSaving(true);
     setError(null);
+    setConfirmDelete(false);
     try {
       const res = await api.updateListen(entry.listenId, {
         listened_at: date,
@@ -174,6 +177,26 @@ function EditLogModal({ entry, onClose, onSaved }) {
       setError(err.message || "Could not save");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!entry.listenId) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.deleteListen(entry.listenId);
+      onDeleted?.(entry);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Could not delete");
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -190,7 +213,6 @@ function EditLogModal({ entry, onClose, onSaved }) {
         aria-label="Close"
       />
 
-      {/* Sheet on mobile, centered card on desktop */}
       <div
         className="
           relative w-full sm:max-w-md
@@ -271,20 +293,40 @@ function EditLogModal({ entry, onClose, onSaved }) {
 
             {error && <p className="text-xs text-red-400">{error}</p>}
 
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={saving || deleting}
+                  className="flex-1 text-sm py-2.5 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || deleting}
+                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={onClose}
-                className="flex-1 text-sm py-2.5 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white"
+                onClick={handleDelete}
+                disabled={saving || deleting}
+                className={`w-full text-sm font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 ${
+                  confirmDelete
+                    ? "bg-red-500/20 text-red-400 border border-red-500/40"
+                    : "text-red-400/90 hover:text-red-400 border border-transparent hover:border-red-500/30"
+                }`}
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save"}
+                {deleting
+                  ? "Deleting..."
+                  : confirmDelete
+                    ? "Confirm delete"
+                    : "Delete log"}
               </button>
             </div>
           </form>
@@ -304,7 +346,6 @@ export default function DiaryView({
   isOwner = false,
   onHistoryPatch,
 }) {
-  // Local copy so Save updates UI without full reload
   const [items, setItems] = useState(history || []);
   const [query, setQuery] = useState("");
   const [ratingFilter, setRatingFilter] = useState("all");
@@ -335,7 +376,7 @@ export default function DiaryView({
     return groupByDay(grouped);
   }, [items, period, query, ratingFilter]);
 
-  const entryCount = processed.reduce((acc, [, items]) => acc + items.length, 0);
+  const entryCount = processed.reduce((acc, [, dayItems]) => acc + dayItems.length, 0);
 
   const applyPatch = (updated) => {
     if (!updated?.id) return;
@@ -357,6 +398,12 @@ export default function DiaryView({
       )
     );
     onHistoryPatch?.(updated);
+  };
+
+  const applyDelete = (entry) => {
+    if (!entry?.listenId) return;
+    setItems((prev) => prev.filter((item) => item.id !== entry.listenId));
+    setEditing(null);
   };
 
   return (
@@ -514,6 +561,7 @@ export default function DiaryView({
           entry={editing}
           onClose={() => setEditing(null)}
           onSaved={applyPatch}
+          onDeleted={applyDelete}
         />
       )}
     </div>

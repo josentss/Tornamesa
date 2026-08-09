@@ -27,13 +27,16 @@ export const LINE_OVERRIDES = {
   },
 };
 
+const SUSPICIOUS_ALBUM_RE =
+  /\b(ukulele|ukelele|tribute|karaoke|cover version|covers|lullaby|piano tribute|8-bit|midi|complete on)\b/i;
+
 export function normalize(s) {
   return String(s || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[^a-z0-9\u3040-\u30ff\u3400-\u9fff]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -65,14 +68,15 @@ export function parseNotesFile(content, sourceFile = '') {
 
   for (const line of lines) {
     lineIndex += 1;
-    const m = line.match(/^(\d+)\s*[-–—]\s*(.+)$/);
+
+    let m = line.match(/^(\d+)\s*[-–—.:]\s*(.+)$/);
     if (!m) {
       parseErrors.push({ line, reason: 'no_count_prefix', lineIndex });
       continue;
     }
 
     const count = Number(m[1]);
-    const rest = m[2].trim();
+    let rest = m[2].trim();
     if (!count || count < 1 || count > 50) {
       parseErrors.push({ line, reason: 'invalid_count', lineIndex });
       continue;
@@ -88,12 +92,21 @@ export function parseNotesFile(content, sourceFile = '') {
       parseVia = 'override';
     } else {
       const lastComma = rest.lastIndexOf(',');
-      if (lastComma === -1) {
-        parseErrors.push({ line, reason: 'no_comma', lineIndex });
-        continue;
+      if (lastComma !== -1) {
+        title = rest.slice(0, lastComma).trim();
+        artist = rest.slice(lastComma + 1).trim();
+        parseVia = 'last_comma';
+      } else {
+        const dash = rest.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+        if (dash) {
+          title = dash[1].trim();
+          artist = dash[2].trim();
+          parseVia = 'dash';
+        } else {
+          parseErrors.push({ line, reason: 'no_title_artist_separator', lineIndex });
+          continue;
+        }
       }
-      title = rest.slice(0, lastComma).trim();
-      artist = rest.slice(lastComma + 1).trim();
     }
 
     if (!title || !artist) {
@@ -157,25 +170,36 @@ export function scoreAlbumMatch(row, album) {
   const na = normalize(row.artist);
   const at = normalize(album.name);
   const atCore = coreTitle(album.name);
+  const albumFull = `${album.name} ${(album.artists || []).map((a) => a.name).join(' ')}`;
 
   const artistNames = (album.artists || [])
     .map((a) => normalize(a.name))
     .filter(Boolean);
-  const aa = artistNames[0] || '';
 
   let score = 0;
 
-  if (at === nt) score += 55;
-  else if (atCore === ntCore && ntCore.length > 3) score += 50;
-  else if (at.includes(nt) || nt.includes(at)) score += 30;
-  else if (atCore.includes(ntCore) || ntCore.includes(atCore)) score += 25;
+  if (at === nt) {
+    score += 60;
+  } else if (atCore === ntCore && ntCore.length > 2) {
+    score += 52;
+  } else if (at.startsWith(nt + ' ') || at.startsWith(ntCore + ' ')) {
+    score += 18;
+  } else if (at.includes(nt) || nt.includes(at)) {
+    score += 22;
+  } else if (atCore.includes(ntCore) || ntCore.includes(atCore)) {
+    score += 18;
+  }
+
+  if (nt.length >= 3 && at.length > nt.length + 4 && at.includes(nt)) {
+    score -= 20;
+  }
 
   const artistExact = artistNames.some(
     (a) => a === na || a.includes(na) || na.includes(a)
   );
   if (artistExact) score += 40;
-  else if (aa && (aa.includes(na.slice(0, 6)) || na.includes(aa.slice(0, 6)))) {
-    score += 15;
+  else if (artistNames.some((a) => a.slice(0, 5) === na.slice(0, 5) && na.length > 4)) {
+    score += 12;
   }
 
   const tTokens = new Set(ntCore.split(' ').filter((w) => w.length > 2));
@@ -183,12 +207,14 @@ export function scoreAlbumMatch(row, album) {
   for (const t of atCore.split(' ').filter((w) => w.length > 2)) {
     if (tTokens.has(t)) overlap++;
   }
-  score += Math.min(20, overlap * 4);
+  score += Math.min(18, overlap * 4);
 
-  if (album.album_type === 'album') score += 3;
-  if (album.album_type === 'single') score -= 5;
+  if (SUSPICIOUS_ALBUM_RE.test(albumFull)) score -= 35;
+  if (album.album_type === 'album') score += 4;
+  if (album.album_type === 'single') score -= 4;
+  if (album.album_type === 'compilation') score -= 8;
 
-  return Math.min(score, 100);
+  return Math.max(0, Math.min(100, score));
 }
 
 export function buildSearchQueries(row) {
@@ -198,13 +224,22 @@ export function buildSearchQueries(row) {
   const queries = [
     `${title} ${artist}`,
     `album:${title} artist:${artist}`,
+    `"${title}" artist:${artist}`,
     `"${title}" ${artist}`,
   ];
   if (titleNoParens && titleNoParens !== title) {
     queries.push(`${titleNoParens} ${artist}`);
   }
+  queries.push(`artist:${artist}`);
   queries.push(title);
   return [...new Set(queries.filter(Boolean))];
+}
+
+export function isTitleExtension(noteTitle, albumTitle) {
+  const nt = normalize(noteTitle);
+  const at = normalize(albumTitle);
+  if (!nt || at === nt) return false;
+  return at.includes(nt) && at.length >= nt.length + 5;
 }
 
 export function buildListenTimestamps(year, month, count) {

@@ -146,14 +146,12 @@ export async function PATCH(request, { params }) {
         .eq('album_id', albumId)
         .maybeSingle();
 
-      const finalRating =
-        ratingTouched
-          ? ratingValue
-          : existingReview?.rating ?? existing.rating ?? null;
-      const finalReviewText =
-        reviewTouched
-          ? reviewValue
-          : existingReview?.review_text ?? existing.review ?? null;
+      const finalRating = ratingTouched
+        ? ratingValue
+        : existingReview?.rating ?? existing.rating ?? null;
+      const finalReviewText = reviewTouched
+        ? reviewValue
+        : existingReview?.review_text ?? existing.review ?? null;
 
       if (finalRating != null && finalRating >= 1 && finalRating <= 10) {
         if (existingReview) {
@@ -201,6 +199,73 @@ export async function PATCH(request, { params }) {
     console.error('PATCH listen:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to update listen' },
+      { status: 500, headers: noStoreHeaders }
+    );
+  }
+}
+
+export async function DELETE(request, { params }) {
+  const { id } = params;
+
+  try {
+    const authUser = await getRequestUser(request);
+    if (!authUser) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401, headers: noStoreHeaders }
+      );
+    }
+
+    const supabase = createSupabaseServer();
+
+    const { data: existing, error: fetchErr } = await supabase
+      .from('listens')
+      .select('id, user_id, listened_at, album_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Listen not found' },
+        { status: 404, headers: noStoreHeaders }
+      );
+    }
+    if (existing.user_id !== authUser.id) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403, headers: noStoreHeaders }
+      );
+    }
+
+    const { error: delErr } = await supabase
+      .from('listens')
+      .delete()
+      .eq('id', id);
+
+    if (delErr) throw delErr;
+
+    try {
+      if (existing.listened_at) {
+        const d = new Date(existing.listened_at);
+        await recomputeMonthlyTop(
+          authUser.id,
+          d.getUTCFullYear(),
+          d.getUTCMonth() + 1
+        );
+      }
+    } catch (e) {
+      console.warn('monthly top recompute on delete:', e);
+    }
+
+    return NextResponse.json(
+      { success: true, deletedId: id },
+      { headers: noStoreHeaders }
+    );
+  } catch (error) {
+    console.error('DELETE listen:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete listen' },
       { status: 500, headers: noStoreHeaders }
     );
   }

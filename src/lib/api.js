@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
 
-// funciones auxiliares
 const handleResponse = async (response) => {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -26,17 +25,14 @@ const fetchApi = async (endpoint, options = {}) => {
   }
 };
 
-// api endpoints
-
 export const api = {
-  // buscar y obtener detalles
-  searchAlbums: (query) =>
-    fetchApi(`/api/search?q=${encodeURIComponent(query)}`),
+  searchAlbums: (query, type = 'album') =>
+    fetchApi(
+      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}`
+    ),
 
-  getAlbumDetails: (id) =>
-    fetchApi(`/api/albums/${id}`),
+  getAlbumDetails: (id) => fetchApi(`/api/albums/${id}`),
 
-  // escuchas (registro y manejo)
   registerListen: (albumId, userId, rating, review) =>
     fetchApi('/api/listen', {
       method: 'POST',
@@ -60,7 +56,7 @@ export const api = {
     });
   },
 
-  previewNotesImport: async (files) => {
+  deleteListen: async (listenId) => {
     const { createClient } = await import('@/lib/supabase/client');
     const client = createClient();
     const {
@@ -68,36 +64,21 @@ export const api = {
     } = await client.auth.getSession();
     if (!session?.access_token) throw new Error('You must be logged in');
 
-    return fetchApi('/api/import/notes/preview', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ files }),
-    });
-  },
-
-  commitNotesImport: async (items) => {
-    const { createClient } = await import('@/lib/supabase/client');
-    const client = createClient();
-    const {
-      data: { session },
-    } = await client.auth.getSession();
-    if (!session?.access_token) throw new Error('You must be logged in');
-
-    return fetchApi('/api/import/notes/commit', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ items }),
+    return fetchApi(`/api/listen/${listenId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
     });
   },
 
   getUserHistory: (userId, limit = 50, offset = 0) =>
     fetchApi(`/api/users/${userId}/history?limit=${limit}&offset=${offset}`),
 
-  // profile
   getUserProfile: (userId) =>
-      fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {
-        cache: 'no-store',
-      }),
+    fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {
+      cache: 'no-store',
+    }),
 
   updateUserProfile: async (userId, profileData) => {
     let session = null;
@@ -107,8 +88,7 @@ export const api = {
       const res = await client.auth.getSession();
       session = res.data.session;
     } catch {
-      const { data } = await supabase.auth.getSession();
-      session = data.session;
+      /* ... */
     }
 
     if (!session?.access_token) {
@@ -142,7 +122,6 @@ export const api = {
     });
   },
 
-  // public profiles
   getPublicProfile: (username, currentUserId = null) => {
     const params = new URLSearchParams({ _t: String(Date.now()) });
     if (currentUserId) params.set('currentUserId', currentUserId);
@@ -159,19 +138,16 @@ export const api = {
       _t: String(Date.now()),
     });
     if (currentUserId) params.set('currentUserId', currentUserId);
-    return fetchApi(
-      `/api/profiles/username/${username}/history?${params}`,
-      { cache: 'no-store' }
-    );
+    return fetchApi(`/api/profiles/username/${username}/history?${params}`, {
+      cache: 'no-store',
+    });
   },
 
   getProfileStats: (username) =>
-    fetchApi(
-      `/api/profiles/username/${username}/stats?_t=${Date.now()}`,
-      { cache: 'no-store' }
-    ),
+    fetchApi(`/api/profiles/username/${username}/stats?_t=${Date.now()}`, {
+      cache: 'no-store',
+    }),
 
-  // funciones sociales
   followUser: (userId, targetId) =>
     fetchApi(`/api/users/${userId}/follow`, {
       method: 'POST',
@@ -218,43 +194,40 @@ export const api = {
     return fetchApi(`/api/discover/users?${params}`, { cache: 'no-store' });
   },
 
-  getFriendsFeed: (userId) =>
-    fetchApi(`/api/users/${userId}/feed`),
+  getFriendsFeed: (userId) => fetchApi(`/api/users/${userId}/feed`),
 
-  // sacar reseñas de un álbum
   getAlbumReviews: (albumId) =>
-    fetchApi(`/api/albums/${albumId}/reviews?_t=${Date.now()}`, { cache: 'no-store' }),
+    fetchApi(`/api/albums/${albumId}/reviews?_t=${Date.now()}`, {
+      cache: 'no-store',
+    }),
 
-  // crear o actualizar reseña (con sesión)
   createReview: async (albumId, rating, reviewText) => {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) throw new Error('You must be logged in');
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) throw new Error('You must be logged in');
 
-      const res = await fetchApi(`/api/albums/${albumId}/review`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ rating, review_text: reviewText }),
-      });
-
-      return res;
+    return fetchApi(`/api/albums/${albumId}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ rating, review_text: reviewText }),
+    });
   },
 
-  // obtener reseñas de un usuario
   getUserReviews: (username) =>
-    fetchApi(`/api/profiles/username/${username}/reviews?_t=${Date.now()}`, { cache: 'no-store' }),
+    fetchApi(`/api/profiles/username/${username}/reviews?_t=${Date.now()}`, {
+      cache: 'no-store',
+    }),
 
   getFriendsReviews: (userId) =>
     fetchApi(`/api/users/${userId}/friends-reviews?_t=${Date.now()}`, {
       cache: 'no-store',
     }),
 
-  // listas
   getList: (listId) =>
     fetchApi(`/api/lists/${listId}?_t=${Date.now()}`, { cache: 'no-store' }),
 
@@ -270,7 +243,9 @@ export const api = {
     }),
 
   getUserLists: (userId) =>
-    fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, { cache: 'no-store' }),
+    fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, {
+      cache: 'no-store',
+    }),
 
   createList: (userId, name, description = null) =>
     fetchApi(`/api/users/${userId}/lists`, {
@@ -295,14 +270,12 @@ export const api = {
       { cache: 'no-store' }
     ),
 
-  // resumenes
   generateMonthlySummary: (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {
       method: 'POST',
       body: JSON.stringify({ year, month }),
     }),
 
-  // obtener el top de discos x mes
   getMonthlyTop: (username, { year, month, week, limit } = {}) => {
     const params = new URLSearchParams({ _t: String(Date.now()) });
     if (year != null) params.set('year', year);
@@ -315,7 +288,36 @@ export const api = {
     );
   },
 
-  // health endp
+  previewNotesImport: async (files) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) throw new Error('You must be logged in');
+
+    return fetchApi('/api/import/notes/preview', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ files }),
+    });
+  },
+
+  commitNotesImport: async (items) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) throw new Error('You must be logged in');
+
+    return fetchApi('/api/import/notes/commit', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ items }),
+    });
+  },
+
   checkHealth: () =>
     fetchApi('/api/health').catch(() => ({ status: 'offline' })),
 };
