@@ -46,32 +46,27 @@ export async function GET(request) {
 
   try {
     const albumId = extractAlbumId(trimmed);
+
     if (albumId) {
       const albumRes = await spotifyFetch(
         `https://api.spotify.com/v1/albums/${albumId}`
       );
       if (!albumRes.ok) {
-        const body = await albumRes.text();
-        return NextResponse.json(
-          {
-            error: 'Could not load album',
-            spotifyStatus: albumRes.status,
-            detail: body.slice(0, 300),
-          },
-          { status: 503 }
-        );
+        return NextResponse.json([]);
       }
       const album = await albumRes.json();
       const mapped = mapAlbum(album);
       return NextResponse.json(mapped ? [mapped] : []);
     }
 
-    const searchUrl =
-      'https://api.spotify.com/v1/search' +
-      `?q=${encodeURIComponent(trimmed)}` +
-      '&type=album&limit=20';
+    const params = new URLSearchParams();
+    params.set('q', trimmed);
+    params.set('type', 'album');
+    params.set('limit', '20');
 
-    const searchRes = await spotifyFetch(searchUrl);
+    const searchRes = await spotifyFetch(
+      `https://api.spotify.com/v1/search?${params.toString()}`
+    );
 
     if (!searchRes.ok) {
       const body = await searchRes.text();
@@ -87,18 +82,10 @@ export async function GET(request) {
     }
 
     const data = await searchRes.json();
-    const items = data?.albums?.items;
-    if (!Array.isArray(items)) {
-      return NextResponse.json(
-        {
-          error: 'Unexpected Spotify response',
-          detail: JSON.stringify(data).slice(0, 400),
-        },
-        { status: 503 }
-      );
-    }
+    const albums = (data.albums?.items || [])
+      .map(mapAlbum)
+      .filter(Boolean);
 
-    const albums = items.map(mapAlbum).filter(Boolean);
     return NextResponse.json(albums);
   } catch (error) {
     console.error('Search exception:', error);
