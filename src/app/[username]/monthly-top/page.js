@@ -330,7 +330,7 @@ function MonthlyTopContent({ username: usernameProp }) {
           year,
           month,
           week: week ?? undefined,
-          limit: 20,
+          limit: 500,
         });
         if (!cancelled) setData(res);
       } catch (err) {

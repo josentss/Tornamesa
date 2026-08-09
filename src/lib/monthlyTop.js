@@ -1,7 +1,7 @@
 import { createSupabaseServer } from '@/lib/supabase-server';
 
-const TOP_MONTH_LIMIT = 20;
-const TOP_WEEK_LIMIT = 10;
+const TOP_MONTH_LIMIT = 500;
+const TOP_WEEK_LIMIT = 100;
 
 function monthRange(year, month) {
   const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
@@ -9,7 +9,6 @@ function monthRange(year, month) {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-// week of month: 1 = days 1–7, 2 = 8–14, etc
 export function weekOfMonth(isoDate) {
   const day = new Date(isoDate).getUTCDate();
   return Math.ceil(day / 7);
@@ -57,10 +56,6 @@ function rankAlbums(listens, limit) {
     }));
 }
 
-/**
- * Rebuild monthly_summaries + monthly_top_entries for one user/month.
- * Includes full month (week NULL) and weeks 1–6.
- */
 export async function recomputeMonthlyTop(userId, year, month) {
   const supabase = createSupabaseServer();
   const { start, end } = monthRange(year, month);
@@ -95,12 +90,10 @@ export async function recomputeMonthlyTop(userId, year, month) {
 
   if (sumErr) throw sumErr;
 
-  // clear old entries for this summary
   await supabase.from('monthly_top_entries').delete().eq('summary_id', summary.id);
 
   const rows = [];
 
-  // full month
   rankAlbums(all, TOP_MONTH_LIMIT).forEach((e) => {
     rows.push({
       summary_id: summary.id,
@@ -112,7 +105,6 @@ export async function recomputeMonthlyTop(userId, year, month) {
     });
   });
 
-  // weeks
   for (let w = 1; w <= 6; w++) {
     const weekListens = all.filter((l) => weekOfMonth(l.listened_at) === w);
     if (weekListens.length === 0) continue;
@@ -156,27 +148,47 @@ export async function ensureMonthlyTop(userId, year, month) {
   return existing;
 }
 
-export async function getMonthlyTopPayload(userId, year, month, week = null, limit = 20) {
+export async function getMonthlyTopPayload(
+  userId,
+  year,
+  month,
+  week = null,
+  limit = 500
+) {
   const supabase = createSupabaseServer();
-  const summary = await ensureMonthlyTop(userId, year, month);
+  let summary = await ensureMonthlyTop(userId, year, month);
 
-  let query = supabase
-    .from('monthly_top_entries')
-    .select('rank, album_id, listen_count, avg_rating, week')
-    .eq('summary_id', summary.id)
-    .order('rank', { ascending: true })
-    .limit(limit);
+  const fetchEntries = async () => {
+    let query = supabase
+      .from('monthly_top_entries')
+      .select('rank, album_id, listen_count, avg_rating, week')
+      .eq('summary_id', summary.id)
+      .order('rank', { ascending: true })
+      .limit(limit);
 
-  if (week == null) {
-    query = query.is('week', null);
-  } else {
-    query = query.eq('week', week);
+    if (week == null) {
+      query = query.is('week', null);
+    } else {
+      query = query.eq('week', week);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  };
+
+  let entries = await fetchEntries();
+
+  if (
+    week == null &&
+    (summary.unique_albums || 0) > entries.length &&
+    (summary.unique_albums || 0) > 0
+  ) {
+    summary = await recomputeMonthlyTop(userId, year, month);
+    entries = await fetchEntries();
   }
 
-  const { data: entries, error } = await query;
-  if (error) throw error;
-
-  const albumIds = [...new Set((entries || []).map((e) => e.album_id))];
+  const albumIds = [...new Set(entries.map((e) => e.album_id))];
   const albumMap = {};
 
   if (albumIds.length > 0) {
@@ -190,7 +202,6 @@ export async function getMonthlyTopPayload(userId, year, month, week = null, lim
     });
   }
 
-  // Weeks that have data
   const { data: weekRows } = await supabase
     .from('monthly_top_entries')
     .select('week')
@@ -201,7 +212,7 @@ export async function getMonthlyTopPayload(userId, year, month, week = null, lim
     ...new Set((weekRows || []).map((r) => r.week).filter((w) => w != null)),
   ].sort((a, b) => a - b);
 
-  const albums = (entries || []).map((e) => {
+  const albums = entries.map((e) => {
     const a = albumMap[e.album_id];
     return {
       rank: e.rank,
@@ -250,7 +261,7 @@ export async function listMonthsWithActivity(userId) {
     .select('listened_at')
     .eq('user_id', userId)
     .order('listened_at', { ascending: false })
-    .limit(2000);
+    .limit(5000);
 
   const set = new Map();
   (listens || []).forEach((l) => {

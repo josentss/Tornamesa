@@ -17,7 +17,7 @@ export async function GET(request, { params }) {
   const month = parseInt(searchParams.get('month') || now.getUTCMonth() + 1, 10);
   const weekParam = searchParams.get('week');
   const week = weekParam != null && weekParam !== '' ? parseInt(weekParam, 10) : null;
-  const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50);
+  const limit = Math.min(parseInt(searchParams.get('limit') || '500', 10), 500);
 
   if (month < 1 || month > 12 || Number.isNaN(year)) {
     return NextResponse.json({ error: 'Invalid year/month' }, { status: 400 });
