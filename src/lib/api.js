@@ -60,6 +60,36 @@ export const api = {
     });
   },
 
+  previewNotesImport: async (files) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) throw new Error('You must be logged in');
+
+    return fetchApi('/api/import/notes/preview', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ files }),
+    });
+  },
+
+  commitNotesImport: async (items) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) throw new Error('You must be logged in');
+
+    return fetchApi('/api/import/notes/commit', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ items }),
+    });
+  },
+
   getUserHistory: (userId, limit = 50, offset = 0) =>
     fetchApi(`/api/users/${userId}/history?limit=${limit}&offset=${offset}`),
 
