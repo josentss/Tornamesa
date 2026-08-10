@@ -16,9 +16,25 @@ function mapAlbum(album) {
   };
 }
 
+function extractAlbumId(q) {
+  const s = String(q || '').trim();
+  const fromUrl = s.match(
+    /open\.spotify\.com\/(?:intl-[a-z]{2}\/)?album\/([a-zA-Z0-9]{22})/
+  );
+  if (fromUrl) return fromUrl[1];
+  if (/^[a-zA-Z0-9]{22}$/.test(s)) return s;
+  return null;
+}
+
 async function searchSpotify(query) {
+  const params = new URLSearchParams({
+    q: query,
+    type: 'album',
+    limit: '10',
+  });
+
   const response = await spotifyFetch(
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=album&limit=10`
+    `https://api.spotify.com/v1/search?${params.toString()}`
   );
 
   if (response.status === 429) {
@@ -27,12 +43,12 @@ async function searchSpotify(query) {
   }
 
   if (!response.ok) {
-    console.error(`Spotify search failed with status ${response.status}`);
-    return [];
+    const text = await response.text().catch(() => '');
+    console.error(`Spotify search failed ${response.status}:`, text);
+    throw new Error(`Spotify search failed (${response.status})`);
   }
 
   const data = await response.json();
-
   return (data.albums?.items || [])
     .filter((album) => album && album.id)
     .map(mapAlbum)
@@ -62,20 +78,22 @@ export async function GET(request) {
   try {
     const trimmed = q.trim();
 
-    // 1) Normal Spotify search
+    const directId = extractAlbumId(trimmed);
+    if (directId) {
+      const album = await fetchAlbumById(directId);
+      return NextResponse.json(album ? [album] : []);
+    }
+
     const fromSearch = await searchSpotify(trimmed);
 
-    // 2) Curated extras (hidden / poorly ranked albums)
     const extraIds = matchCatalogExtras(trimmed);
     const extras = [];
     for (const id of extraIds) {
-      // skip if already in search results
       if (fromSearch.some((a) => a.id === id)) continue;
       const album = await fetchAlbumById(id);
       if (album) extras.push(album);
     }
 
-    // Extras first so the “hard to find” album is visible
     return NextResponse.json([...extras, ...fromSearch]);
   } catch (error) {
     console.error('Search error:', error.message);
