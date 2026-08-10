@@ -5,16 +5,12 @@ import {
   parseNotesFile,
   matchCatalogExtra,
   scoreAlbumMatch,
-  sortByNotesOrder,
-  isTitleExtension,
-  normalize,
-  coreTitle,
 } from '@/lib/notesImport';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const ROWS_PER_CHUNK = 12; // safe under 60s on Hobby
+const ROWS_PER_CHUNK = 10;
 
 async function getUser(request) {
   const authHeader = request.headers.get('authorization');
@@ -46,42 +42,31 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function searchOnce(q) {
-  const url =
-    `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}` +
-    `&type=album&limit=10`;
+async function searchSpotify(title, artist) {
+  const q = `${title} ${artist}`.trim();
+  const params = new URLSearchParams({
+    q,
+    type: 'album',
+    limit: '10',
+  });
+  const url = `https://api.spotify.com/v1/search?${params.toString()}`;
   const res = await spotifyFetch(url);
+
   if (res.status === 429) {
-    await sleep(1200);
+    await sleep(1500);
     const res2 = await spotifyFetch(url);
     if (!res2.ok) return [];
     const data2 = await res2.json();
     return (data2.albums?.items || []).filter((a) => a?.id);
   }
-  if (!res.ok) return [];
+
+  if (!res.ok) {
+    console.error('import search fail', res.status);
+    return [];
+  }
+
   const data = await res.json();
   return (data.albums?.items || []).filter((a) => a?.id);
-}
-
-async function searchSpotifyFast(row) {
-  const title = row.title.trim();
-  const artist = row.artist.trim();
-  const byId = new Map();
-
-  const first = await searchOnce(`${title} ${artist}`);
-  for (const a of first) byId.set(a.id, a);
-
-  if (byId.size < 3) {
-    const second = await searchOnce(`"${title}" ${artist}`);
-    for (const a of second) byId.set(a.id, a);
-  }
-
-  if (byId.size === 0) {
-    const byArtist = await searchOnce(artist);
-    for (const a of byArtist) byId.set(a.id, a);
-  }
-
-  return [...byId.values()];
 }
 
 async function fetchAlbum(id) {
@@ -90,16 +75,20 @@ async function fetchAlbum(id) {
   return res.json();
 }
 
-function classifyMatch(row, ranked) {
-  if (!ranked.length) {
+function classify(row, items) {
+  if (!items.length) {
     return { status: 'unmatched', score: 0, candidates: [] };
   }
+
+  const ranked = items
+    .map((album) => ({ album, score: scoreAlbumMatch(row, album) }))
+    .sort((a, b) => b.score - a.score);
 
   const best = ranked[0];
   const second = ranked[1];
   const gap = second ? best.score - second.score : 99;
   const mapped = mapAlbum(best.album);
-  const candidates = ranked.slice(0, 8).map((r) => ({
+  const candidates = ranked.slice(0, 6).map((r) => ({
     id: r.album.id,
     title: r.album.name,
     artist: r.album.artists?.[0]?.name,
@@ -107,12 +96,7 @@ function classifyMatch(row, ranked) {
     score: r.score,
   }));
 
-  const extension = isTitleExtension(row.title, best.album.name);
-  const exactTitle =
-    normalize(row.title) === normalize(best.album.name) ||
-    coreTitle(row.title) === coreTitle(best.album.name);
-
-  if (!extension && exactTitle && best.score >= 70 && gap >= 10) {
+  if (best.score >= 60 && gap >= 8) {
     return {
       status: 'matched',
       albumId: mapped.id,
@@ -125,35 +109,17 @@ function classifyMatch(row, ranked) {
     };
   }
 
-  if (!extension && best.score >= 78 && gap >= 15) {
-    return {
-      status: 'matched',
-      albumId: mapped.id,
-      albumTitle: mapped.title,
-      albumArtist: mapped.artist,
-      coverUrl: mapped.coverUrl,
-      matchSource: 'spotify_search',
-      score: best.score,
-      candidates,
-    };
-  }
-
-  if (best.score >= 25 || candidates.length > 0) {
-    return {
-      status: 'ambiguous',
-      albumId: mapped.id,
-      albumTitle: mapped.title,
-      albumArtist: mapped.artist,
-      coverUrl: mapped.coverUrl,
-      matchSource: extension
-        ? 'title_extension_review'
-        : 'spotify_search_low_confidence',
-      score: best.score,
-      candidates,
-    };
-  }
-
-  return { status: 'unmatched', score: best.score, candidates };
+  // Hay resultados de Spotify → review (no skip)
+  return {
+    status: 'ambiguous',
+    albumId: mapped.id,
+    albumTitle: mapped.title,
+    albumArtist: mapped.artist,
+    coverUrl: mapped.coverUrl,
+    matchSource: 'spotify_search_review',
+    score: best.score,
+    candidates,
+  };
 }
 
 async function resolveRow(row) {
@@ -175,16 +141,9 @@ async function resolveRow(row) {
     }
   }
 
-  const items = await searchSpotifyFast(row);
-  if (!items.length) {
-    return { ...row, status: 'unmatched', score: 0, candidates: [] };
-  }
-
-  const ranked = items
-    .map((album) => ({ album, score: scoreAlbumMatch(row, album) }))
-    .sort((a, b) => b.score - a.score);
-
-  return { ...row, ...classifyMatch(row, ranked) };
+  const items = await searchSpotify(row.title, row.artist);
+  await sleep(40);
+  return { ...row, ...classify(row, items) };
 }
 
 export async function POST(request) {
@@ -198,13 +157,13 @@ export async function POST(request) {
     const files = body.files;
     const offset = Math.max(0, Number(body.offset) || 0);
     const limit = Math.min(
-      20,
+      15,
       Math.max(1, Number(body.limit) || ROWS_PER_CHUNK)
     );
 
     if (!Array.isArray(files) || files.length !== 1) {
       return NextResponse.json(
-        { error: 'Send exactly 1 file: [{ name, content }]' },
+        { error: 'Send exactly 1 month file per request' },
         { status: 400 }
       );
     }
@@ -238,7 +197,6 @@ export async function POST(request) {
     const totalRows = parsed.rows.length;
     const slice = parsed.rows.slice(offset, offset + limit);
 
-    // sequential within chunk (more stable vs Spotify 429 than heavy parallel)
     const resolved = [];
     for (const row of slice) {
       resolved.push(await resolveRow(row));
@@ -257,9 +215,9 @@ export async function POST(request) {
     const done = nextOffset >= totalRows;
 
     return NextResponse.json({
-      matched: sortByNotesOrder(matched),
-      ambiguous: sortByNotesOrder(ambiguous),
-      unmatched: sortByNotesOrder(unmatched),
+      matched,
+      ambiguous,
+      unmatched,
       parseErrors,
       chunk: {
         offset,

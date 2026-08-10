@@ -3,12 +3,14 @@
 import { useState, useRef } from "react";
 import { api } from "@/lib/api";
 
-const MAX_FILES_PER_RUN = 3;
+const MAX_FILES_PER_RUN = 1;
+const CHUNK_SIZE = 10;
 
 export default function ImportLogsModal({ open, onClose, onImported }) {
   const inputRef = useRef(null);
   const [step, setStep] = useState("upload");
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [preview, setPreview] = useState(null);
   const [selectedAmbiguous, setSelectedAmbiguous] = useState({});
@@ -19,6 +21,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
   const reset = () => {
     setStep("upload");
     setLoading(false);
+    setProgress(null);
     setError(null);
     setPreview(null);
     setSelectedAmbiguous({});
@@ -30,14 +33,43 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     onClose?.();
   };
 
+  const mergePreview = (acc, chunk) => {
+    if (!acc) {
+      return {
+        matched: [...(chunk.matched || [])],
+        ambiguous: [...(chunk.ambiguous || [])],
+        unmatched: [...(chunk.unmatched || [])],
+        parseErrors: [...(chunk.parseErrors || [])],
+      };
+    }
+    return {
+      matched: [...acc.matched, ...(chunk.matched || [])],
+      ambiguous: [...acc.ambiguous, ...(chunk.ambiguous || [])],
+      unmatched: [...acc.unmatched, ...(chunk.unmatched || [])],
+      parseErrors: [...acc.parseErrors, ...(chunk.parseErrors || [])],
+    };
+  };
+
+  const buildSummary = (data) => {
+    const matched = data.matched || [];
+    const ambiguous = data.ambiguous || [];
+    const unmatched = data.unmatched || [];
+    return {
+      matched: matched.length,
+      ambiguous: ambiguous.length,
+      unmatched: unmatched.length,
+      parseErrors: (data.parseErrors || []).length,
+      totalListensIfImported: matched.reduce((s, r) => s + (r.count || 0), 0),
+      rowsParsed: matched.length + ambiguous.length + unmatched.length,
+    };
+  };
+
   const readFiles = async (fileList) => {
     const files = Array.from(fileList || []);
     if (!files.length) return;
 
     if (files.length > MAX_FILES_PER_RUN) {
-      setError(
-        `Please select at most ${MAX_FILES_PER_RUN} month files at a time (avoids timeouts).`
-      );
+      setError("Please select 1 month file at a time (avoids timeouts).");
       return;
     }
 
@@ -52,6 +84,8 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
 
     setLoading(true);
     setError(null);
+    setProgress({ done: 0, total: 0 });
+
     try {
       const payload = [];
       for (const f of files) {
@@ -61,13 +95,43 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
         }
         payload.push({ name: f.name, content });
       }
-      const data = await api.previewNotesImport(payload);
-      setPreview(data);
+
+      let offset = 0;
+      let merged = null;
+      let done = false;
+      let totalRows = 0;
+
+      while (!done) {
+        const data = await api.previewNotesImport(payload, {
+          offset,
+          limit: CHUNK_SIZE,
+        });
+
+        if (!data.chunk) {
+          merged = mergePreview(null, data);
+          done = true;
+        } else {
+          merged = mergePreview(merged, data);
+          totalRows = data.chunk.totalRows;
+          offset = data.chunk.nextOffset;
+          done = Boolean(data.chunk.done);
+          setProgress({
+            done: Math.min(offset, totalRows),
+            total: totalRows,
+          });
+        }
+      }
+
+      setPreview({
+        ...merged,
+        summary: buildSummary(merged),
+      });
       setStep("preview");
     } catch (err) {
       setError(err.message || "Preview failed");
     } finally {
       setLoading(false);
+      setProgress(null);
       if (inputRef.current) inputRef.current.value = "";
     }
   };
@@ -135,7 +199,9 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
       <div className="relative w-full sm:max-w-lg bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">Import month logs</h2>
+            <h2 className="text-lg font-semibold text-white">
+              Import month logs
+            </h2>
             <button
               type="button"
               onClick={handleClose}
@@ -148,11 +214,9 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
           {step === "upload" && (
             <div className="space-y-4">
               <p className="text-sm text-stone-400">
-                Import historical listens into your monthly tops. Files must be
-                named{" "}
+                Import one month at a time. Files must be named{" "}
                 <code className="text-[#7cc7e8] text-xs">YYYY-MM.txt</code>.
-                Upload up to <strong className="text-stone-300">{MAX_FILES_PER_RUN}</strong>{" "}
-                months per run.
+                Matching runs in batches to avoid timeouts.
               </p>
               <pre className="text-xs bg-[#0a121c] border border-[#2a3645] rounded-lg p-3 text-stone-300 overflow-x-auto">
 {`Discos escuchados
@@ -164,7 +228,6 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 ref={inputRef}
                 type="file"
                 accept=".txt,text/plain"
-                multiple
                 className="hidden"
                 onChange={(e) => readFiles(e.target.files)}
               />
@@ -174,8 +237,24 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 onClick={() => inputRef.current?.click()}
                 className="w-full py-3 rounded-xl bg-[#7cc7e8] text-[#0a121c] text-sm font-semibold hover:bg-[#a5d8f0] disabled:opacity-50"
               >
-                {loading ? "Analyzing (may take a minute)..." : "Choose .txt files"}
+                {loading
+                  ? progress?.total
+                    ? `Analyzing ${progress.done}/${progress.total}…`
+                    : "Analyzing…"
+                  : "Choose .txt file"}
               </button>
+              {loading && progress?.total > 0 && (
+                <div className="h-1.5 rounded-full bg-[#0a121c] overflow-hidden">
+                  <div
+                    className="h-full bg-[#7cc7e8] transition-all duration-300"
+                    style={{
+                      width: `${Math.round(
+                        (100 * progress.done) / Math.max(1, progress.total)
+                      )}%`,
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -192,7 +271,9 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                     key={label}
                     className="bg-[#0a121c] border border-[#2a3645] rounded-lg py-2 px-1"
                   >
-                    <p className="text-lg font-semibold text-white">{val ?? 0}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {val ?? 0}
+                    </p>
                     <p className="text-[10px] uppercase tracking-wider text-stone-500">
                       {label}
                     </p>
@@ -220,7 +301,9 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                         >
                           <p className="text-sm text-white truncate">
                             {row.title}{" "}
-                            <span className="text-stone-500">· {row.artist}</span>
+                            <span className="text-stone-500">
+                              · {row.artist}
+                            </span>
                           </p>
                           <p className="text-[10px] text-stone-600 mb-1.5">
                             ×{row.count} · {row.sourceFile}

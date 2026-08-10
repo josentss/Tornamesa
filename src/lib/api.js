@@ -288,7 +288,7 @@ export const api = {
     );
   },
 
-  previewNotesImport: async (files) => {
+  previewNotesImport: async (files, { offset = 0, limit = 10 } = {}) => {
     const { createClient } = await import('@/lib/supabase/client');
     const client = createClient();
     const {
@@ -299,7 +299,7 @@ export const api = {
     return fetchApi('/api/import/notes/preview', {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ files }),
+      body: JSON.stringify({ files, offset, limit }),
     });
   },
 
