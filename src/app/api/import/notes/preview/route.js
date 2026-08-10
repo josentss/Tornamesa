@@ -5,7 +5,6 @@ import {
   parseNotesFile,
   matchCatalogExtra,
   scoreAlbumMatch,
-  buildSearchQueries,
   sortByNotesOrder,
   isTitleExtension,
   normalize,
@@ -48,34 +47,37 @@ function sleep(ms) {
 async function searchOnce(q) {
   const url =
     `https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}` +
-    `&type=album&limit=15`;
+    `&type=album&limit=12`;
   const res = await spotifyFetch(url);
-
   if (res.status === 429) {
-    const retry = Number(res.headers.get('retry-after') || 2);
-    await sleep(Math.min(retry, 5) * 1000);
+    await sleep(1500);
     const res2 = await spotifyFetch(url);
     if (!res2.ok) return [];
     const data2 = await res2.json();
     return (data2.albums?.items || []).filter((a) => a?.id);
   }
-
   if (!res.ok) return [];
   const data = await res.json();
   return (data.albums?.items || []).filter((a) => a?.id);
 }
 
-async function searchSpotifyMulti(row) {
-  const queries = buildSearchQueries(row);
+async function searchSpotifyFast(row) {
+  const title = row.title.trim();
+  const artist = row.artist.trim();
   const byId = new Map();
 
-  for (const q of queries) {
-    const items = await searchOnce(q);
-    await sleep(80);
-    for (const a of items) {
-      if (!byId.has(a.id)) byId.set(a.id, a);
-    }
-    if (byId.size >= 12) break;
+  const first = await searchOnce(`${title} ${artist}`);
+  for (const a of first) byId.set(a.id, a);
+
+  // Second query only if thin results
+  if (byId.size < 4) {
+    const second = await searchOnce(`album:${title} artist:${artist}`);
+    for (const a of second) byId.set(a.id, a);
+  }
+
+  if (byId.size === 0) {
+    const byArtist = await searchOnce(`artist:${artist}`);
+    for (const a of byArtist) byId.set(a.id, a);
   }
 
   return [...byId.values()];
@@ -153,6 +155,62 @@ function classifyMatch(row, ranked) {
   return { status: 'unmatched', score: best.score, candidates };
 }
 
+async function resolveRow(row, cache) {
+  const cacheKey = `${row.title.toLowerCase()}|${row.artist.toLowerCase()}`;
+  if (cache.has(cacheKey)) {
+    return { ...row, ...cache.get(cacheKey), cached: true };
+  }
+
+  const extra = matchCatalogExtra(row);
+  if (extra) {
+    const album = await fetchAlbum(extra.id);
+    if (album) {
+      const mapped = mapAlbum(album);
+      const result = {
+        status: 'matched',
+        albumId: mapped.id,
+        albumTitle: mapped.title,
+        albumArtist: mapped.artist,
+        coverUrl: mapped.coverUrl,
+        matchSource: 'catalog_extras',
+        score: 100,
+      };
+      cache.set(cacheKey, result);
+      return { ...row, ...result };
+    }
+  }
+
+  const items = await searchSpotifyFast(row);
+
+  if (!items.length) {
+    const result = { status: 'unmatched', score: 0, candidates: [] };
+    cache.set(cacheKey, result);
+    return { ...row, ...result };
+  }
+
+  const ranked = items
+    .map((album) => ({ album, score: scoreAlbumMatch(row, album) }))
+    .sort((a, b) => b.score - a.score);
+
+  const result = classifyMatch(row, ranked);
+  cache.set(cacheKey, result);
+  return { ...row, ...result };
+}
+
+async function resolveAllRows(rows, cache) {
+  const results = [];
+  const BATCH = 4;
+
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = rows.slice(i, i + BATCH);
+    const part = await Promise.all(chunk.map((row) => resolveRow(row, cache)));
+    results.push(...part);
+    if (i + BATCH < rows.length) await sleep(40);
+  }
+
+  return results;
+}
+
 export async function POST(request) {
   try {
     const user = await getUser(request);
@@ -169,16 +227,13 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    if (files.length > 6) {
+
+    if (files.length > 1) {
       return NextResponse.json(
-        { error: 'Max 6 files per run (use smaller batches)' },
+        { error: 'Upload 1 month file at a time to avoid timeouts' },
         { status: 400 }
       );
     }
-
-    const sortedFiles = [...files].sort((a, b) =>
-      String(a.name || '').localeCompare(String(b.name || ''))
-    );
 
     const matched = [];
     const ambiguous = [];
@@ -186,7 +241,7 @@ export async function POST(request) {
     const parseErrors = [];
     const cache = new Map();
 
-    for (const file of sortedFiles) {
+    for (const file of files) {
       const name = String(file.name || 'notes.txt');
       const content = String(file.content || '');
       if (content.length > 200_000) {
@@ -207,70 +262,11 @@ export async function POST(request) {
         continue;
       }
 
-      for (const row of parsed.rows) {
-        const cacheKey = `${row.title.toLowerCase()}|${row.artist.toLowerCase()}`;
+      const resolved = await resolveAllRows(parsed.rows, cache);
 
-        if (cache.has(cacheKey)) {
-          const prev = cache.get(cacheKey);
-          const entry = { ...row, ...prev, cached: true };
-          if (prev.status === 'matched') matched.push(entry);
-          else if (prev.status === 'ambiguous') ambiguous.push(entry);
-          else unmatched.push(entry);
-          continue;
-        }
-
-        const extra = matchCatalogExtra(row);
-        if (extra) {
-          const album = await fetchAlbum(extra.id);
-          await sleep(50);
-          if (album) {
-            const mapped = mapAlbum(album);
-            const result = {
-              status: 'matched',
-              albumId: mapped.id,
-              albumTitle: mapped.title,
-              albumArtist: mapped.artist,
-              coverUrl: mapped.coverUrl,
-              matchSource: 'catalog_extras',
-              score: 100,
-            };
-            cache.set(cacheKey, result);
-            matched.push({ ...row, ...result });
-            continue;
-          }
-        }
-
-        let items = await searchSpotifyMulti(row);
-
-        if (items.length < 3) {
-          const artistItems = await searchOnce(
-            `artist:${row.artist.trim()}`
-          );
-          await sleep(80);
-          const byId = new Map(items.map((a) => [a.id, a]));
-          for (const a of artistItems) {
-            if (!byId.has(a.id)) byId.set(a.id, a);
-          }
-          items = [...byId.values()];
-        }
-
-        if (!items.length) {
-          const result = { status: 'unmatched', score: 0, candidates: [] };
-          cache.set(cacheKey, result);
-          unmatched.push({ ...row, ...result });
-          continue;
-        }
-
-        const ranked = items
-          .map((album) => ({ album, score: scoreAlbumMatch(row, album) }))
-          .sort((a, b) => b.score - a.score);
-
-        const result = classifyMatch(row, ranked);
-        cache.set(cacheKey, result);
-
-        const entry = { ...row, ...result };
-        if (result.status === 'matched') matched.push(entry);
-        else if (result.status === 'ambiguous') ambiguous.push(entry);
+      for (const entry of resolved) {
+        if (entry.status === 'matched') matched.push(entry);
+        else if (entry.status === 'ambiguous') ambiguous.push(entry);
         else unmatched.push(entry);
       }
     }
@@ -280,10 +276,6 @@ export async function POST(request) {
     const unmatchedSorted = sortByNotesOrder(unmatched);
 
     const totalListens = matchedSorted.reduce(
-      (s, r) => s + (r.count || 0),
-      0
-    );
-    const ambiguousListens = ambiguousSorted.reduce(
       (s, r) => s + (r.count || 0),
       0
     );
@@ -299,7 +291,6 @@ export async function POST(request) {
         unmatched: unmatchedSorted.length,
         parseErrors: parseErrors.length,
         totalListensIfImported: totalListens,
-        totalListensIncludingReview: totalListens + ambiguousListens,
         rowsParsed:
           matchedSorted.length +
           ambiguousSorted.length +
