@@ -1,11 +1,22 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { spotifyFetch } from '@/lib/spotify';
 import {
   parseNotesFile,
   matchCatalogExtra,
   scoreAlbumMatch,
+  sortByNotesOrder,
+  isTitleExtension,
+  normalize,
+  coreTitle,
 } from '@/lib/notesImport';
+import {
+  extractSpotifyAlbumId,
+  getAlbumByIdResolved,
+  searchLocalAlbums,
+  searchSpotifyAlbums,
+  upsertAlbumFromSpotify,
+  fetchSpotifyAlbumById,
+} from '@/lib/albumResolve';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -28,122 +39,217 @@ async function getUser(request) {
   return user;
 }
 
-function mapAlbum(album) {
-  if (!album?.id) return null;
-  return {
-    id: album.id,
-    title: album.name,
-    artist: album.artists?.[0]?.name || 'Unknown',
-    coverUrl: album.images?.[0]?.url || null,
-  };
-}
-
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function searchSpotify(title, artist) {
-  const q = `${title} ${artist}`.trim();
-  const params = new URLSearchParams({
-    q,
-    type: 'album',
-    limit: '10',
-  });
-  const url = `https://api.spotify.com/v1/search?${params.toString()}`;
-  const res = await spotifyFetch(url);
+function toScoreable(album) {
+  if (!album) return null;
 
-  if (res.status === 429) {
-    await sleep(1500);
-    const res2 = await spotifyFetch(url);
-    if (!res2.ok) return [];
-    const data2 = await res2.json();
-    return (data2.albums?.items || []).filter((a) => a?.id);
+  if (album.name && album.artists) return album;
+
+  if (album.id || album.spotify_id) {
+    return {
+      id: album.id || album.spotify_id,
+      name: album.title || album.name,
+      artists: [{ name: album.artist || 'Unknown' }],
+      images: album.coverUrl
+        ? [{ url: album.coverUrl }]
+        : album.cover_url
+          ? [{ url: album.cover_url }]
+          : [],
+      album_type: 'album',
+    };
   }
-
-  if (!res.ok) {
-    console.error('import search fail', res.status);
-    return [];
-  }
-
-  const data = await res.json();
-  return (data.albums?.items || []).filter((a) => a?.id);
+  return null;
 }
 
-async function fetchAlbum(id) {
-  const res = await spotifyFetch(`https://api.spotify.com/v1/albums/${id}`);
-  if (!res.ok) return null;
-  return res.json();
+function mapResolved(album) {
+  const s = toScoreable(album);
+  if (!s?.id) return null;
+  return {
+    id: s.id,
+    title: s.name,
+    artist: s.artists?.[0]?.name || 'Unknown',
+    coverUrl: s.images?.[0]?.url || null,
+  };
 }
 
-function classify(row, items) {
-  if (!items.length) {
+function classify(row, ranked, matchSourceBase = 'resolve') {
+  if (!ranked.length) {
     return { status: 'unmatched', score: 0, candidates: [] };
   }
-
-  const ranked = items
-    .map((album) => ({ album, score: scoreAlbumMatch(row, album) }))
-    .sort((a, b) => b.score - a.score);
 
   const best = ranked[0];
   const second = ranked[1];
   const gap = second ? best.score - second.score : 99;
-  const mapped = mapAlbum(best.album);
-  const candidates = ranked.slice(0, 6).map((r) => ({
-    id: r.album.id,
-    title: r.album.name,
-    artist: r.album.artists?.[0]?.name,
-    coverUrl: r.album.images?.[0]?.url || null,
-    score: r.score,
-  }));
+  const mapped = mapResolved(best.album);
+  const candidates = ranked.slice(0, 8).map((r) => {
+    const m = mapResolved(r.album);
+    return {
+      id: m?.id,
+      title: m?.title,
+      artist: m?.artist,
+      coverUrl: m?.coverUrl,
+      score: r.score,
+    };
+  });
 
-  if (best.score >= 60 && gap >= 8) {
+  const extension = isTitleExtension(row.title, mapped.title);
+  const exactTitle =
+    normalize(row.title) === normalize(mapped.title) ||
+    coreTitle(row.title) === coreTitle(mapped.title);
+
+  if (!extension && exactTitle && best.score >= 70 && gap >= 8) {
     return {
       status: 'matched',
       albumId: mapped.id,
       albumTitle: mapped.title,
       albumArtist: mapped.artist,
       coverUrl: mapped.coverUrl,
-      matchSource: 'spotify_search',
+      matchSource: matchSourceBase,
       score: best.score,
       candidates,
     };
   }
 
-  // Hay resultados de Spotify → review (no skip)
-  return {
-    status: 'ambiguous',
-    albumId: mapped.id,
-    albumTitle: mapped.title,
-    albumArtist: mapped.artist,
-    coverUrl: mapped.coverUrl,
-    matchSource: 'spotify_search_review',
-    score: best.score,
-    candidates,
-  };
+  if (!extension && best.score >= 78 && gap >= 12) {
+    return {
+      status: 'matched',
+      albumId: mapped.id,
+      albumTitle: mapped.title,
+      albumArtist: mapped.artist,
+      coverUrl: mapped.coverUrl,
+      matchSource: matchSourceBase,
+      score: best.score,
+      candidates,
+    };
+  }
+
+  if (best.score >= 25 || candidates.length > 0) {
+    return {
+      status: 'ambiguous',
+      albumId: mapped.id,
+      albumTitle: mapped.title,
+      albumArtist: mapped.artist,
+      coverUrl: mapped.coverUrl,
+      matchSource: extension
+        ? 'title_extension_review'
+        : `${matchSourceBase}_review`,
+      score: best.score,
+      candidates,
+    };
+  }
+
+  return { status: 'unmatched', score: best.score, candidates };
 }
 
-async function resolveRow(row) {
-  const extra = matchCatalogExtra(row);
-  if (extra) {
-    const album = await fetchAlbum(extra.id);
+function rankAgainstRow(row, albums, matchSource) {
+  const ranked = albums
+    .map((album) => {
+      const scoreable = toScoreable(album);
+      if (!scoreable) return null;
+      return {
+        album: scoreable,
+        score: scoreAlbumMatch(row, scoreable),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+
+  return classify(row, ranked, matchSource);
+}
+
+async function resolveRow(row, ctx) {
+  const directId =
+    extractSpotifyAlbumId(row.title) ||
+    extractSpotifyAlbumId(row.rest || '') ||
+    extractSpotifyAlbumId(row.raw || '');
+
+  if (directId) {
+    const album = await getAlbumByIdResolved(directId);
     if (album) {
-      const mapped = mapAlbum(album);
       return {
         ...row,
         status: 'matched',
-        albumId: mapped.id,
-        albumTitle: mapped.title,
-        albumArtist: mapped.artist,
-        coverUrl: mapped.coverUrl,
+        albumId: album.id,
+        albumTitle: album.title,
+        albumArtist: album.artist,
+        coverUrl: album.coverUrl,
+        matchSource: 'spotify_id',
+        score: 100,
+      };
+    }
+  }
+
+  const extra = matchCatalogExtra(row);
+  if (extra?.id) {
+    const album = await getAlbumByIdResolved(extra.id);
+    if (album) {
+      return {
+        ...row,
+        status: 'matched',
+        albumId: album.id,
+        albumTitle: album.title,
+        albumArtist: album.artist,
+        coverUrl: album.coverUrl,
         matchSource: 'catalog_extras',
         score: 100,
       };
     }
   }
 
-  const items = await searchSpotify(row.title, row.artist);
-  await sleep(40);
-  return { ...row, ...classify(row, items) };
+  const local = await searchLocalAlbums(
+    `${row.title} ${row.artist}`.trim(),
+    15
+  );
+  if (local.length) {
+    const result = rankAgainstRow(row, local, 'local_db');
+    if (result.status === 'matched' || result.status === 'ambiguous') {
+      return { ...row, ...result };
+    }
+  }
+
+  if (ctx.skipSpotifySearch) {
+    return {
+      ...row,
+      status: 'unmatched',
+      score: 0,
+      candidates: [],
+      matchSource: 'skipped_rate_limit',
+    };
+  }
+
+  try {
+    const remote = await searchSpotifyAlbums(
+      `${row.title} ${row.artist}`.trim()
+    );
+    await sleep(120);
+
+    if (!remote.length) {
+      return { ...row, status: 'unmatched', score: 0, candidates: [] };
+    }
+
+    const scoreable = remote.map((a) =>
+      toScoreable(a)
+    );
+    return { ...row, ...rankAgainstRow(row, scoreable, 'spotify_search') };
+  } catch (e) {
+    if (e.status === 429) {
+      ctx.skipSpotifySearch = true;
+      ctx.rateLimited = true;
+      // fall back: if local had weak candidates, already returned above
+      return {
+        ...row,
+        status: 'unmatched',
+        score: 0,
+        candidates: [],
+        matchSource: 'rate_limited',
+      };
+    }
+    console.error('import resolve search:', e.message);
+    return { ...row, status: 'unmatched', score: 0, candidates: [] };
+  }
 }
 
 export async function POST(request) {
@@ -163,7 +269,7 @@ export async function POST(request) {
 
     if (!Array.isArray(files) || files.length !== 1) {
       return NextResponse.json(
-        { error: 'Send exactly 1 month file per request' },
+        { error: 'Send exactly 1 file: [{ name, content }]' },
         { status: 400 }
       );
     }
@@ -197,9 +303,11 @@ export async function POST(request) {
     const totalRows = parsed.rows.length;
     const slice = parsed.rows.slice(offset, offset + limit);
 
+    const ctx = { skipSpotifySearch: false, rateLimited: false };
     const resolved = [];
+
     for (const row of slice) {
-      resolved.push(await resolveRow(row));
+      resolved.push(await resolveRow(row, ctx));
     }
 
     const matched = [];
@@ -215,10 +323,11 @@ export async function POST(request) {
     const done = nextOffset >= totalRows;
 
     return NextResponse.json({
-      matched,
-      ambiguous,
-      unmatched,
+      matched: sortByNotesOrder(matched),
+      ambiguous: sortByNotesOrder(ambiguous),
+      unmatched: sortByNotesOrder(unmatched),
       parseErrors,
+      rateLimited: ctx.rateLimited,
       chunk: {
         offset,
         limit,
