@@ -27,29 +27,34 @@ function extractAlbumId(q) {
 }
 
 async function searchSpotify(query) {
-  const params = new URLSearchParams({
-    q: query,
-    type: 'album',
-    limit: '10',
-  });
+  const params = new URLSearchParams();
+  params.set('q', query);
+  params.set('type', 'album');
+  params.set('limit', '10');
+  // market ayuda en algunos entornos de Client Credentials
+  params.set('market', 'US');
 
-  const response = await spotifyFetch(
-    `https://api.spotify.com/v1/search?${params.toString()}`
-  );
+  const url = `https://api.spotify.com/v1/search?${params.toString()}`;
+  const response = await spotifyFetch(url);
+  const text = await response.text();
 
-  if (response.status === 429) {
-    console.warn('Spotify rate limited');
-    return [];
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
   }
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    console.error(`Spotify search failed ${response.status}:`, text);
-    throw new Error(`Spotify search failed (${response.status})`);
+    const err = new Error(
+      `Spotify search ${response.status}: ${text?.slice(0, 300) || 'no body'}`
+    );
+    err.status = response.status;
+    err.detail = text;
+    throw err;
   }
 
-  const data = await response.json();
-  return (data.albums?.items || [])
+  return (data?.albums?.items || [])
     .filter((album) => album && album.id)
     .map(mapAlbum)
     .filter(Boolean);
@@ -57,7 +62,7 @@ async function searchSpotify(query) {
 
 async function fetchAlbumById(id) {
   const response = await spotifyFetch(
-    `https://api.spotify.com/v1/albums/${id}`
+    `https://api.spotify.com/v1/albums/${id}?market=US`
   );
   if (!response.ok) return null;
   const album = await response.json();
@@ -67,6 +72,7 @@ async function fetchAlbumById(id) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
+  const debug = searchParams.get('debug') === '1';
 
   if (!q || q.trim().length < 2) {
     return NextResponse.json(
@@ -94,11 +100,25 @@ export async function GET(request) {
       if (album) extras.push(album);
     }
 
-    return NextResponse.json([...extras, ...fromSearch]);
+    const results = [...extras, ...fromSearch];
+
+    if (debug) {
+      return NextResponse.json({
+        count: results.length,
+        results,
+        query: trimmed,
+      });
+    }
+
+    return NextResponse.json(results);
   } catch (error) {
-    console.error('Search error:', error.message);
+    console.error('Search error:', error.message, error.detail || '');
     return NextResponse.json(
-      { error: 'Search temporarily unavailable' },
+      {
+        error: 'Search temporarily unavailable',
+        message: error.message || String(error),
+        spotifyStatus: error.status || null,
+      },
       { status: 503 }
     );
   }
