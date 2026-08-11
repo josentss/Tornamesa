@@ -6,6 +6,18 @@ import { api } from "@/lib/api";
 const MAX_FILES_PER_RUN = 1;
 const CHUNK_SIZE = 10;
 
+function sortByNotesOrder(items) {
+  return [...items].sort((a, b) => {
+    const fa = String(a.sourceFile || "");
+    const fb = String(b.sourceFile || "");
+    if (fa !== fb) return fa.localeCompare(fb);
+    const oa = a.orderKey || "";
+    const ob = b.orderKey || "";
+    if (oa && ob && oa !== ob) return oa.localeCompare(ob);
+    return (a.lineIndex || 0) - (b.lineIndex || 0);
+  });
+}
+
 export default function ImportLogsModal({ open, onClose, onImported }) {
   const inputRef = useRef(null);
   const [step, setStep] = useState("upload");
@@ -142,34 +154,45 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
 
   const ambKey = (row, i) => `${row.sourceFile}|${row.raw}|${i}`;
 
+  /** Matched + reviewed, in original .txt order (lineIndex / orderKey) */
   const itemsToImport = () => {
     if (!preview) return [];
-    const items = (preview.matched || []).map((r) => ({
-      albumId: r.albumId,
-      count: r.count,
-      year: r.year,
-      month: r.month,
-      title: r.title,
-      artist: r.artist,
-    }));
+    const items = [];
+
+    for (const r of preview.matched || []) {
+      if (!r.albumId) continue;
+      items.push({
+        albumId: r.albumId,
+        count: r.count,
+        year: r.year,
+        month: r.month,
+        title: r.title,
+        artist: r.artist,
+        lineIndex: r.lineIndex ?? 0,
+        sourceFile: r.sourceFile || "",
+        orderKey: r.orderKey || "",
+      });
+    }
 
     (preview.ambiguous || []).forEach((r, i) => {
-      const key = ambKey(r, i);
+      const key = ambKey(row, i);
       const chosen =
         selectedAmbiguous[key] || r.albumId || r.candidates?.[0]?.id;
-      if (chosen) {
-        items.push({
-          albumId: chosen,
-          count: r.count,
-          year: r.year,
-          month: r.month,
-          title: r.title,
-          artist: r.artist,
-        });
-      }
+      if (!chosen) return;
+      items.push({
+        albumId: chosen,
+        count: r.count,
+        year: r.year,
+        month: r.month,
+        title: r.title,
+        artist: r.artist,
+        lineIndex: r.lineIndex ?? 0,
+        sourceFile: r.sourceFile || "",
+        orderKey: r.orderKey || "",
+      });
     });
 
-    return items;
+    return sortByNotesOrder(items);
   };
 
   const handleCommit = async () => {
@@ -181,7 +204,18 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.commitNotesImport(items);
+      // Strip order-only fields before API (commit only needs album fields)
+      const payload = items.map(
+        ({ albumId, count, year, month, title, artist }) => ({
+          albumId,
+          count,
+          year,
+          month,
+          title,
+          artist,
+        })
+      );
+      const res = await api.commitNotesImport(payload);
       setCommitResult(res);
       setStep("done");
       onImported?.(res);
