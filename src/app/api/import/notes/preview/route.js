@@ -12,16 +12,15 @@ import {
 import {
   extractSpotifyAlbumId,
   getAlbumByIdResolved,
-  searchLocalAlbums,
+  searchLocalByTitleArtist,
   searchSpotifyAlbums,
-  upsertAlbumFromSpotify,
-  fetchSpotifyAlbumById,
 } from '@/lib/albumResolve';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const ROWS_PER_CHUNK = 10;
+const SLEEP_MS = 180;
 
 async function getUser(request) {
   const authHeader = request.headers.get('authorization');
@@ -45,26 +44,23 @@ function sleep(ms) {
 
 function toScoreable(album) {
   if (!album) return null;
-
   if (album.name && album.artists) return album;
-
-  if (album.id || album.spotify_id) {
-    return {
-      id: album.id || album.spotify_id,
-      name: album.title || album.name,
-      artists: [{ name: album.artist || 'Unknown' }],
-      images: album.coverUrl
-        ? [{ url: album.coverUrl }]
-        : album.cover_url
-          ? [{ url: album.cover_url }]
-          : [],
-      album_type: 'album',
-    };
-  }
-  return null;
+  const id = album.id || album.spotify_id;
+  if (!id) return null;
+  return {
+    id,
+    name: album.title || album.name || 'Unknown',
+    artists: [{ name: album.artist || 'Unknown' }],
+    images: album.coverUrl
+      ? [{ url: album.coverUrl }]
+      : album.cover_url
+        ? [{ url: album.cover_url }]
+        : [],
+    album_type: 'album',
+  };
 }
 
-function mapResolved(album) {
+function mapOut(album) {
   const s = toScoreable(album);
   if (!s?.id) return null;
   return {
@@ -75,7 +71,7 @@ function mapResolved(album) {
   };
 }
 
-function classify(row, ranked, matchSourceBase = 'resolve') {
+function classify(row, ranked, matchSourceBase) {
   if (!ranked.length) {
     return { status: 'unmatched', score: 0, candidates: [] };
   }
@@ -83,9 +79,9 @@ function classify(row, ranked, matchSourceBase = 'resolve') {
   const best = ranked[0];
   const second = ranked[1];
   const gap = second ? best.score - second.score : 99;
-  const mapped = mapResolved(best.album);
+  const mapped = mapOut(best.album);
   const candidates = ranked.slice(0, 8).map((r) => {
-    const m = mapResolved(r.album);
+    const m = mapOut(r.album);
     return {
       id: m?.id,
       title: m?.title,
@@ -144,20 +140,17 @@ function classify(row, ranked, matchSourceBase = 'resolve') {
   return { status: 'unmatched', score: best.score, candidates };
 }
 
-function rankAgainstRow(row, albums, matchSource) {
+function rank(row, albums, source) {
   const ranked = albums
     .map((album) => {
       const scoreable = toScoreable(album);
       if (!scoreable) return null;
-      return {
-        album: scoreable,
-        score: scoreAlbumMatch(row, scoreable),
-      };
+      return { album: scoreable, score: scoreAlbumMatch(row, scoreable) };
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score);
 
-  return classify(row, ranked, matchSource);
+  return classify(row, ranked, source);
 }
 
 async function resolveRow(row, ctx) {
@@ -199,18 +192,26 @@ async function resolveRow(row, ctx) {
     }
   }
 
-  const local = await searchLocalAlbums(
-    `${row.title} ${row.artist}`.trim(),
-    15
-  );
+  const local = await searchLocalByTitleArtist(row.title, row.artist, 15);
   if (local.length) {
-    const result = rankAgainstRow(row, local, 'local_db');
-    if (result.status === 'matched' || result.status === 'ambiguous') {
+    const result = rank(row, local, 'local_db');
+    if (result.status === 'matched') {
       return { ...row, ...result };
+    }
+    if (result.status === 'ambiguous' && ctx.skipSpotifySearch) {
+      return { ...row, ...result };
+    }
+    if (result.status === 'ambiguous') {
+      if (result.score >= 55) {
+        return { ...row, ...result };
+      }
     }
   }
 
   if (ctx.skipSpotifySearch) {
+    if (local.length) {
+      return { ...row, ...rank(row, local, 'local_db') };
+    }
     return {
       ...row,
       status: 'unmatched',
@@ -224,21 +225,20 @@ async function resolveRow(row, ctx) {
     const remote = await searchSpotifyAlbums(
       `${row.title} ${row.artist}`.trim()
     );
-    await sleep(120);
+    await sleep(SLEEP_MS);
 
     if (!remote.length) {
+      if (local.length) return { ...row, ...rank(row, local, 'local_db') };
       return { ...row, status: 'unmatched', score: 0, candidates: [] };
     }
 
-    const scoreable = remote.map((a) =>
-      toScoreable(a)
-    );
-    return { ...row, ...rankAgainstRow(row, scoreable, 'spotify_search') };
+    const pool = [...local, ...remote];
+    return { ...row, ...rank(row, pool, 'spotify_search') };
   } catch (e) {
     if (e.status === 429) {
       ctx.skipSpotifySearch = true;
       ctx.rateLimited = true;
-      // fall back: if local had weak candidates, already returned above
+      if (local.length) return { ...row, ...rank(row, local, 'local_db') };
       return {
         ...row,
         status: 'unmatched',
@@ -248,6 +248,7 @@ async function resolveRow(row, ctx) {
       };
     }
     console.error('import resolve search:', e.message);
+    if (local.length) return { ...row, ...rank(row, local, 'local_db') };
     return { ...row, status: 'unmatched', score: 0, candidates: [] };
   }
 }

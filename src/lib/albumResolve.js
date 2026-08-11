@@ -49,6 +49,15 @@ function mapDbRow(row) {
   };
 }
 
+function sanitizeIlike(s) {
+  return String(s || '')
+    .replace(/%/g, '')
+    .replace(/,/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+}
+
 export async function upsertAlbumFromSpotify(albumData) {
   if (!albumData?.id) return;
   const supabase = createSupabaseServer();
@@ -72,10 +81,24 @@ export async function upsertAlbumFromSpotify(albumData) {
   if (error) console.warn('upsertAlbumFromSpotify:', error.message);
 }
 
-export async function fetchSpotifyAlbumById(id) {
-  const res = await spotifyFetch(
-    `https://api.spotify.com/v1/albums/${id}`
+export async function upsertAlbumMapped(mapped) {
+  if (!mapped?.id) return;
+  const supabase = createSupabaseServer();
+  const { error } = await supabase.from('albums').upsert(
+    {
+      spotify_id: mapped.id,
+      title: mapped.title || 'Unknown',
+      artist: mapped.artist || 'Unknown',
+      cover_url: mapped.coverUrl || null,
+      duration_ms: 0,
+    },
+    { onConflict: 'spotify_id' }
   );
+  if (error) console.warn('upsertAlbumMapped:', error.message);
+}
+
+export async function fetchSpotifyAlbumById(id) {
+  const res = await spotifyFetch(`https://api.spotify.com/v1/albums/${id}`);
   if (!res.ok) return null;
   return res.json();
 }
@@ -89,9 +112,7 @@ export async function getAlbumByIdResolved(id) {
     .eq('spotify_id', id)
     .maybeSingle();
 
-  if (existing) {
-    return mapDbRow(existing);
-  }
+  if (existing) return mapDbRow(existing);
 
   const raw = await fetchSpotifyAlbumById(id);
   if (!raw) return null;
@@ -101,26 +122,68 @@ export async function getAlbumByIdResolved(id) {
 }
 
 export async function searchLocalAlbums(query, limit = 12) {
-  const q = String(query || '').trim();
+  const q = sanitizeIlike(query);
   if (q.length < 2) return [];
 
   const supabase = createSupabaseServer();
-  const safe = q.replace(/%/g, '').replace(/,/g, ' ').slice(0, 80);
-
   const { data, error } = await supabase
     .from('albums')
     .select('spotify_id, title, artist, cover_url')
-    .or(
-      `title.ilike.%${safe}%,artist.ilike.%${safe}%`
-    )
+    .or(`title.ilike.%${q}%,artist.ilike.%${q}%`)
     .limit(limit);
 
   if (error) {
     console.warn('searchLocalAlbums:', error.message);
     return [];
   }
-
   return (data || []).map(mapDbRow).filter(Boolean);
+}
+
+export async function searchLocalByTitleArtist(title, artist, limit = 15) {
+  const t = sanitizeIlike(title);
+  const a = sanitizeIlike(artist);
+  if (t.length < 1 && a.length < 1) return [];
+
+  const supabase = createSupabaseServer();
+
+  if (t.length >= 2 && a.length >= 2) {
+    const { data, error } = await supabase
+      .from('albums')
+      .select('spotify_id, title, artist, cover_url')
+      .ilike('title', `%${t}%`)
+      .ilike('artist', `%${a}%`)
+      .limit(limit);
+
+    if (!error && data?.length) {
+      return data.map(mapDbRow).filter(Boolean);
+    }
+  }
+
+  if (t.length >= 2) {
+    const { data, error } = await supabase
+      .from('albums')
+      .select('spotify_id, title, artist, cover_url')
+      .ilike('title', `%${t}%`)
+      .limit(limit);
+
+    if (!error && data?.length) {
+      return data.map(mapDbRow).filter(Boolean);
+    }
+  }
+
+  if (a.length >= 2) {
+    const { data, error } = await supabase
+      .from('albums')
+      .select('spotify_id, title, artist, cover_url')
+      .ilike('artist', `%${a}%`)
+      .limit(limit);
+
+    if (!error && data?.length) {
+      return data.map(mapDbRow).filter(Boolean);
+    }
+  }
+
+  return [];
 }
 
 export async function searchSpotifyAlbums(query) {
@@ -141,21 +204,24 @@ export async function searchSpotifyAlbums(query) {
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    const err = new Error(`Spotify search ${res.status}: ${text.slice(0, 200)}`);
+    const err = new Error(
+      `Spotify search ${res.status}: ${text.slice(0, 200)}`
+    );
     err.status = res.status;
     throw err;
   }
 
   const data = await res.json();
   const items = (data.albums?.items || []).filter((a) => a?.id);
+  const mapped = items.map(mapSpotifyAlbum).filter(Boolean);
 
-  for (const album of items.slice(0, 10)) {
+  for (const m of mapped) {
     try {
-      await upsertAlbumFromSpotify(album);
+      await upsertAlbumMapped(m);
     } catch {
-      /* ignore */
+      /* ----- */
     }
   }
 
-  return items.map(mapSpotifyAlbum).filter(Boolean);
+  return mapped;
 }

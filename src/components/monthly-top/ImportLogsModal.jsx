@@ -100,12 +100,15 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
       let merged = null;
       let done = false;
       let totalRows = 0;
+      let wasRateLimited = false;
 
       while (!done) {
         const data = await api.previewNotesImport(payload, {
           offset,
           limit: CHUNK_SIZE,
         });
+
+        if (data.rateLimited) wasRateLimited = true;
 
         if (!data.chunk) {
           merged = mergePreview(null, data);
@@ -125,6 +128,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
       setPreview({
         ...merged,
         summary: buildSummary(merged),
+        rateLimited: wasRateLimited,
       });
       setStep("preview");
     } catch (err) {
@@ -216,7 +220,8 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
               <p className="text-sm text-stone-400">
                 Import one month at a time. Files must be named{" "}
                 <code className="text-[#7cc7e8] text-xs">YYYY-MM.txt</code>.
-                Matching runs in batches to avoid timeouts.
+                Matching prefers your local library first to avoid Spotify rate
+                limits.
               </p>
               <pre className="text-xs bg-[#0a121c] border border-[#2a3645] rounded-lg p-3 text-stone-300 overflow-x-auto">
 {`Discos escuchados
@@ -280,6 +285,15 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                   </div>
                 ))}
               </div>
+
+              {preview.rateLimited && (
+                <p className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+                  Spotify search hit a rate limit mid-import. Rows already in
+                  your library were matched locally; some lines may be
+                  unmatched. Wait and retry only the missing ones later — do
+                  not spam retry.
+                </p>
+              )}
 
               {(preview.ambiguous || []).length > 0 && (
                 <div>
