@@ -58,7 +58,6 @@ export default function UserProfileClient({ params }) {
 
         setProfileData(profileRes.profile);
 
-        // Private profile viewed by non-owner: skip heavy data
         if (profileRes.restricted) {
           setStats(null);
           setRecentReviews([]);
@@ -116,6 +115,37 @@ export default function UserProfileClient({ params }) {
   const toListenList = userLists.find((l) => l.isSystem);
   const toListenCount = toListenList?.count ?? 0;
 
+  const hasDiaryContent =
+    (stats?.recentActivity?.length || 0) > 0 ||
+    (stats?.yearlyListens || 0) > 0;
+
+  const profileStats = [
+    {
+      value: stats?.yearlyListens || 0,
+      label: "This Year",
+      go: canShowDiaryLink
+        ? () => router.push(`${diaryBase}?period=year`)
+        : null,
+      showPrivateHint: !canShowDiaryLink,
+    },
+    {
+      value: stats?.monthlyListens || 0,
+      label: "This Month",
+      go: canShowDiaryLink
+        ? () => router.push(`${diaryBase}?period=month`)
+        : null,
+      showPrivateHint: !canShowDiaryLink,
+    },
+    {
+      value: toListenCount,
+      label: "To Listen",
+      go: toListenList?.id
+        ? () => router.push(`/list/${toListenList.id}`)
+        : null,
+      showPrivateHint: false,
+    },
+  ];
+
   useEffect(() => {
     if (!profileData) return;
     if (!canShowActivity && activeTab === "activity") {
@@ -165,7 +195,7 @@ export default function UserProfileClient({ params }) {
       setShareCopied(true);
       setToast({ message: "Profile link copied!", type: "success" });
       setTimeout(() => setShareCopied(false), 2000);
-    } catch (err) {
+    } catch {
       setToast({ message: "Could not copy link", type: "error" });
     }
   };
@@ -242,7 +272,7 @@ export default function UserProfileClient({ params }) {
       )}
 
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
-        <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-8 sm:pb-9 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+        <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-7 sm:pb-8 px-5 sm:px-6 md:px-10 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
@@ -265,61 +295,46 @@ export default function UserProfileClient({ params }) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-6 sm:gap-8">
+          <div className="flex flex-col gap-5 sm:gap-7">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 lg:gap-10">
-              {/* Desktop stats — hidden when private to visitors */}
+              {/* Desktop stats */}
               {!isPrivateLocked && (
                 <div className="hidden md:block w-36 lg:w-40 flex-shrink-0 order-1 pt-1">
                   <div className="space-y-5 text-left">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        canShowDiaryLink &&
-                        router.push(`${diaryBase}?period=year`)
-                      }
-                      className={`group text-left w-full focus:outline-none ${
-                        !canShowDiaryLink ? "cursor-default" : ""
-                      }`}
-                    >
-                      <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                        {stats?.yearlyListens || 0}
-                      </p>
-                      <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
-                        This Year
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        canShowDiaryLink &&
-                        router.push(`${diaryBase}?period=month`)
-                      }
-                      className={`group text-left w-full focus:outline-none ${
-                        !canShowDiaryLink ? "cursor-default" : ""
-                      }`}
-                    >
-                      <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                        {stats?.monthlyListens || 0}
-                      </p>
-                      <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
-                        This Month
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (toListenList?.id)
-                          router.push(`/list/${toListenList.id}`);
-                      }}
-                      className="group text-left w-full focus:outline-none"
-                    >
-                      <p className="text-3xl font-bold text-white tracking-tight group-hover:text-[#7cc7e8] transition-colors">
-                        {toListenCount}
-                      </p>
-                      <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
-                        To Listen
-                      </p>
-                    </button>
+                    {profileStats.map((s) => {
+                      const clickable = typeof s.go === "function";
+                      const Comp = clickable ? "button" : "div";
+                      return (
+                        <Comp
+                          key={s.label}
+                          type={clickable ? "button" : undefined}
+                          onClick={clickable ? s.go : undefined}
+                          className={`text-left w-full focus:outline-none ${
+                            clickable
+                              ? "group cursor-pointer"
+                              : "cursor-default"
+                          }`}
+                        >
+                          <p
+                            className={`text-3xl font-bold tracking-tight transition-colors ${
+                              clickable
+                                ? "text-white group-hover:text-[#7cc7e8]"
+                                : "text-stone-300"
+                            }`}
+                          >
+                            {s.value}
+                          </p>
+                          <p className="text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
+                            <span>{s.label}</span>
+                            {s.showPrivateHint && (
+                              <span className="text-[9px] normal-case tracking-normal text-stone-600 font-normal">
+                                private
+                              </span>
+                            )}
+                          </p>
+                        </Comp>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -427,58 +442,45 @@ export default function UserProfileClient({ params }) {
               </div>
             </div>
 
+            {/* Mobile stats */}
             {!isPrivateLocked && (
-              <div className="md:hidden grid grid-cols-3 gap-2 pt-2 border-t border-[#2a3645]">
-                <button
-                  type="button"
-                  onClick={() =>
-                    canShowDiaryLink &&
-                    router.push(`${diaryBase}?period=year`)
-                  }
-                  className="text-center focus:outline-none"
-                >
-                  <p className="text-xl font-bold text-white">
-                    {stats?.yearlyListens || 0}
-                  </p>
-                  <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
-                    This Year
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    canShowDiaryLink &&
-                    router.push(`${diaryBase}?period=month`)
-                  }
-                  className="text-center focus:outline-none"
-                >
-                  <p className="text-xl font-bold text-white">
-                    {stats?.monthlyListens || 0}
-                  </p>
-                  <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
-                    This Month
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (toListenList?.id)
-                      router.push(`/list/${toListenList.id}`);
-                  }}
-                  className="text-center focus:outline-none"
-                >
-                  <p className="text-xl font-bold text-white">{toListenCount}</p>
-                  <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
-                    To Listen
-                  </p>
-                </button>
+              <div className="md:hidden grid grid-cols-3 gap-2 pt-3 border-t border-[#2a3645]">
+                {profileStats.map((s) => {
+                  const clickable = typeof s.go === "function";
+                  const Comp = clickable ? "button" : "div";
+                  return (
+                    <Comp
+                      key={s.label}
+                      type={clickable ? "button" : undefined}
+                      onClick={clickable ? s.go : undefined}
+                      className={`text-center focus:outline-none ${
+                        clickable ? "" : "cursor-default"
+                      }`}
+                    >
+                      <p
+                        className={`text-xl font-bold ${
+                          clickable ? "text-white" : "text-stone-300"
+                        }`}
+                      >
+                        {s.value}
+                      </p>
+                      <p className="text-[10px] text-stone-400 uppercase tracking-wider mt-0.5">
+                        {s.label}
+                        {s.showPrivateHint && (
+                          <span className="block text-[8px] normal-case tracking-normal text-stone-600 mt-0.5">
+                            private
+                          </span>
+                        )}
+                      </p>
+                    </Comp>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Private locked view for visitors */}
       {isPrivateLocked ? (
         <section className="max-w-5xl mx-auto w-full px-4 sm:px-6 md:px-8 mt-10 sm:mt-14 pb-20">
           <div className="bg-[#131e2c]/80 border border-[#2a3645] rounded-2xl p-8 text-center">
@@ -553,7 +555,7 @@ export default function UserProfileClient({ params }) {
                 {activeTab === "activity" && canShowActivity && (
                   <div>
                     <ActivityFeed activities={stats?.recentActivity || []} />
-                    {canShowDiaryLink && (
+                    {canShowDiaryLink && hasDiaryContent && (
                       <div className="mt-5 text-center sm:text-left">
                         <button
                           type="button"
@@ -636,9 +638,18 @@ export default function UserProfileClient({ params }) {
                           <button
                             type="button"
                             onClick={() => setShowNewList(true)}
-                            className="text-xs text-[#7cc7e8] hover:underline"
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#7cc7e8] border border-[#2a3645] hover:border-[#7cc7e8]/40 bg-[#0a121c]/50 hover:bg-[#0a121c] px-3 py-2 rounded-lg transition-colors"
                           >
-                            + Create new list
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                              className="w-3.5 h-3.5"
+                              aria-hidden
+                            >
+                              <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+                            </svg>
+                            Create new list
                           </button>
                         )}
                       </div>
