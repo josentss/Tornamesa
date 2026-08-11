@@ -154,7 +154,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
 
   const ambKey = (row, i) => `${row.sourceFile}|${row.raw}|${i}`;
 
-  /** Matched + reviewed, in original .txt order (lineIndex / orderKey) */
+  /** Matched + reviewed, sorted by original .txt order */
   const itemsToImport = () => {
     if (!preview) return [];
     const items = [];
@@ -175,7 +175,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     }
 
     (preview.ambiguous || []).forEach((r, i) => {
-      const key = ambKey(row, i);
+      const key = ambKey(r, i);
       const chosen =
         selectedAmbiguous[key] || r.albumId || r.candidates?.[0]?.id;
       if (!chosen) return;
@@ -204,7 +204,6 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     setLoading(true);
     setError(null);
     try {
-      // Strip order-only fields before API (commit only needs album fields)
       const payload = items.map(
         ({ albumId, count, year, month, title, artist }) => ({
           albumId,
