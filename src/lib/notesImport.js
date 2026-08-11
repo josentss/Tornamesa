@@ -25,10 +25,22 @@ export const LINE_OVERRIDES = {
     title: 'Islands',
     artist: 'King Crimson',
   },
+  'a-sides, Adrianne Lenker, Buck Meek': {
+    title: 'a-sides',
+    artist: 'Adrianne Lenker',
+  },
+  'a-sides, Adrianne Lenker': {
+    title: 'a-sides',
+    artist: 'Adrianne Lenker',
+  },
+  'Revolver, The Beatles': {
+    title: 'Revolver',
+    artist: 'The Beatles',
+  },
 };
 
-const SUSPICIOUS_ALBUM_RE =
-  /\b(ukulele|ukelele|tribute|karaoke|cover version|covers|lullaby|piano tribute|8-bit|midi|complete on)\b/i;
+export const SUSPICIOUS_ALBUM_RE =
+  /\b(ukulele|ukelele|tribute|karaoke|cover version|covers|lullaby|piano tribute|8-bit|midi|complete on|for sleep|string quartet|yoga|music box)\b/i;
 
 export function normalize(s) {
   return String(s || '')
@@ -69,14 +81,14 @@ export function parseNotesFile(content, sourceFile = '') {
   for (const line of lines) {
     lineIndex += 1;
 
-    let m = line.match(/^(\d+)\s*[-–—.:]\s*(.+)$/);
+    const m = line.match(/^(\d+)\s*[-–—.:]\s*(.+)$/);
     if (!m) {
       parseErrors.push({ line, reason: 'no_count_prefix', lineIndex });
       continue;
     }
 
     const count = Number(m[1]);
-    let rest = m[2].trim();
+    const rest = m[2].trim();
     if (!count || count < 1 || count > 50) {
       parseErrors.push({ line, reason: 'invalid_count', lineIndex });
       continue;
@@ -103,7 +115,11 @@ export function parseNotesFile(content, sourceFile = '') {
           artist = dash[2].trim();
           parseVia = 'dash';
         } else {
-          parseErrors.push({ line, reason: 'no_title_artist_separator', lineIndex });
+          parseErrors.push({
+            line,
+            reason: 'no_title_artist_separator',
+            lineIndex,
+          });
           continue;
         }
       }
@@ -136,31 +152,60 @@ export function matchCatalogExtra(row) {
   const rowTitle = normalize(row.title);
   const rowCore = coreTitle(row.title);
   const rowArtist = normalize(row.artist);
-  const q = normalize(`${row.title} ${row.artist}`);
+
+  if (!rowTitle) return null;
 
   for (const entry of CATALOG_EXTRAS) {
-    if (normalize(entry.title) === rowTitle) return entry;
-    if (coreTitle(entry.title) === rowCore && rowCore.length > 4) return entry;
-  }
-
-  for (const entry of CATALOG_EXTRAS) {
-    const keys = (entry.keywords || []).map((k) => normalize(k));
     const titleN = normalize(entry.title);
+    const coreN = coreTitle(entry.title);
     const artistN = normalize(entry.artist);
-    const kwHit = keys.some((k) => k.length >= 4 && q.includes(k));
-    const titleHit =
-      titleN.length >= 6 &&
-      (rowTitle.includes(titleN.slice(0, 16)) ||
-        titleN.includes(rowTitle.slice(0, 16)));
-    const artistHit =
-      artistN &&
-      (rowArtist.includes(artistN) ||
-        artistN.includes(rowArtist) ||
-        q.includes(artistN));
 
-    if (titleHit && artistHit) return entry;
-    if (kwHit && artistHit) return entry;
+    if (titleN && titleN === rowTitle) {
+      if (
+        !artistN ||
+        rowArtist.includes(artistN) ||
+        artistN.includes(rowArtist)
+      ) {
+        return entry;
+      }
+    }
+
+    if (coreN && coreN === rowCore && rowCore.length > 3) {
+      if (
+        !artistN ||
+        rowArtist.includes(artistN) ||
+        artistN.includes(rowArtist)
+      ) {
+        return entry;
+      }
+    }
   }
+
+  for (const entry of CATALOG_EXTRAS) {
+    const artistN = normalize(entry.artist);
+    const keys = (entry.keywords || []).map((k) => normalize(k));
+
+    const titleLikeKw = keys.some((k) => {
+      if (k.length < 4) return false;
+      if (
+        artistN &&
+        (k === artistN || artistN.includes(k) || k.includes(artistN))
+      ) {
+        return false;
+      }
+      return rowTitle.includes(k) || k.includes(rowTitle);
+    });
+
+    if (!titleLikeKw) continue;
+
+    const artistOk =
+      !artistN ||
+      rowArtist.includes(artistN) ||
+      artistN.includes(rowArtist);
+
+    if (artistOk) return entry;
+  }
+
   return null;
 }
 
@@ -170,7 +215,9 @@ export function scoreAlbumMatch(row, album) {
   const na = normalize(row.artist);
   const at = normalize(album.name);
   const atCore = coreTitle(album.name);
-  const albumFull = `${album.name} ${(album.artists || []).map((a) => a.name).join(' ')}`;
+  const albumFull = `${album.name} ${(album.artists || [])
+    .map((a) => a.name)
+    .join(' ')}`;
 
   const artistNames = (album.artists || [])
     .map((a) => normalize(a.name))
@@ -183,7 +230,7 @@ export function scoreAlbumMatch(row, album) {
   } else if (atCore === ntCore && ntCore.length > 2) {
     score += 52;
   } else if (at.startsWith(nt + ' ') || at.startsWith(ntCore + ' ')) {
-    score += 18;
+    score += 12;
   } else if (at.includes(nt) || nt.includes(at)) {
     score += 22;
   } else if (atCore.includes(ntCore) || ntCore.includes(atCore)) {
@@ -191,14 +238,18 @@ export function scoreAlbumMatch(row, album) {
   }
 
   if (nt.length >= 3 && at.length > nt.length + 4 && at.includes(nt)) {
-    score -= 20;
+    score -= 28;
   }
 
   const artistExact = artistNames.some(
     (a) => a === na || a.includes(na) || na.includes(a)
   );
   if (artistExact) score += 40;
-  else if (artistNames.some((a) => a.slice(0, 5) === na.slice(0, 5) && na.length > 4)) {
+  else if (
+    artistNames.some(
+      (a) => a.slice(0, 5) === na.slice(0, 5) && na.length > 4
+    )
+  ) {
     score += 12;
   }
 
@@ -209,10 +260,10 @@ export function scoreAlbumMatch(row, album) {
   }
   score += Math.min(18, overlap * 4);
 
-  if (SUSPICIOUS_ALBUM_RE.test(albumFull)) score -= 35;
+  if (SUSPICIOUS_ALBUM_RE.test(albumFull)) score -= 50;
   if (album.album_type === 'album') score += 4;
   if (album.album_type === 'single') score -= 4;
-  if (album.album_type === 'compilation') score -= 8;
+  if (album.album_type === 'compilation') score -= 12;
 
   return Math.max(0, Math.min(100, score));
 }
@@ -239,7 +290,7 @@ export function isTitleExtension(noteTitle, albumTitle) {
   const nt = normalize(noteTitle);
   const at = normalize(albumTitle);
   if (!nt || at === nt) return false;
-  return at.includes(nt) && at.length >= nt.length + 5;
+  return at.includes(nt) && at.length >= nt.length + 4;
 }
 
 export function buildListenTimestamps(year, month, count) {
