@@ -143,17 +143,38 @@ function classify(row, ranked, matchSourceBase) {
   return { status: 'unmatched', score: best.score, candidates };
 }
 
+function isSuspiciousAlbum(album) {
+  const m = mapOut(album);
+  if (!m) return true;
+  return SUSPICIOUS_ALBUM_RE.test(`${m.title} ${m.artist}`);
+}
+
 function rank(row, albums, source) {
   const ranked = albums
     .map((album) => {
       const scoreable = toScoreable(album);
       if (!scoreable) return null;
-      return { album: scoreable, score: scoreAlbumMatch(row, scoreable) };
+      let score = scoreAlbumMatch(row, scoreable);
+      if (isSuspiciousAlbum(scoreable)) score = Math.min(score, 25);
+      return { album: scoreable, score };
     })
     .filter(Boolean)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      const sa = isSuspiciousAlbum(a.album) ? 1 : 0;
+      const sb = isSuspiciousAlbum(b.album) ? 1 : 0;
+      if (sa !== sb) return sa - sb;
+      return b.score - a.score;
+    });
 
   return classify(row, ranked, source);
+}
+
+function candidatesAllBad(result) {
+  const list = result?.candidates || [];
+  if (!list.length) return true;
+  return list.every((c) =>
+    SUSPICIOUS_ALBUM_RE.test(`${c.title || ''} ${c.artist || ''}`)
+  );
 }
 
 async function resolveRow(row, ctx) {
@@ -201,10 +222,11 @@ async function resolveRow(row, ctx) {
     if (result.status === 'matched') {
       return { ...row, ...result };
     }
-    if (result.status === 'ambiguous' && ctx.skipSpotifySearch) {
-      return { ...row, ...result };
-    }
-    if (result.status === 'ambiguous' && result.score >= 55) {
+    if (
+      result.status === 'ambiguous' &&
+      !candidatesAllBad(result) &&
+      (ctx.skipSpotifySearch || result.score >= 55)
+    ) {
       return { ...row, ...result };
     }
   }
@@ -221,11 +243,28 @@ async function resolveRow(row, ctx) {
   }
 
   try {
-    const remote = await searchSpotifyAlbums(
-      `"${row.title}" ${row.artist}`.trim()
-    );
-    await sleep(SLEEP_MS);
+    const queries = [
+      `"${row.title}" artist:${row.artist}`,
+      `"${row.title}" ${row.artist}`,
+      `album:${row.title} artist:${row.artist}`,
+    ];
 
+    const byId = new Map();
+    for (const q of queries) {
+      try {
+        const batch = await searchSpotifyAlbums(q);
+        await sleep(SLEEP_MS);
+        for (const a of batch || []) {
+          if (a?.id) byId.set(a.id, a);
+        }
+        const clean = [...byId.values()].filter((a) => !isSuspiciousAlbum(a));
+        if (clean.length >= 3) break;
+      } catch (e) {
+        if (e.status === 429) throw e;
+      }
+    }
+
+    const remote = [...byId.values()];
     if (!remote.length) {
       if (local.length) return { ...row, ...rank(row, local, 'local_db') };
       return { ...row, status: 'unmatched', score: 0, candidates: [] };

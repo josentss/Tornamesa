@@ -323,16 +323,21 @@ export function buildListenTimestamps(year, month, count, lineIndex = 0) {
   const n = Math.max(1, Math.min(50, Number(count) || 1));
   const li = Math.max(0, Number(lineIndex) || 0);
   const times = [];
+  const mm = String(month).padStart(2, '0');
 
   for (let i = 0; i < n; i++) {
-    const slot = li * 3 + i;
-    const day = Math.min(28, 1 + (slot % 28));
-    const hour = String(10 + (Math.floor(slot / 28) % 10)).padStart(2, '0');
-    const minute = String((slot * 5) % 60).padStart(2, '0');
-    const second = String((li + i) % 60).padStart(2, '0');
-    const mm = String(month).padStart(2, '0');
+    const totalSec = li * 120 + i * 2;
+    const day = Math.min(28, 1 + Math.floor(totalSec / 86400));
+    const secInDay = totalSec % 86400;
+    const hour = Math.floor(secInDay / 3600);
+    const minute = Math.floor((secInDay % 3600) / 60);
+    const second = secInDay % 60;
+
     const dd = String(day).padStart(2, '0');
-    times.push(`${year}-${mm}-${dd}T${hour}:${minute}:${second}.000Z`);
+    const hh = String(hour).padStart(2, '0');
+    const mi = String(minute).padStart(2, '0');
+    const ss = String(second).padStart(2, '0');
+    times.push(`${year}-${mm}-${dd}T${hh}:${mi}:${ss}.000Z`);
   }
   return times;
 }
