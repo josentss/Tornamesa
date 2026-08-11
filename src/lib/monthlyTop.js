@@ -27,6 +27,7 @@ function rankAlbums(listens, limit) {
         ratingSum: 0,
         ratingN: 0,
         lastAt: row.listened_at,
+        firstAt: row.listened_at,
       };
     }
     map[id].listen_count += 1;
@@ -37,12 +38,18 @@ function rankAlbums(listens, limit) {
     if (row.listened_at && row.listened_at > map[id].lastAt) {
       map[id].lastAt = row.listened_at;
     }
+    if (row.listened_at && row.listened_at < map[id].firstAt) {
+      map[id].firstAt = row.listened_at;
+    }
   }
 
   return Object.values(map)
     .sort((a, b) => {
-      if (b.listen_count !== a.listen_count) return b.listen_count - a.listen_count;
-      return (b.lastAt || '').localeCompare(a.lastAt || '');
+      if (b.listen_count !== a.listen_count) {
+        return b.listen_count - a.listen_count;
+      }
+      // Same count → earlier in .txt (earlier firstAt)
+      return (a.firstAt || '').localeCompare(b.firstAt || '');
     })
     .slice(0, limit)
     .map((item, i) => ({

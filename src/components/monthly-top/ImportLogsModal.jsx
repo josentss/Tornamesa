@@ -205,13 +205,14 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     setError(null);
     try {
       const payload = items.map(
-        ({ albumId, count, year, month, title, artist }) => ({
+        ({ albumId, count, year, month, title, artist, lineIndex }) => ({
           albumId,
           count,
           year,
           month,
           title,
           artist,
+          lineIndex: lineIndex ?? 0,
         })
       );
       const res = await api.commitNotesImport(payload);

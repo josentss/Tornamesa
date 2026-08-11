@@ -53,7 +53,6 @@ async function ensureAlbum(supabase, albumId) {
     },
   ]);
 
-  // ignore duplicate race
   if (error && !String(error.message || '').includes('duplicate')) {
     console.error('ensureAlbum:', error);
     return false;
@@ -91,6 +90,7 @@ export async function POST(request) {
       const count = Math.min(50, Math.max(1, Number(item.count) || 1));
       const year = Number(item.year);
       const month = Number(item.month);
+      const lineIndex = Number(item.lineIndex) || 0;
 
       if (!albumId || !year || month < 1 || month > 12) {
         failures.push({ item, reason: 'invalid_fields' });
@@ -103,7 +103,12 @@ export async function POST(request) {
         continue;
       }
 
-      const timestamps = buildListenTimestamps(year, month, count);
+      const timestamps = buildListenTimestamps(
+        year,
+        month,
+        count,
+        lineIndex
+      );
       const rows = timestamps.map((listened_at) => ({
         user_id: user.id,
         album_id: albumId,

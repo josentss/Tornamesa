@@ -6,8 +6,8 @@ import {
   scoreAlbumMatch,
   sortByNotesOrder,
   isTitleExtension,
-  normalize,
-  coreTitle,
+  titlesMatchLoose,
+  SUSPICIOUS_ALBUM_RE,
 } from '@/lib/notesImport';
 import {
   extractSpotifyAlbumId,
@@ -92,46 +92,49 @@ function classify(row, ranked, matchSourceBase) {
   });
 
   const extension = isTitleExtension(row.title, mapped.title);
-  const exactTitle =
-    normalize(row.title) === normalize(mapped.title) ||
-    coreTitle(row.title) === coreTitle(mapped.title);
+  const suspicious = SUSPICIOUS_ALBUM_RE.test(
+    `${mapped.title} ${mapped.artist}`
+  );
+  const exactEnough = titlesMatchLoose(row.title, mapped.title);
 
-  if (!extension && exactTitle && best.score >= 70 && gap >= 8) {
-    return {
-      status: 'matched',
-      albumId: mapped.id,
-      albumTitle: mapped.title,
-      albumArtist: mapped.artist,
-      coverUrl: mapped.coverUrl,
-      matchSource: matchSourceBase,
-      score: best.score,
-      candidates,
-    };
-  }
-
-  if (!extension && best.score >= 78 && gap >= 12) {
-    return {
-      status: 'matched',
-      albumId: mapped.id,
-      albumTitle: mapped.title,
-      albumArtist: mapped.artist,
-      coverUrl: mapped.coverUrl,
-      matchSource: matchSourceBase,
-      score: best.score,
-      candidates,
-    };
-  }
-
-  if (best.score >= 25 || candidates.length > 0) {
+  if (extension || suspicious || !exactEnough) {
     return {
       status: 'ambiguous',
       albumId: mapped.id,
       albumTitle: mapped.title,
       albumArtist: mapped.artist,
       coverUrl: mapped.coverUrl,
-      matchSource: extension
-        ? 'title_extension_review'
-        : `${matchSourceBase}_review`,
+      matchSource: suspicious
+        ? 'suspicious_edition_review'
+        : extension
+          ? 'title_extension_review'
+          : 'title_mismatch_review',
+      score: best.score,
+      candidates,
+    };
+  }
+
+  if (exactEnough && best.score >= 70 && gap >= 6) {
+    return {
+      status: 'matched',
+      albumId: mapped.id,
+      albumTitle: mapped.title,
+      albumArtist: mapped.artist,
+      coverUrl: mapped.coverUrl,
+      matchSource: matchSourceBase,
+      score: best.score,
+      candidates,
+    };
+  }
+
+  if (best.score >= 20 || candidates.length > 0) {
+    return {
+      status: 'ambiguous',
+      albumId: mapped.id,
+      albumTitle: mapped.title,
+      albumArtist: mapped.artist,
+      coverUrl: mapped.coverUrl,
+      matchSource: `${matchSourceBase}_review`,
       score: best.score,
       candidates,
     };
@@ -201,17 +204,13 @@ async function resolveRow(row, ctx) {
     if (result.status === 'ambiguous' && ctx.skipSpotifySearch) {
       return { ...row, ...result };
     }
-    if (result.status === 'ambiguous') {
-      if (result.score >= 55) {
-        return { ...row, ...result };
-      }
+    if (result.status === 'ambiguous' && result.score >= 55) {
+      return { ...row, ...result };
     }
   }
 
   if (ctx.skipSpotifySearch) {
-    if (local.length) {
-      return { ...row, ...rank(row, local, 'local_db') };
-    }
+    if (local.length) return { ...row, ...rank(row, local, 'local_db') };
     return {
       ...row,
       status: 'unmatched',
@@ -223,7 +222,7 @@ async function resolveRow(row, ctx) {
 
   try {
     const remote = await searchSpotifyAlbums(
-      `${row.title} ${row.artist}`.trim()
+      `"${row.title}" ${row.artist}`.trim()
     );
     await sleep(SLEEP_MS);
 

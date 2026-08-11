@@ -53,14 +53,38 @@ export function normalize(s) {
     .trim();
 }
 
-export function coreTitle(s) {
-  return normalize(s)
+export function stripEditionTags(s) {
+  return String(s || '')
     .replace(
-      /\b(deluxe|expanded|remaster(ed)?|anniversary|edition|bonus|disk|disc|vol|volume|ftb|oknotok)\b/g,
+      /\([^)]*(remaster|deluxe|expanded|anniversary|edition|original album|mix|bonus|legacy|special)[^)]*\)/gi,
+      ' '
+    )
+    .replace(
+      /\[[^\]]*(remaster|deluxe|expanded|anniversary|edition|original album|mix|bonus)[^\]]*\]/gi,
       ' '
     )
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+export function coreTitle(s) {
+  return normalize(stripEditionTags(s))
+    .replace(
+      /\b(deluxe|expanded|remaster(ed)?|anniversary|edition|bonus|disk|disc|vol|volume|ftb|oknotok|original|album|mix)\b/g,
+      ' '
+    )
+    .replace(/\b(19|20)\d{2}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function titlesMatchLoose(noteTitle, albumTitle) {
+  const a = normalize(noteTitle);
+  const b = normalize(stripEditionTags(albumTitle));
+  if (a && a === b) return true;
+  const ca = coreTitle(noteTitle);
+  const cb = coreTitle(albumTitle);
+  return ca.length > 2 && ca === cb;
 }
 
 export function parseNotesFile(content, sourceFile = '') {
@@ -213,8 +237,10 @@ export function scoreAlbumMatch(row, album) {
   const nt = normalize(row.title);
   const ntCore = coreTitle(row.title);
   const na = normalize(row.artist);
-  const at = normalize(album.name);
-  const atCore = coreTitle(album.name);
+
+  const albumTitleClean = stripEditionTags(album.name || '');
+  const at = normalize(albumTitleClean);
+  const atCore = coreTitle(album.name || '');
   const albumFull = `${album.name} ${(album.artists || [])
     .map((a) => a.name)
     .join(' ')}`;
@@ -226,19 +252,19 @@ export function scoreAlbumMatch(row, album) {
   let score = 0;
 
   if (at === nt) {
-    score += 60;
+    score += 65;
   } else if (atCore === ntCore && ntCore.length > 2) {
-    score += 52;
+    score += 58;
   } else if (at.startsWith(nt + ' ') || at.startsWith(ntCore + ' ')) {
-    score += 12;
+    score += 10;
   } else if (at.includes(nt) || nt.includes(at)) {
-    score += 22;
+    score += 20;
   } else if (atCore.includes(ntCore) || ntCore.includes(atCore)) {
-    score += 18;
+    score += 16;
   }
 
   if (nt.length >= 3 && at.length > nt.length + 4 && at.includes(nt)) {
-    score -= 28;
+    score -= 32;
   }
 
   const artistExact = artistNames.some(
@@ -260,7 +286,7 @@ export function scoreAlbumMatch(row, album) {
   }
   score += Math.min(18, overlap * 4);
 
-  if (SUSPICIOUS_ALBUM_RE.test(albumFull)) score -= 50;
+  if (SUSPICIOUS_ALBUM_RE.test(albumFull)) score -= 55;
   if (album.album_type === 'album') score += 4;
   if (album.album_type === 'single') score -= 4;
   if (album.album_type === 'compilation') score -= 12;
@@ -288,20 +314,25 @@ export function buildSearchQueries(row) {
 
 export function isTitleExtension(noteTitle, albumTitle) {
   const nt = normalize(noteTitle);
-  const at = normalize(albumTitle);
+  const at = normalize(stripEditionTags(albumTitle));
   if (!nt || at === nt) return false;
   return at.includes(nt) && at.length >= nt.length + 4;
 }
 
-export function buildListenTimestamps(year, month, count) {
+export function buildListenTimestamps(year, month, count, lineIndex = 0) {
   const n = Math.max(1, Math.min(50, Number(count) || 1));
+  const li = Math.max(0, Number(lineIndex) || 0);
   const times = [];
+
   for (let i = 0; i < n; i++) {
-    const day = Math.min(28, 1 + Math.floor((i * 28) / n));
+    const slot = li * 3 + i;
+    const day = Math.min(28, 1 + (slot % 28));
+    const hour = String(10 + (Math.floor(slot / 28) % 10)).padStart(2, '0');
+    const minute = String((slot * 5) % 60).padStart(2, '0');
+    const second = String((li + i) % 60).padStart(2, '0');
     const mm = String(month).padStart(2, '0');
     const dd = String(day).padStart(2, '0');
-    const minute = String((i * 7) % 60).padStart(2, '0');
-    times.push(`${year}-${mm}-${dd}T12:${minute}:00.000Z`);
+    times.push(`${year}-${mm}-${dd}T${hour}:${minute}:${second}.000Z`);
   }
   return times;
 }
