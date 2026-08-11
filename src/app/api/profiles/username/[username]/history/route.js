@@ -58,11 +58,13 @@ export async function GET(request, { params }) {
         listened_at,
         rating,
         review,
+        album_id,
         albums (
           spotify_id,
           title,
           artist,
-          cover_url
+          cover_url,
+          duration_ms
         )
       `
       )
@@ -72,10 +74,41 @@ export async function GET(request, { params }) {
 
     if (error) throw error;
 
+    const albumIds = [
+      ...new Set(
+        (history || [])
+          .map((h) => h.albums?.spotify_id || h.album_id)
+          .filter(Boolean)
+      ),
+    ];
+
+    const reviewMap = {};
+    if (albumIds.length > 0) {
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select('album_id, rating, review')
+        .eq('user_id', base.id)
+        .in('album_id', albumIds);
+
+      (reviews || []).forEach((r) => {
+        if (r.rating != null) reviewMap[r.album_id] = r;
+      });
+    }
+
+    const enriched = (history || []).map((item) => {
+      const albumId = item.albums?.spotify_id || item.album_id;
+      const fromReview = albumId != null ? reviewMap[albumId] : null;
+      return {
+        ...item,
+        rating: fromReview?.rating ?? item.rating ?? null,
+        review: item.review || fromReview?.review || null,
+      };
+    });
+
     return NextResponse.json(
       {
         username: base.username,
-        history: history || [],
+        history: enriched,
       },
       { headers: noStoreHeaders }
     );
