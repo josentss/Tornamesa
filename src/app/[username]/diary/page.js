@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
 
 function DiaryContent() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -25,7 +25,7 @@ function DiaryContent() {
     ["all", "year", "month"].includes(initialPeriod) ? initialPeriod : "all"
   );
   const [history, setHistory] = useState([]);
-  const [profileUsername, setProfileUsername] = useState(username);
+  const [displayName, setDisplayName] = useState(username);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [offset, setOffset] = useState(0);
@@ -33,6 +33,15 @@ function DiaryContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const limit = 50;
+
+  const myUsername = (
+    profile?.username ||
+    user?.username ||
+    user?.user_metadata?.username ||
+    ""
+  )
+    .toString()
+    .toLowerCase();
 
   useEffect(() => {
     if (authLoading) return;
@@ -49,41 +58,44 @@ function DiaryContent() {
         setLoading(true);
         setError(null);
 
-        const data = await api.getPublicHistory(
-          username,
-          limit,
-          0,
-          user?.id || null
-        );
+        const ownerByName =
+          !!user?.id &&
+          !!myUsername &&
+          myUsername === username.toLowerCase();
+
+        let items = [];
+        let owner = ownerByName;
+
+        if (ownerByName && user?.id) {
+          const data = await api.getUserHistory(user.id, limit, 0);
+          items = data.history || [];
+          owner = true;
+          setDisplayName(myUsername || username);
+        } else {
+          const data = await api.getPublicHistory(
+            username,
+            limit,
+            0,
+            user?.id || null
+          );
+          items = data.history || [];
+          setDisplayName(data.username || username);
+          if (data.userId && user?.id) {
+            owner = data.userId === user.id;
+          }
+        }
 
         if (cancelled) return;
-
-        const items = data.history || [];
+        setIsOwner(owner);
         setHistory(items);
-        setProfileUsername(data.username || username);
         setOffset(limit);
         setHasMore(items.length >= limit);
-
-        if (user?.id) {
-          try {
-            const me = user.username || user.user_metadata?.username;
-            const isMe =
-              me &&
-              String(me).toLowerCase() ===
-                String(data.username || username).toLowerCase();
-            setIsOwner(!!isMe);
-          } catch {
-            setIsOwner(false);
-          }
-        } else {
-          setIsOwner(false);
-        }
       } catch (err) {
-        if (cancelled) return;
-        const msg = err.message || "Could not load diary";
-        setError(msg);
-        setHistory([]);
-        setHasMore(false);
+        if (!cancelled) {
+          setError(err.message || "Could not load diary");
+          setHistory([]);
+          setHasMore(false);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -93,7 +105,7 @@ function DiaryContent() {
     return () => {
       cancelled = true;
     };
-  }, [username, user?.id, authLoading]);
+  }, [username, user?.id, myUsername, authLoading]);
 
   const handlePeriodChange = useCallback(
     (p) => {
@@ -109,13 +121,19 @@ function DiaryContent() {
     if (loadingMore || !hasMore || !username) return;
     setLoadingMore(true);
     try {
-      const data = await api.getPublicHistory(
-        username,
-        limit,
-        offset,
-        user?.id || null
-      );
-      const more = data.history || [];
+      let more = [];
+      if (isOwner && user?.id) {
+        const data = await api.getUserHistory(user.id, limit, offset);
+        more = data.history || [];
+      } else {
+        const data = await api.getPublicHistory(
+          username,
+          limit,
+          offset,
+          user?.id || null
+        );
+        more = data.history || [];
+      }
       setHistory((prev) => [...prev, ...more]);
       setOffset((prev) => prev + limit);
       setHasMore(more.length >= limit);
@@ -156,12 +174,12 @@ function DiaryContent() {
     <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14 overflow-x-hidden">
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-          {isOwner ? "Diary" : `${profileUsername}'s diary`}
+          {isOwner ? "Diary" : `${displayName}'s diary`}
         </h1>
         <p className="text-stone-400 text-sm mt-1">
           {isOwner
             ? "Your listening history"
-            : `Listening history of @${profileUsername}`}
+            : `Listening history of @${displayName}`}
         </p>
       </div>
 
