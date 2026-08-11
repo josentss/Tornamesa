@@ -2,72 +2,119 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
+import {
+  Header,
+  Footer,
+  LoadingSpinner,
+  ErrorMessage,
+} from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
 
 function DiaryContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const params = useParams();
   const searchParams = useSearchParams();
+
+  const username = String(params?.username || "").trim();
 
   const initialPeriod = searchParams.get("period") || "all";
   const [period, setPeriod] = useState(
     ["all", "year", "month"].includes(initialPeriod) ? initialPeriod : "all"
   );
   const [history, setHistory] = useState([]);
+  const [profileUsername, setProfileUsername] = useState(username);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const limit = 50;
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
-      router.push("/");
+    if (!username) {
+      setError("User not found");
+      setLoading(false);
       return;
     }
 
     let cancelled = false;
+
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await api.getUserHistory(user.id, limit, 0);
+
+        const data = await api.getPublicHistory(
+          username,
+          limit,
+          0,
+          user?.id || null
+        );
+
         if (cancelled) return;
+
         const items = data.history || [];
         setHistory(items);
+        setProfileUsername(data.username || username);
         setOffset(limit);
         setHasMore(items.length >= limit);
+
+        if (user?.id) {
+          try {
+            const me = user.username || user.user_metadata?.username;
+            const isMe =
+              me &&
+              String(me).toLowerCase() ===
+                String(data.username || username).toLowerCase();
+            setIsOwner(!!isMe);
+          } catch {
+            setIsOwner(false);
+          }
+        } else {
+          setIsOwner(false);
+        }
       } catch (err) {
-        if (!cancelled) setError(err.message || "Could not load diary");
+        if (cancelled) return;
+        const msg = err.message || "Could not load diary";
+        setError(msg);
+        setHistory([]);
+        setHasMore(false);
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
+
     load();
     return () => {
       cancelled = true;
     };
-  }, [user, authLoading, router]);
+  }, [username, user?.id, authLoading]);
 
   const handlePeriodChange = useCallback(
     (p) => {
       setPeriod(p);
-      const url = p === "all" ? "/diary" : `/diary?period=${p}`;
+      const base = `/${encodeURIComponent(username)}/diary`;
+      const url = p === "all" ? base : `${base}?period=${p}`;
       router.replace(url, { scroll: false });
     },
-    [router]
+    [router, username]
   );
 
   const loadMore = async () => {
-    if (!user || loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore || !username) return;
     setLoadingMore(true);
     try {
-      const data = await api.getUserHistory(user.id, limit, offset);
+      const data = await api.getPublicHistory(
+        username,
+        limit,
+        offset,
+        user?.id || null
+      );
       const more = data.history || [];
       setHistory((prev) => [...prev, ...more]);
       setOffset((prev) => prev + limit);
@@ -105,15 +152,21 @@ function DiaryContent() {
     );
   }
 
-  if (!user) return null;
-
   return (
     <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14 overflow-x-hidden">
       <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Diary</h1>
-        <p className="text-stone-400 text-sm mt-1">Your listening history</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          {isOwner ? "Diary" : `${profileUsername}'s diary`}
+        </h1>
+        <p className="text-stone-400 text-sm mt-1">
+          {isOwner
+            ? "Your listening history"
+            : `Listening history of @${profileUsername}`}
+        </p>
       </div>
+
       {error && <ErrorMessage message={error} />}
+
       {!error && (
         <DiaryView
           history={history}
@@ -122,15 +175,15 @@ function DiaryContent() {
           hasMore={hasMore}
           loadingMore={loadingMore}
           onLoadMore={loadMore}
-          isOwner
-          onHistoryPatch={handleHistoryPatch}
+          isOwner={isOwner}
+          onHistoryPatch={isOwner ? handleHistoryPatch : undefined}
         />
       )}
     </main>
   );
 }
 
-export default function DiaryPage() {
+export default function UserDiaryPage() {
   const { user } = useAuth();
 
   return (
