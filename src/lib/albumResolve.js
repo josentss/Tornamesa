@@ -254,14 +254,18 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
 
 export async function searchSpotifyAlbums(query) {
   const q = String(query || '').trim();
-  const params = new URLSearchParams();
-  params.set('q', q);
-  params.set('type', 'album');
-  params.set('limit', '15');
+  if (q.length < 1) return [];
 
-  const res = await spotifyFetch(
-    `https://api.spotify.com/v1/search?${params.toString()}`
-  );
+  const limit = 10;
+
+  const params = new URLSearchParams({
+    q,
+    type: 'album',
+    limit: String(limit),
+  });
+
+  const url = `https://api.spotify.com/v1/search?${params.toString()}`;
+  const res = await spotifyFetch(url);
 
   if (res.status === 429) {
     const err = new Error('Spotify rate limit (search)');
@@ -272,7 +276,7 @@ export async function searchSpotifyAlbums(query) {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     const err = new Error(
-      `Spotify search ${res.status}: ${text.slice(0, 200)}`
+      `Spotify search ${res.status}: ${text.slice(0, 300)}`
     );
     err.status = res.status;
     throw err;
@@ -281,13 +285,29 @@ export async function searchSpotifyAlbums(query) {
   const data = await res.json();
   let items = (data.albums?.items || []).filter((a) => a?.id);
 
+  const NOISE =
+    /\b(tribute|karaoke|performs|string quartet|vitamin string|the karaoke channel|done again)\b/i;
   items = items.filter((a) => {
     const name = a.name || '';
     const artists = (a.artists || []).map((ar) => ar.name || '').join(' ');
-    return !NOISE_RE.test(name) && !NOISE_RE.test(artists);
+    return !NOISE.test(name) && !NOISE.test(artists);
   });
 
-  const mapped = items.map(mapSpotifyAlbum).filter(Boolean);
+  const mapped = items
+    .map((album) => {
+      if (!album?.id) return null;
+      return {
+        id: album.id,
+        title: album.name,
+        artist: album.artists?.[0]?.name || 'Unknown',
+        coverUrl: album.images?.[0]?.url || null,
+        releaseDate: album.release_date
+          ? String(album.release_date).split('-')[0]
+          : 'N/A',
+        spotifyLink: album.external_urls?.spotify || '',
+      };
+    })
+    .filter(Boolean);
 
   await Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
 
