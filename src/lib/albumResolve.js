@@ -22,6 +22,9 @@ export function extractSpotifyAlbumId(q) {
   return null;
 }
 
+const NOISE_RE =
+  /\b(tribute|karaoke|performs|string quartet|piano tribute|lullaby|cover version|music box|8.?bit|vs\.?|vitamin string|molotov cocktail|done again|the karaoke channel)\b/i;
+
 function mapSpotifyAlbum(album) {
   if (!album?.id) return null;
   return {
@@ -58,25 +61,58 @@ function sanitizeIlike(s) {
     .slice(0, 80);
 }
 
-function scoreLocalMatch(query, row) {
+export function scoreLocalMatch(query, row) {
   const q = normalizeText(query);
   const title = normalizeText(row.title);
   const artist = normalizeText(row.artist);
-  const both = `${title} ${artist}`;
+  const blob = `${title} ${artist}`;
+
+  if (NOISE_RE.test(row.title) || NOISE_RE.test(row.artist || '')) {
+    return -50;
+  }
+
   let score = 0;
 
-  if (title === q || both === q) score += 100;
-  if (title.startsWith(q)) score += 40;
-  if (title.includes(q)) score += 25;
-  if (artist.includes(q)) score += 15;
-  if (q.includes(title) && title.length >= 4) score += 20;
+  if (artist === q) score += 80;
+  else if (artist.startsWith(q + ' ') || artist.startsWith(q)) score += 50;
+  else if (artist.includes(q) && q.length >= 4) score += 20;
 
-  const qTokens = q.split(' ').filter((t) => t.length > 1);
-  for (const t of qTokens) {
+  if (title === q) score += 70;
+  else if (title.startsWith(q)) score += 35;
+  else if (title.includes(q) && q.length >= 4) score += 15;
+
+  if (blob === q) score += 30;
+
+  const tokens = q.split(' ').filter((t) => t.length > 1);
+  for (const t of tokens) {
+    if (artist === t || artist.startsWith(t + ' ')) score += 12;
+    else if (artist.includes(t)) score += 3;
     if (title.includes(t)) score += 4;
-    if (artist.includes(t)) score += 2;
   }
+
+  if (artist === q) score += 25;
+  if (artist.split(' ').length > 5 && artist.includes(q)) score -= 20;
+
   return score;
+}
+
+export function albumDedupeKey(a) {
+  return `${normalizeText(a.title)}|${normalizeText(a.artist)}`;
+}
+
+export function dedupeAlbums(list) {
+  const byId = new Set();
+  const byKey = new Set();
+  const out = [];
+  for (const a of list) {
+    if (!a?.id || byId.has(a.id)) continue;
+    const key = albumDedupeKey(a);
+    if (byKey.has(key)) continue;
+    byId.add(a.id);
+    byKey.add(key);
+    out.push(a);
+  }
+  return out;
 }
 
 export async function upsertAlbumFromSpotify(albumData) {
@@ -151,7 +187,7 @@ export async function searchLocalAlbums(query, limit = 12) {
     .from('albums')
     .select('spotify_id, title, artist, cover_url')
     .or(`title.ilike.%${q}%,artist.ilike.%${q}%`)
-    .limit(Math.max(limit * 3, 30));
+    .limit(Math.max(limit * 4, 40));
 
   if (error) {
     console.warn('searchLocalAlbums:', error.message);
@@ -159,12 +195,14 @@ export async function searchLocalAlbums(query, limit = 12) {
   }
 
   return (data || [])
-    .map((row) => ({ row, score: scoreLocalMatch(q, row) }))
-    .filter((x) => x.score > 0)
+    .map((row) => ({
+      album: mapDbRow(row),
+      score: scoreLocalMatch(q, row),
+    }))
+    .filter((x) => x.album && x.score >= 15)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-    .map((x) => mapDbRow(x.row))
-    .filter(Boolean);
+    .map((x) => ({ ...x.album, _score: x.score }));
 }
 
 export async function searchLocalByTitleArtist(title, artist, limit = 15) {
@@ -215,10 +253,11 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
 }
 
 export async function searchSpotifyAlbums(query) {
+  const q = String(query || '').trim();
   const params = new URLSearchParams();
-  params.set('q', query);
+  params.set('q', q);
   params.set('type', 'album');
-  params.set('limit', '10');
+  params.set('limit', '12');
 
   const res = await spotifyFetch(
     `https://api.spotify.com/v1/search?${params.toString()}`
@@ -240,7 +279,14 @@ export async function searchSpotifyAlbums(query) {
   }
 
   const data = await res.json();
-  const items = (data.albums?.items || []).filter((a) => a?.id);
+  let items = (data.albums?.items || []).filter((a) => a?.id);
+
+  items = items.filter(
+    (a) =>
+      !NOISE_RE.test(a.name || '') &&
+      !(a.artists || []).some((ar) => NOISE_RE.test(ar.name || ''))
+  );
+
   const mapped = items.map(mapSpotifyAlbum).filter(Boolean);
 
   await Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
