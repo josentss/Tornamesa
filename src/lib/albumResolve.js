@@ -257,7 +257,7 @@ export async function searchSpotifyAlbums(query) {
   const params = new URLSearchParams();
   params.set('q', q);
   params.set('type', 'album');
-  params.set('limit', '12');
+  params.set('limit', '15');
 
   const res = await spotifyFetch(
     `https://api.spotify.com/v1/search?${params.toString()}`
@@ -281,11 +281,11 @@ export async function searchSpotifyAlbums(query) {
   const data = await res.json();
   let items = (data.albums?.items || []).filter((a) => a?.id);
 
-  items = items.filter(
-    (a) =>
-      !NOISE_RE.test(a.name || '') &&
-      !(a.artists || []).some((ar) => NOISE_RE.test(ar.name || ''))
-  );
+  items = items.filter((a) => {
+    const name = a.name || '';
+    const artists = (a.artists || []).map((ar) => ar.name || '').join(' ');
+    return !NOISE_RE.test(name) && !NOISE_RE.test(artists);
+  });
 
   const mapped = items.map(mapSpotifyAlbum).filter(Boolean);
 

@@ -30,63 +30,62 @@ export async function GET(request) {
       return NextResponse.json(album ? [album] : []);
     }
 
-    const local = await searchLocalAlbums(trimmed, 12);
-
-    const extras = [];
-    for (const id of matchCatalogExtras(trimmed)) {
-      if (local.some((a) => a.id === id)) continue;
-      const album = await getAlbumByIdResolved(id);
-      if (album) extras.push(album);
+    let local = [];
+    try {
+      local = await searchLocalAlbums(trimmed, 12);
+    } catch (e) {
+      console.warn('local search:', e.message);
     }
 
-    const strongLocal = local.filter((a) => (a._score || 0) >= 50);
+    const extras = [];
+    try {
+      for (const id of matchCatalogExtras(trimmed)) {
+        if (local.some((a) => a.id === id)) continue;
+        const album = await getAlbumByIdResolved(id);
+        if (album) extras.push(album);
+      }
+    } catch (e) {
+      console.warn('catalog extras:', e.message);
+    }
 
     let remote = [];
-    let spotifyFailed = false;
+    let rateLimited = false;
 
-    const skipSpotify = strongLocal.length >= 5;
-
-    if (!skipSpotify) {
-      try {
-        remote = await searchSpotifyAlbums(trimmed);
-      } catch (e) {
-        spotifyFailed = true;
-        if (e.status === 429 && local.length === 0 && extras.length === 0) {
+    try {
+      remote = await searchSpotifyAlbums(trimmed);
+    } catch (e) {
+      console.error('Spotify search:', e.message);
+      if (e.status === 429) {
+        rateLimited = true;
+        if (local.length === 0 && extras.length === 0) {
           return NextResponse.json(
             {
               error:
-                'Spotify search is rate-limited. Try an album link or search something already logged.',
+                'Spotify search is rate-limited. Try an album link/id, or search something already in the catalog.',
               results: [],
             },
             { status: 429 }
           );
         }
-        if (local.length === 0 && extras.length === 0) {
-          return NextResponse.json(
-            { error: 'Search temporarily unavailable', message: e.message },
-            { status: 503 }
-          );
-        }
+      } else if (local.length === 0 && extras.length === 0) {
+        return NextResponse.json(
+          { error: 'Search temporarily unavailable', message: e.message },
+          { status: 503 }
+        );
       }
     }
 
-    const merged = dedupeAlbums([
-      ...remote,
-      ...strongLocal,
-      ...extras,
-      ...local.filter((a) => (a._score || 0) < 50),
-    ]);
+    const merged = dedupeAlbums([...remote, ...extras, ...local]);
 
-    const clean = merged.map(({ _score, ...rest }) => rest).slice(0, 15);
+    const clean = merged
+      .map(({ _score, ...rest }) => rest)
+      .slice(0, 15);
 
-    if (clean.length === 0 && spotifyFailed) {
-      return NextResponse.json(
-        { error: 'Search temporarily unavailable' },
-        { status: 503 }
-      );
-    }
-
-    return NextResponse.json(clean);
+    const res = NextResponse.json(clean);
+    if (rateLimited) res.headers.set('X-Search-Source', 'local-fallback');
+    else if (remote.length > 0) res.headers.set('X-Search-Source', 'spotify+local');
+    else res.headers.set('X-Search-Source', 'local');
+    return res;
   } catch (error) {
     console.error('Search error:', error.message);
     return NextResponse.json(
