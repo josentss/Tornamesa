@@ -5,20 +5,10 @@ import {
   getAlbumByIdResolved,
   searchLocalAlbums,
   searchSpotifyAlbums,
+  dedupeAlbums,
 } from '@/lib/albumResolve';
 
 export const dynamic = 'force-dynamic';
-
-function dedupeById(list) {
-  const seen = new Set();
-  const out = [];
-  for (const a of list) {
-    if (!a?.id || seen.has(a.id)) continue;
-    seen.add(a.id);
-    out.push(a);
-  }
-  return out;
-}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -33,7 +23,6 @@ export async function GET(request) {
 
   try {
     const trimmed = q.trim();
-    const results = [];
 
     const directId = extractSpotifyAlbumId(trimmed);
     if (directId) {
@@ -41,26 +30,28 @@ export async function GET(request) {
       return NextResponse.json(album ? [album] : []);
     }
 
-    const local = await searchLocalAlbums(trimmed, 15);
-    results.push(...local);
+    const local = await searchLocalAlbums(trimmed, 12);
 
-    const extraIds = matchCatalogExtras(trimmed);
-    for (const id of extraIds) {
-      if (results.some((a) => a.id === id)) continue;
+    const extras = [];
+    for (const id of matchCatalogExtras(trimmed)) {
+      if (local.some((a) => a.id === id)) continue;
       const album = await getAlbumByIdResolved(id);
-      if (album) results.push(album);
+      if (album) extras.push(album);
     }
 
-    if (results.length >= 6) {
-      return NextResponse.json(dedupeById(results).slice(0, 15));
-    }
+    const strongLocal = local.filter((a) => (a._score || 0) >= 50);
 
-    try {
-      const remote = await searchSpotifyAlbums(trimmed);
-      results.push(...remote);
-    } catch (e) {
-      if (e.status === 429) {
-        if (results.length === 0) {
+    let remote = [];
+    let spotifyFailed = false;
+
+    const skipSpotify = strongLocal.length >= 5;
+
+    if (!skipSpotify) {
+      try {
+        remote = await searchSpotifyAlbums(trimmed);
+      } catch (e) {
+        spotifyFailed = true;
+        if (e.status === 429 && local.length === 0 && extras.length === 0) {
           return NextResponse.json(
             {
               error:
@@ -70,18 +61,32 @@ export async function GET(request) {
             { status: 429 }
           );
         }
-        return NextResponse.json(dedupeById(results).slice(0, 15));
-      }
-      console.error('Spotify search:', e.message);
-      if (results.length === 0) {
-        return NextResponse.json(
-          { error: 'Search temporarily unavailable', message: e.message },
-          { status: 503 }
-        );
+        if (local.length === 0 && extras.length === 0) {
+          return NextResponse.json(
+            { error: 'Search temporarily unavailable', message: e.message },
+            { status: 503 }
+          );
+        }
       }
     }
 
-    return NextResponse.json(dedupeById(results).slice(0, 15));
+    const merged = dedupeAlbums([
+      ...remote,
+      ...strongLocal,
+      ...extras,
+      ...local.filter((a) => (a._score || 0) < 50),
+    ]);
+
+    const clean = merged.map(({ _score, ...rest }) => rest).slice(0, 15);
+
+    if (clean.length === 0 && spotifyFailed) {
+      return NextResponse.json(
+        { error: 'Search temporarily unavailable' },
+        { status: 503 }
+      );
+    }
+
+    return NextResponse.json(clean);
   } catch (error) {
     console.error('Search error:', error.message);
     return NextResponse.json(
