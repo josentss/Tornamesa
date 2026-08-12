@@ -119,18 +119,36 @@ export const CATALOG_EXTRAS = [
   // },
 ];
 
+function norm(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 export function matchCatalogExtras(query) {
-  const q = String(query || '').toLowerCase().trim();
+  const q = norm(query);
   if (q.length < 2) return [];
 
   const ids = [];
   for (const entry of CATALOG_EXTRAS) {
-    const hit = (entry.keywords || []).some((kw) =>
-      q.includes(String(kw).toLowerCase())
-    );
+    const titleN = norm(entry.title);
     const titleHit =
-      entry.title && q.includes(String(entry.title).toLowerCase().slice(0, 20));
-    if (hit || titleHit) ids.push(entry.id);
+      titleN.length >= 4 &&
+      (q.includes(titleN) ||
+        titleN.includes(q) ||
+        q.split(' ').filter((t) => t.length > 2 && titleN.includes(t))
+          .length >= 2);
+
+    const kwHit = (entry.keywords || []).some((kw) => {
+      const k = norm(kw);
+      if (k.length < 4) return false;
+      return q.includes(k) || k.includes(q);
+    });
+
+    if (titleHit || kwHit) ids.push(entry.id);
   }
   return [...new Set(ids)];
 }

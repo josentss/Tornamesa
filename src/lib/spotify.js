@@ -10,7 +10,9 @@ async function fetchNewToken() {
     throw new Error('Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET');
   }
 
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString(
+    'base64'
+  );
 
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
@@ -25,11 +27,12 @@ async function fetchNewToken() {
   if (!response.ok) {
     const text = await response.text();
     console.error('Spotify token error:', response.status, text);
-    throw new Error(`Spotify token request failed (${response.status}): ${text}`);
+    throw new Error(
+      `Spotify token request failed (${response.status}): ${text}`
+    );
   }
 
   const data = await response.json();
-
   if (!data.access_token) {
     throw new Error('Spotify did not return an access_token');
   }
@@ -41,9 +44,7 @@ async function fetchNewToken() {
 }
 
 export async function getSpotifyToken(forceNew = false) {
-  if (tokenPromise) {
-    return tokenPromise;
-  }
+  if (tokenPromise) return tokenPromise;
 
   if (!forceNew && cachedToken && Date.now() < tokenExpiry) {
     return cachedToken;
@@ -68,7 +69,11 @@ export function clearSpotifyToken() {
   tokenExpiry = 0;
 }
 
-export async function spotifyFetch(url, options = {}) {
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+export async function spotifyFetch(url, options = {}, maxRetries = 2) {
   let token = await getSpotifyToken();
 
   const doFetch = (accessToken) =>
@@ -87,6 +92,23 @@ export async function spotifyFetch(url, options = {}) {
     console.warn('Spotify 401 – refreshing token and retrying');
     clearSpotifyToken();
     token = await getSpotifyToken(true);
+    response = await doFetch(token);
+  }
+
+  let attempt = 0;
+  while (response.status === 429 && attempt < maxRetries) {
+    const retryAfter = response.headers.get('Retry-After');
+    const waitSec = retryAfter ? parseInt(retryAfter, 10) : null;
+    const waitMs =
+      (Number.isFinite(waitSec) && waitSec > 0
+        ? waitSec
+        : Math.min(8, 1 + attempt * 2)) * 1000;
+
+    console.warn(
+      `Spotify 429 – waiting ${waitMs}ms before retry (${attempt + 1}/${maxRetries})`
+    );
+    await sleep(waitMs);
+    attempt += 1;
     response = await doFetch(token);
   }
 

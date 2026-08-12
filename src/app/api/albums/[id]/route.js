@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
+import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
+import { upsertAlbumFromSpotify } from '@/lib/albumResolve';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request, { params }) {
   const { id } = params;
@@ -8,10 +12,37 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Album ID is required' }, { status: 400 });
   }
 
+  const supabase = createSupabaseServer();
+
+  const { data: cached } = await supabase
+    .from('albums')
+    .select('spotify_id, title, artist, cover_url, duration_ms')
+    .eq('spotify_id', id)
+    .maybeSingle();
+
   try {
     const albumResponse = await spotifyFetch(
       `https://api.spotify.com/v1/albums/${id}`
     );
+
+    if (
+      (albumResponse.status === 429 || albumResponse.status >= 500) &&
+      cached
+    ) {
+      const mins = Math.round((cached.duration_ms || 0) / 60000);
+      return NextResponse.json({
+        id: cached.spotify_id,
+        title: cached.title,
+        artist: cached.artist || 'Unknown',
+        genres: [],
+        coverUrl: cached.cover_url || null,
+        releaseDate: 'N/A',
+        totalDuration: mins > 0 ? `${mins} min` : 'N/A',
+        tracks: [],
+        spotifyUrl: `https://open.spotify.com/album/${cached.spotify_id}`,
+        cached: true,
+      });
+    }
 
     if (albumResponse.status === 404) {
       return NextResponse.json(
@@ -23,6 +54,21 @@ export async function GET(request, { params }) {
     if (albumResponse.status === 401) {
       const body = await albumResponse.text();
       console.error('Spotify still 401 after retry:', body);
+      if (cached) {
+        const mins = Math.round((cached.duration_ms || 0) / 60000);
+        return NextResponse.json({
+          id: cached.spotify_id,
+          title: cached.title,
+          artist: cached.artist || 'Unknown',
+          genres: [],
+          coverUrl: cached.cover_url || null,
+          releaseDate: 'N/A',
+          totalDuration: mins > 0 ? `${mins} min` : 'N/A',
+          tracks: [],
+          spotifyUrl: `https://open.spotify.com/album/${cached.spotify_id}`,
+          cached: true,
+        });
+      }
       return NextResponse.json(
         { error: 'Spotify authentication failed' },
         { status: 503 }
@@ -32,6 +78,21 @@ export async function GET(request, { params }) {
     if (!albumResponse.ok) {
       const body = await albumResponse.text();
       console.error('Spotify album error:', albumResponse.status, body);
+      if (cached) {
+        const mins = Math.round((cached.duration_ms || 0) / 60000);
+        return NextResponse.json({
+          id: cached.spotify_id,
+          title: cached.title,
+          artist: cached.artist || 'Unknown',
+          genres: [],
+          coverUrl: cached.cover_url || null,
+          releaseDate: 'N/A',
+          totalDuration: mins > 0 ? `${mins} min` : 'N/A',
+          tracks: [],
+          spotifyUrl: `https://open.spotify.com/album/${cached.spotify_id}`,
+          cached: true,
+        });
+      }
       return NextResponse.json(
         { error: 'Failed to fetch album from Spotify' },
         { status: 503 }
@@ -40,16 +101,26 @@ export async function GET(request, { params }) {
 
     const albumData = await albumResponse.json();
 
+
+    try {
+      await upsertAlbumFromSpotify(albumData);
+    } catch {
+      /* .... */
+    }
+
     let genres = [];
     const artistId = albumData.artists?.[0]?.id;
-
     if (artistId) {
-      const artistResponse = await spotifyFetch(
-        `https://api.spotify.com/v1/artists/${artistId}`
-      );
-      if (artistResponse.ok) {
-        const artistData = await artistResponse.json();
-        genres = artistData.genres || [];
+      try {
+        const artistResponse = await spotifyFetch(
+          `https://api.spotify.com/v1/artists/${artistId}`
+        );
+        if (artistResponse.ok) {
+          const artistData = await artistResponse.json();
+          genres = artistData.genres || [];
+        }
+      } catch {
+        /* opcional */
       }
     }
 
@@ -81,6 +152,21 @@ export async function GET(request, { params }) {
     });
   } catch (error) {
     console.error('Album route error:', error);
+    if (cached) {
+      const mins = Math.round((cached.duration_ms || 0) / 60000);
+      return NextResponse.json({
+        id: cached.spotify_id,
+        title: cached.title,
+        artist: cached.artist || 'Unknown',
+        genres: [],
+        coverUrl: cached.cover_url || null,
+        releaseDate: 'N/A',
+        totalDuration: mins > 0 ? `${mins} min` : 'N/A',
+        tracks: [],
+        spotifyUrl: `https://open.spotify.com/album/${cached.spotify_id}`,
+        cached: true,
+      });
+    }
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

@@ -41,7 +41,7 @@ export async function GET(request) {
       return NextResponse.json(album ? [album] : []);
     }
 
-    const local = await searchLocalAlbums(trimmed, 12);
+    const local = await searchLocalAlbums(trimmed, 15);
     results.push(...local);
 
     const extraIds = matchCatalogExtras(trimmed);
@@ -51,7 +51,7 @@ export async function GET(request) {
       if (album) results.push(album);
     }
 
-    if (results.length >= 8) {
+    if (results.length >= 6) {
       return NextResponse.json(dedupeById(results).slice(0, 15));
     }
 
@@ -64,7 +64,7 @@ export async function GET(request) {
           return NextResponse.json(
             {
               error:
-                'Spotify search is rate-limited. Try an album link/id, or search something already in your library.',
+                'Spotify search is rate-limited. Try an album link or search something already logged.',
               results: [],
             },
             { status: 429 }

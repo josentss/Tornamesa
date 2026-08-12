@@ -58,6 +58,27 @@ function sanitizeIlike(s) {
     .slice(0, 80);
 }
 
+function scoreLocalMatch(query, row) {
+  const q = normalizeText(query);
+  const title = normalizeText(row.title);
+  const artist = normalizeText(row.artist);
+  const both = `${title} ${artist}`;
+  let score = 0;
+
+  if (title === q || both === q) score += 100;
+  if (title.startsWith(q)) score += 40;
+  if (title.includes(q)) score += 25;
+  if (artist.includes(q)) score += 15;
+  if (q.includes(title) && title.length >= 4) score += 20;
+
+  const qTokens = q.split(' ').filter((t) => t.length > 1);
+  for (const t of qTokens) {
+    if (title.includes(t)) score += 4;
+    if (artist.includes(t)) score += 2;
+  }
+  return score;
+}
+
 export async function upsertAlbumFromSpotify(albumData) {
   if (!albumData?.id) return;
   const supabase = createSupabaseServer();
@@ -130,13 +151,20 @@ export async function searchLocalAlbums(query, limit = 12) {
     .from('albums')
     .select('spotify_id, title, artist, cover_url')
     .or(`title.ilike.%${q}%,artist.ilike.%${q}%`)
-    .limit(limit);
+    .limit(Math.max(limit * 3, 30));
 
   if (error) {
     console.warn('searchLocalAlbums:', error.message);
     return [];
   }
-  return (data || []).map(mapDbRow).filter(Boolean);
+
+  return (data || [])
+    .map((row) => ({ row, score: scoreLocalMatch(q, row) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => mapDbRow(x.row))
+    .filter(Boolean);
 }
 
 export async function searchLocalByTitleArtist(title, artist, limit = 15) {
@@ -215,13 +243,7 @@ export async function searchSpotifyAlbums(query) {
   const items = (data.albums?.items || []).filter((a) => a?.id);
   const mapped = items.map(mapSpotifyAlbum).filter(Boolean);
 
-  for (const m of mapped) {
-    try {
-      await upsertAlbumMapped(m);
-    } catch {
-      /* ----- */
-    }
-  }
+  await Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
 
   return mapped;
 }
