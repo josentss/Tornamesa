@@ -272,29 +272,43 @@ export async function DELETE(request, { params }) {
 
     const supabase = createSupabaseServer();
 
-    const related = [
-      'listens',
-      'reviews',
-      'list_items',
-      'lists',
-      'follows',
-      'monthly_tops',
-    ];
-    for (const table of related) {
-      try {
-        if (table === 'follows') {
-          await supabase
-            .from('follows')
-            .delete()
-            .or(`follower_id.eq.${userId},following_id.eq.${userId}`);
-        } else if (table === 'list_items') {
-          await supabase.from('list_items').delete().eq('user_id', userId);
-        } else {
-          await supabase.from(table).delete().eq('user_id', userId);
-        }
-      } catch (e) {
-        console.warn(`Cleanup ${table}:`, e?.message || e);
-      }
+    const { data: summaries } = await supabase
+      .from('monthly_summaries')
+      .select('id')
+      .eq('user_id', userId);
+
+    const summaryIds = (summaries || []).map((s) => s.id);
+    if (summaryIds.length > 0) {
+      await supabase
+        .from('monthly_top_entries')
+        .delete()
+        .in('summary_id', summaryIds);
+    }
+    await supabase.from('monthly_summaries').delete().eq('user_id', userId);
+
+    const { data: userLists } = await supabase
+      .from('lists')
+      .select('id')
+      .eq('user_id', userId);
+
+    const listIds = (userLists || []).map((l) => l.id);
+    if (listIds.length > 0) {
+      await supabase.from('list_items').delete().in('list_id', listIds);
+    }
+    await supabase.from('lists').delete().eq('user_id', userId);
+
+    await supabase.from('listens').delete().eq('user_id', userId);
+    await supabase.from('reviews').delete().eq('user_id', userId);
+
+    await supabase
+      .from('follows')
+      .delete()
+      .or(`follower_id.eq.${userId},following_id.eq.${userId}`);
+
+    try {
+      await supabase.from('user_connections').delete().eq('user_id', userId);
+    } catch {
+      /* tabla opcional */
     }
 
     await supabase.from('profiles').delete().eq('id', userId);
@@ -303,7 +317,11 @@ export async function DELETE(request, { params }) {
     if (authErr) {
       console.error('admin.deleteUser:', authErr);
       return NextResponse.json(
-        { error: authErr.message || 'Could not delete auth user' },
+        {
+          error:
+            authErr.message ||
+            'Profile data removed but auth user could not be deleted. Contact support.',
+        },
         { status: 500, headers: noStoreHeaders }
       );
     }
