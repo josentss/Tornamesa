@@ -14,10 +14,15 @@ export async function GET(request, { params }) {
 
   const now = new Date();
   const year = parseInt(searchParams.get('year') || now.getUTCFullYear(), 10);
-  const month = parseInt(searchParams.get('month') || now.getUTCMonth() + 1, 10);
+  const month = parseInt(
+    searchParams.get('month') || now.getUTCMonth() + 1,
+    10
+  );
   const weekParam = searchParams.get('week');
-  const week = weekParam != null && weekParam !== '' ? parseInt(weekParam, 10) : null;
+  const week =
+    weekParam != null && weekParam !== '' ? parseInt(weekParam, 10) : null;
   const limit = Math.min(parseInt(searchParams.get('limit') || '500', 10), 500);
+  const force = searchParams.get('refresh') === '1';
 
   if (month < 1 || month > 12 || Number.isNaN(year)) {
     return NextResponse.json({ error: 'Invalid year/month' }, { status: 400 });
@@ -29,8 +34,8 @@ export async function GET(request, { params }) {
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, username')
-      .eq('username', username)
-      .single();
+      .ilike('username', username)
+      .maybeSingle();
 
     if (error || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -41,7 +46,8 @@ export async function GET(request, { params }) {
       year,
       month,
       Number.isNaN(week) ? null : week,
-      limit
+      limit,
+      force
     );
 
     const months = await listMonthsWithActivity(profile.id);

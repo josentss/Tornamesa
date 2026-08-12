@@ -14,6 +14,13 @@ export function weekOfMonth(isoDate) {
   return Math.ceil(day / 7);
 }
 
+export function monthsFromIso(iso) {
+  if (!iso) return [];
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return [];
+  return [{ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 }];
+}
+
 function rankAlbums(listens, limit) {
   const map = {};
 
@@ -26,8 +33,8 @@ function rankAlbums(listens, limit) {
         listen_count: 0,
         ratingSum: 0,
         ratingN: 0,
-        lastAt: row.listened_at,
-        firstAt: row.listened_at,
+        lastAt: row.listened_at || '',
+        firstAt: row.listened_at || '',
       };
     }
     map[id].listen_count += 1;
@@ -35,11 +42,11 @@ function rankAlbums(listens, limit) {
       map[id].ratingSum += row.rating;
       map[id].ratingN += 1;
     }
-    if (row.listened_at && row.listened_at > map[id].lastAt) {
-      map[id].lastAt = row.listened_at;
-    }
-    if (row.listened_at && row.listened_at < map[id].firstAt) {
-      map[id].firstAt = row.listened_at;
+    if (row.listened_at) {
+      if (row.listened_at > map[id].lastAt) map[id].lastAt = row.listened_at;
+      if (!map[id].firstAt || row.listened_at < map[id].firstAt) {
+        map[id].firstAt = row.listened_at;
+      }
     }
   }
 
@@ -48,8 +55,10 @@ function rankAlbums(listens, limit) {
       if (b.listen_count !== a.listen_count) {
         return b.listen_count - a.listen_count;
       }
-      // Same count → earlier in .txt (earlier firstAt)
-      return (a.firstAt || '').localeCompare(b.firstAt || '');
+      const fa = a.firstAt || '';
+      const fb = b.firstAt || '';
+      if (fa !== fb) return fa.localeCompare(fb);
+      return String(a.album_id).localeCompare(String(b.album_id));
     })
     .slice(0, limit)
     .map((item, i) => ({
@@ -92,12 +101,17 @@ export async function recomputeMonthlyTop(userId, year, month) {
       },
       { onConflict: 'user_id,year,month' }
     )
-    .select('id, user_id, year, month, total_listens, unique_albums, generated_at')
+    .select(
+      'id, user_id, year, month, total_listens, unique_albums, generated_at'
+    )
     .single();
 
   if (sumErr) throw sumErr;
 
-  await supabase.from('monthly_top_entries').delete().eq('summary_id', summary.id);
+  await supabase
+    .from('monthly_top_entries')
+    .delete()
+    .eq('summary_id', summary.id);
 
   const rows = [];
 
@@ -128,18 +142,41 @@ export async function recomputeMonthlyTop(userId, year, month) {
   }
 
   if (rows.length > 0) {
-    const { error: insErr } = await supabase.from('monthly_top_entries').insert(rows);
+    const { error: insErr } = await supabase
+      .from('monthly_top_entries')
+      .insert(rows);
     if (insErr) throw insErr;
   }
 
   return summary;
 }
 
-export async function ensureMonthlyTop(userId, year, month) {
+export async function recomputeMonthsForDates(userId, isoDates = []) {
+  const keys = new Set();
+  for (const iso of isoDates) {
+    for (const { year, month } of monthsFromIso(iso)) {
+      keys.add(`${year}-${month}`);
+    }
+  }
+  for (const key of keys) {
+    const [y, m] = key.split('-').map(Number);
+    try {
+      await recomputeMonthlyTop(userId, y, m);
+    } catch (e) {
+      console.warn('recomputeMonthsForDates:', key, e.message);
+    }
+  }
+}
+
+export async function ensureMonthlyTop(userId, year, month, force = false) {
   const supabase = createSupabaseServer();
   const now = new Date();
   const isCurrent =
     year === now.getUTCFullYear() && month === now.getUTCMonth() + 1;
+
+  if (force || isCurrent) {
+    return recomputeMonthlyTop(userId, year, month);
+  }
 
   const { data: existing } = await supabase
     .from('monthly_summaries')
@@ -149,9 +186,22 @@ export async function ensureMonthlyTop(userId, year, month) {
     .eq('month', month)
     .maybeSingle();
 
-  if (!existing || isCurrent) {
+  if (!existing) {
     return recomputeMonthlyTop(userId, year, month);
   }
+
+  const { start, end } = monthRange(year, month);
+  const { count, error: countErr } = await supabase
+    .from('listens')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('listened_at', start)
+    .lt('listened_at', end);
+
+  if (!countErr && count != null && count !== existing.total_listens) {
+    return recomputeMonthlyTop(userId, year, month);
+  }
+
   return existing;
 }
 
@@ -160,10 +210,11 @@ export async function getMonthlyTopPayload(
   year,
   month,
   week = null,
-  limit = 500
+  limit = 500,
+  force = false
 ) {
   const supabase = createSupabaseServer();
-  let summary = await ensureMonthlyTop(userId, year, month);
+  let summary = await ensureMonthlyTop(userId, year, month, force);
 
   const fetchEntries = async () => {
     let query = supabase
@@ -216,7 +267,9 @@ export async function getMonthlyTopPayload(
     .not('week', 'is', null);
 
   const weeksAvailable = [
-    ...new Set((weekRows || []).map((r) => r.week).filter((w) => w != null)),
+    ...new Set(
+      (weekRows || []).map((r) => r.week).filter((w) => w != null)
+    ),
   ].sort((a, b) => a - b);
 
   const albums = entries.map((e) => {
