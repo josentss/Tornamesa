@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export async function DELETE(request, { params }) {
   const { listId, albumId } = params;
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
-
-  if (!userId) {
-    return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
-  }
-
-  const supabase = createSupabaseServer();
 
   try {
+    const authUser = await getRequestUser(request);
+    if (!authUser) return unauthorized();
+
+    const supabase = createSupabaseServer();
+
     const { data: list } = await supabase
       .from('lists')
       .select('id, user_id')
@@ -22,9 +20,7 @@ export async function DELETE(request, { params }) {
     if (!list) {
       return NextResponse.json({ error: 'List not found' }, { status: 404 });
     }
-    if (list.user_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (list.user_id !== authUser.id) return forbidden();
 
     const { error } = await supabase
       .from('list_items')

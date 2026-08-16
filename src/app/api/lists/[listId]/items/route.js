@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,7 @@ async function ensureAlbum(supabase, albumId) {
     .from('albums')
     .select('spotify_id')
     .eq('spotify_id', albumId)
-    .single();
+    .maybeSingle();
 
   if (existing) return true;
 
@@ -23,15 +24,13 @@ async function ensureAlbum(supabase, albumId) {
   );
 
   await supabase.from('albums').upsert(
-    [
-      {
-        spotify_id: albumData.id,
-        title: albumData.name,
-        artist: albumData.artists?.[0]?.name || 'Unknown',
-        cover_url: albumData.images?.[0]?.url || null,
-        duration_ms: totalDuration,
-      },
-    ],
+    {
+      spotify_id: albumData.id,
+      title: albumData.name,
+      artist: albumData.artists?.[0]?.name || 'Unknown',
+      cover_url: albumData.images?.[0]?.url || null,
+      duration_ms: totalDuration,
+    },
     { onConflict: 'spotify_id' }
   );
   return true;
@@ -41,13 +40,13 @@ export async function POST(request, { params }) {
   const { listId } = params;
 
   try {
-    const { albumId, userId } = await request.json();
+    const authUser = await getRequestUser(request);
+    if (!authUser) return unauthorized();
 
-    if (!albumId || !userId) {
-      return NextResponse.json(
-        { error: 'Missing albumId or userId' },
-        { status: 400 }
-      );
+    const body = await request.json();
+    const albumId = body.albumId;
+    if (!albumId) {
+      return NextResponse.json({ error: 'Missing albumId' }, { status: 400 });
     }
 
     const supabase = createSupabaseServer();
@@ -61,14 +60,14 @@ export async function POST(request, { params }) {
     if (listError || !list) {
       return NextResponse.json({ error: 'List not found' }, { status: 404 });
     }
-
-    if (list.user_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (list.user_id !== authUser.id) return forbidden();
 
     const ok = await ensureAlbum(supabase, albumId);
     if (!ok) {
-      return NextResponse.json({ error: 'Album not found on Spotify' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Album not found on Spotify' },
+        { status: 404 }
+      );
     }
 
     const { data: item, error } = await supabase

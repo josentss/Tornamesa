@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { ensureToListenList, getListsWithCounts } from '@/lib/lists';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -57,6 +58,10 @@ export async function POST(request, { params }) {
   const { userId } = params;
 
   try {
+    const authUser = await getRequestUser(request);
+    if (!authUser) return unauthorized();
+    if (authUser.id !== userId) return forbidden();
+
     const body = await request.json();
     const name = (body.name || '').trim();
     const description = (body.description || '').trim() || null;
@@ -72,17 +77,19 @@ export async function POST(request, { params }) {
     }
 
     const supabase = createSupabaseServer();
-    await ensureToListenList(userId);
+    await ensureToListenList(authUser.id);
 
     const { data: list, error } = await supabase
       .from('lists')
       .insert({
-        user_id: userId,
+        user_id: authUser.id,
         name,
         description,
         is_system: false,
       })
-      .select('id, user_id, name, description, is_system, created_at, updated_at')
+      .select(
+        'id, user_id, name, description, is_system, created_at, updated_at'
+      )
       .single();
 
     if (error) throw error;

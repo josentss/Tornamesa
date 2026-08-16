@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -10,10 +11,12 @@ async function ensureAlbum(supabase, albumId) {
     .from('albums')
     .select('spotify_id, title, artist, cover_url')
     .eq('spotify_id', albumId)
-    .single();
+    .maybeSingle();
   if (existing) return existing;
   try {
-    const res = await spotifyFetch(`https://api.spotify.com/v1/albums/${albumId}`);
+    const res = await spotifyFetch(
+      `https://api.spotify.com/v1/albums/${albumId}`
+    );
     if (!res.ok) return null;
     const albumData = await res.json();
     const totalDuration = (albumData.tracks?.items || []).reduce(
@@ -47,7 +50,9 @@ export async function GET(request, { params }) {
   try {
     const { data: list, error: listError } = await supabase
       .from('lists')
-      .select('id, user_id, name, description, is_system, created_at, updated_at')
+      .select(
+        'id, user_id, name, description, is_system, created_at, updated_at'
+      )
       .eq('id', listId)
       .single();
 
@@ -131,13 +136,12 @@ export async function PATCH(request, { params }) {
   const { listId } = params;
 
   try {
-    const body = await request.json();
-    const userId = body.userId;
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
-    }
+    const authUser = await getRequestUser(request);
+    if (!authUser) return unauthorized();
 
+    const body = await request.json();
     const supabase = createSupabaseServer();
+
     const { data: list } = await supabase
       .from('lists')
       .select('id, user_id, is_system, name')
@@ -147,9 +151,7 @@ export async function PATCH(request, { params }) {
     if (!list) {
       return NextResponse.json({ error: 'List not found' }, { status: 404 });
     }
-    if (list.user_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (list.user_id !== authUser.id) return forbidden();
 
     const updates = { updated_at: new Date().toISOString() };
 
@@ -203,16 +205,13 @@ export async function PATCH(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const { listId } = params;
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
-
-  if (!userId) {
-    return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
-  }
-
-  const supabase = createSupabaseServer();
 
   try {
+    const authUser = await getRequestUser(request);
+    if (!authUser) return unauthorized();
+
+    const supabase = createSupabaseServer();
+
     const { data: list } = await supabase
       .from('lists')
       .select('id, user_id, is_system')
@@ -222,9 +221,7 @@ export async function DELETE(request, { params }) {
     if (!list) {
       return NextResponse.json({ error: 'List not found' }, { status: 404 });
     }
-    if (list.user_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (list.user_id !== authUser.id) return forbidden();
     if (list.is_system) {
       return NextResponse.json(
         { error: 'Cannot delete system list' },
