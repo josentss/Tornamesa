@@ -10,7 +10,6 @@ import { Header, Footer, ErrorMessage } from "@/components/shared";
 
 function SharedTasteBlock({ sharedCount, sharedAlbums }) {
   if (!sharedCount && !sharedAlbums?.length) return null;
-
   const covers = (sharedAlbums || []).slice(0, 3);
 
   return (
@@ -149,7 +148,6 @@ export default function DiscoverPage() {
   const [debouncedQ, setDebouncedQ] = useState("");
   const [mode, setMode] = useState("recommend");
   const [similar, setSimilar] = useState([]);
-  const [active, setActive] = useState([]);
   const [searchUsers, setSearchUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -167,12 +165,10 @@ export default function DiscoverPage() {
       const data = await api.discoverUsers(debouncedQ, user?.id, 12, 0);
       setMode(data.mode || (debouncedQ ? "search" : "recommend"));
       setSimilar(data.similar || []);
-      setActive(data.active || []);
       setSearchUsers(data.users || []);
     } catch (err) {
       setError(err.message || "Could not load users");
       setSimilar([]);
-      setActive([]);
       setSearchUsers([]);
     } finally {
       setLoading(false);
@@ -190,17 +186,19 @@ export default function DiscoverPage() {
     try {
       if (target.isFollowing) {
         await api.unfollowUser(user.id, target.id);
-        const mark = (list) =>
-          list.map((u) =>
+        setSimilar((prev) =>
+          prev.map((u) =>
             u.id === target.id ? { ...u, isFollowing: false } : u
-          );
-        setSimilar(mark);
-        setActive(mark);
-        setSearchUsers(mark);
+          )
+        );
+        setSearchUsers((prev) =>
+          prev.map((u) =>
+            u.id === target.id ? { ...u, isFollowing: false } : u
+          )
+        );
       } else {
         await api.followUser(user.id, target.id);
         setSimilar((prev) => prev.filter((u) => u.id !== target.id));
-        setActive((prev) => prev.filter((u) => u.id !== target.id));
         setSearchUsers((prev) =>
           prev.map((u) =>
             u.id === target.id ? { ...u, isFollowing: true } : u
@@ -234,7 +232,7 @@ export default function DiscoverPage() {
           Discover people
         </h1>
         <p className="text-stone-400 text-sm mt-1.5">
-          Find listeners with similar taste
+          Find listeners who share your top-rated albums
         </p>
 
         <div className="mt-6 mb-8">
@@ -274,14 +272,14 @@ export default function DiscoverPage() {
           </Section>
         ) : (
           <>
-            {user && (
+            {user ? (
               <Section
                 title="Similar taste"
-                subtitle="People who share albums you've logged"
+                subtitle="People who also logged albums you rated 10/10"
               >
                 {similar.length === 0 ? (
                   <p className="text-stone-500 text-sm py-4">
-                    Log more albums to unlock better recommendations.
+                    Rate more albums with 10 stars to unlock recommendations.
                   </p>
                 ) : (
                   <UserGrid
@@ -293,37 +291,17 @@ export default function DiscoverPage() {
                   />
                 )}
               </Section>
-            )}
-
-            {!user && (
-              <p className="text-sm text-stone-500 mb-8">
+            ) : (
+              <p className="text-sm text-stone-500">
                 <Link
                   href="/auth/login"
                   className="text-[#7cc7e8] hover:underline"
                 >
                   Sign in
                 </Link>{" "}
-                to see people with similar taste.
+                to see people with similar 10/10 albums.
               </p>
             )}
-
-            <Section
-              title="Also active"
-              subtitle="Recent listeners you don't follow yet"
-            >
-              {active.length === 0 ? (
-                <p className="text-stone-500 text-sm py-4">
-                  No one else to suggest right now.
-                </p>
-              ) : (
-                <UserGrid
-                  users={active}
-                  user={user}
-                  actionId={actionId}
-                  onToggle={handleFollowToggle}
-                />
-              )}
-            </Section>
           </>
         )}
       </main>

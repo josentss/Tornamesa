@@ -35,10 +35,34 @@ async function getFollowingSet(supabase, currentUserId) {
   return set;
 }
 
-function attachFollowState(users, followingSet, currentUserId, extrasById = {}) {
-  return users.map((u) =>
-    mapUser(u, followingSet, currentUserId, extrasById[u.id] || {})
-  );
+async function getMyTenStarAlbumIds(supabase, userId) {
+  const ids = new Set();
+
+  const [{ data: listenRows }, { data: reviewRows }] = await Promise.all([
+    supabase
+      .from('listens')
+      .select('album_id')
+      .eq('user_id', userId)
+      .eq('rating', 10)
+      .not('album_id', 'is', null)
+      .limit(200),
+    supabase
+      .from('reviews')
+      .select('album_id')
+      .eq('user_id', userId)
+      .eq('rating', 10)
+      .not('album_id', 'is', null)
+      .limit(200),
+  ]);
+
+  (listenRows || []).forEach((r) => {
+    if (r.album_id) ids.add(r.album_id);
+  });
+  (reviewRows || []).forEach((r) => {
+    if (r.album_id) ids.add(r.album_id);
+  });
+
+  return [...ids].slice(0, 80);
 }
 
 export async function GET(request) {
@@ -64,84 +88,53 @@ export async function GET(request) {
 
       if (error) throw error;
 
-      const list = attachFollowState(
-        (users || []).filter((u) => u.username),
-        followingSet,
-        currentUserId
-      );
+      const list = (users || [])
+        .filter((u) => u.username)
+        .map((u) => mapUser(u, followingSet, currentUserId));
 
       return NextResponse.json(
-        { mode: 'search', query: q, similar: [], active: [], users: list },
+        { mode: 'search', query: q, similar: [], users: list },
         { headers: noStoreHeaders }
       );
     }
 
-    let similarRaw = [];
-    let extrasById = {};
-    let active = [];
-
-    const since = new Date();
-    since.setDate(since.getDate() - 14);
-
-    const { data: recentListens } = await supabase
-      .from('listens')
-      .select('user_id')
-      .gte('listened_at', since.toISOString())
-      .order('listened_at', { ascending: false })
-      .limit(400);
-
-    const activeIds = [
-      ...new Set(
-        (recentListens || [])
-          .map((r) => r.user_id)
-          .filter((id) => id && id !== currentUserId)
-      ),
-    ].slice(0, limit * 2);
-
-    if (activeIds.length > 0) {
-      const { data: activeProfiles } = await supabase
-        .from('profiles')
-        .select('id, username, full_name, avatar_url, is_private')
-        .in('id', activeIds)
-        .not('username', 'is', null);
-      const byId = new Map((activeProfiles || []).map((p) => [p.id, p]));
-      active = activeIds.map((id) => byId.get(id)).filter(Boolean).slice(0, limit);
-    }
+    let similar = [];
 
     if (currentUserId) {
-      const { data: myListens } = await supabase
-        .from('listens')
-        .select('album_id')
-        .eq('user_id', currentUserId)
-        .not('album_id', 'is', null)
-        .order('listened_at', { ascending: false })
-        .limit(200);
-
-      const myAlbumIds = [
-        ...new Set((myListens || []).map((l) => l.album_id).filter(Boolean)),
-      ].slice(0, 60);
+      const myAlbumIds = await getMyTenStarAlbumIds(supabase, currentUserId);
 
       if (myAlbumIds.length > 0) {
-        const { data: others } = await supabase
-          .from('listens')
-          .select('user_id, album_id')
-          .in('album_id', myAlbumIds)
-          .neq('user_id', currentUserId)
-          .limit(800);
+        const [{ data: otherListens }, { data: otherReviews }] =
+          await Promise.all([
+            supabase
+              .from('listens')
+              .select('user_id, album_id')
+              .in('album_id', myAlbumIds)
+              .neq('user_id', currentUserId)
+              .limit(600),
+            supabase
+              .from('reviews')
+              .select('user_id, album_id')
+              .in('album_id', myAlbumIds)
+              .neq('user_id', currentUserId)
+              .limit(400),
+          ]);
 
         const albumsByUser = new Map();
-        (others || []).forEach((row) => {
-          if (!row.user_id || !row.album_id) return;
-          if (!albumsByUser.has(row.user_id)) {
-            albumsByUser.set(row.user_id, new Set());
-          }
-          albumsByUser.get(row.user_id).add(row.album_id);
-        });
+
+        const add = (userId, albumId) => {
+          if (!userId || !albumId || userId === currentUserId) return;
+          if (followingSet.has(userId)) return;
+          if (!albumsByUser.has(userId)) albumsByUser.set(userId, new Set());
+          albumsByUser.get(userId).add(albumId);
+        };
+
+        (otherListens || []).forEach((r) => add(r.user_id, r.album_id));
+        (otherReviews || []).forEach((r) => add(r.user_id, r.album_id));
 
         const ranked = [...albumsByUser.entries()]
-          .filter(([uid]) => !followingSet.has(uid))
-          .map(([uid, set]) => ({
-            id: uid,
+          .map(([id, set]) => ({
+            id,
             sharedCount: set.size,
             albumIds: [...set],
           }))
@@ -151,83 +144,62 @@ export async function GET(request) {
 
         if (ranked.length > 0) {
           const rankedIds = ranked.map((r) => r.id);
-          const sampleAlbumIds = [
+          const sampleIds = [
             ...new Set(ranked.flatMap((r) => r.albumIds.slice(0, 3))),
           ].slice(0, 40);
 
-          const [{ data: similarProfiles }, { data: albumRows }] =
-            await Promise.all([
-              supabase
-                .from('profiles')
-                .select('id, username, full_name, avatar_url, is_private')
-                .in('id', rankedIds)
-                .not('username', 'is', null),
-              sampleAlbumIds.length
-                ? supabase
-                    .from('albums')
-                    .select('spotify_id, title, artist, cover_url')
-                    .in('spotify_id', sampleAlbumIds)
-                : Promise.resolve({ data: [] }),
-            ]);
+          const [{ data: profiles }, { data: albumRows }] = await Promise.all([
+            supabase
+              .from('profiles')
+              .select('id, username, full_name, avatar_url, is_private')
+              .in('id', rankedIds)
+              .not('username', 'is', null),
+            sampleIds.length
+              ? supabase
+                  .from('albums')
+                  .select('spotify_id, title, artist, cover_url')
+                  .in('spotify_id', sampleIds)
+              : Promise.resolve({ data: [] }),
+          ]);
 
           const albumMap = new Map(
             (albumRows || []).map((a) => [a.spotify_id, a])
           );
-          const profileById = new Map(
-            (similarProfiles || []).map((p) => [p.id, p])
-          );
+          const profileById = new Map((profiles || []).map((p) => [p.id, p]));
 
-          similarRaw = [];
-          ranked.forEach((r) => {
-            const p = profileById.get(r.id);
-            if (!p) return;
-            const sharedAlbums = r.albumIds
-              .slice(0, 3)
-              .map((aid) => {
-                const a = albumMap.get(aid);
-                if (!a) return null;
-                return {
-                  id: a.spotify_id,
-                  title: a.title,
-                  artist: a.artist,
-                  cover: a.cover_url,
-                };
-              })
-              .filter(Boolean);
+          similar = ranked
+            .map((r) => {
+              const p = profileById.get(r.id);
+              if (!p || p.id === currentUserId) return null;
+              const sharedAlbums = r.albumIds
+                .slice(0, 3)
+                .map((aid) => {
+                  const a = albumMap.get(aid);
+                  if (!a) return null;
+                  return {
+                    id: a.spotify_id,
+                    title: a.title,
+                    artist: a.artist,
+                    cover: a.cover_url,
+                  };
+                })
+                .filter(Boolean);
 
-            similarRaw.push(p);
-            extrasById[r.id] = {
-              sharedCount: r.sharedCount,
-              sharedAlbums,
-            };
-          });
+              return mapUser(p, followingSet, currentUserId, {
+                sharedCount: r.sharedCount,
+                sharedAlbums,
+              });
+            })
+            .filter(Boolean);
         }
       }
     }
-
-    const similarMapped = attachFollowState(
-      similarRaw,
-      followingSet,
-      currentUserId,
-      extrasById
-    );
-    const activeMapped = attachFollowState(
-      active,
-      followingSet,
-      currentUserId
-    );
-
-    const similarIds = new Set(similarMapped.map((u) => u.id));
-    const activeFiltered = activeMapped.filter(
-      (u) => !similarIds.has(u.id) && !u.isFollowing && !u.isSelf
-    );
 
     return NextResponse.json(
       {
         mode: 'recommend',
         query: null,
-        similar: similarMapped,
-        active: activeFiltered,
+        similar,
         users: [],
       },
       { headers: noStoreHeaders }
