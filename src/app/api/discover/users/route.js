@@ -35,36 +35,6 @@ async function getFollowingSet(supabase, currentUserId) {
   return set;
 }
 
-async function getMyTenStarAlbumIds(supabase, userId) {
-  const ids = new Set();
-
-  const [{ data: listenRows }, { data: reviewRows }] = await Promise.all([
-    supabase
-      .from('listens')
-      .select('album_id')
-      .eq('user_id', userId)
-      .eq('rating', 10)
-      .not('album_id', 'is', null)
-      .limit(200),
-    supabase
-      .from('reviews')
-      .select('album_id')
-      .eq('user_id', userId)
-      .eq('rating', 10)
-      .not('album_id', 'is', null)
-      .limit(200),
-  ]);
-
-  (listenRows || []).forEach((r) => {
-    if (r.album_id) ids.add(r.album_id);
-  });
-  (reviewRows || []).forEach((r) => {
-    if (r.album_id) ids.add(r.album_id);
-  });
-
-  return [...ids].slice(0, 80);
-}
-
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
@@ -101,36 +71,40 @@ export async function GET(request) {
     let similar = [];
 
     if (currentUserId) {
-      const myAlbumIds = await getMyTenStarAlbumIds(supabase, currentUserId);
+      const { data: myTens, error: myErr } = await supabase
+        .from('reviews')
+        .select('album_id')
+        .eq('user_id', currentUserId)
+        .eq('rating', 10)
+        .not('album_id', 'is', null)
+        .limit(150);
+
+      if (myErr) throw myErr;
+
+      const myAlbumIds = [
+        ...new Set((myTens || []).map((r) => r.album_id).filter(Boolean)),
+      ];
 
       if (myAlbumIds.length > 0) {
-        const [{ data: otherListens }, { data: otherReviews }] =
-          await Promise.all([
-            supabase
-              .from('listens')
-              .select('user_id, album_id')
-              .in('album_id', myAlbumIds)
-              .neq('user_id', currentUserId)
-              .limit(600),
-            supabase
-              .from('reviews')
-              .select('user_id, album_id')
-              .in('album_id', myAlbumIds)
-              .neq('user_id', currentUserId)
-              .limit(400),
-          ]);
+        const { data: others, error: oErr } = await supabase
+          .from('reviews')
+          .select('user_id, album_id')
+          .in('album_id', myAlbumIds)
+          .eq('rating', 10)
+          .neq('user_id', currentUserId)
+          .limit(800);
+
+        if (oErr) throw oErr;
 
         const albumsByUser = new Map();
-
-        const add = (userId, albumId) => {
-          if (!userId || !albumId || userId === currentUserId) return;
-          if (followingSet.has(userId)) return;
-          if (!albumsByUser.has(userId)) albumsByUser.set(userId, new Set());
-          albumsByUser.get(userId).add(albumId);
-        };
-
-        (otherListens || []).forEach((r) => add(r.user_id, r.album_id));
-        (otherReviews || []).forEach((r) => add(r.user_id, r.album_id));
+        (others || []).forEach((row) => {
+          if (!row.user_id || !row.album_id) return;
+          if (followingSet.has(row.user_id)) return;
+          if (!albumsByUser.has(row.user_id)) {
+            albumsByUser.set(row.user_id, new Set());
+          }
+          albumsByUser.get(row.user_id).add(row.album_id);
+        });
 
         const ranked = [...albumsByUser.entries()]
           .map(([id, set]) => ({
@@ -138,7 +112,6 @@ export async function GET(request) {
             sharedCount: set.size,
             albumIds: [...set],
           }))
-          .filter((x) => x.sharedCount >= 1)
           .sort((a, b) => b.sharedCount - a.sharedCount)
           .slice(0, limit);
 
