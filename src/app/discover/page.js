@@ -8,7 +8,34 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Header, Footer, ErrorMessage } from "@/components/shared";
 
-function UserRow({ u, user, actionId, onToggle }) {
+function SharedCovers({ albums }) {
+  if (!albums?.length) return null;
+  return (
+    <div className="flex items-center gap-1 mt-1.5">
+      {albums.slice(0, 3).map((a) => (
+        <div
+          key={a.id}
+          className="relative w-7 h-7 rounded overflow-hidden border border-[#2a3645] bg-[#0a121c] shrink-0"
+          title={`${a.title} — ${a.artist}`}
+        >
+          {a.cover ? (
+            <Image
+              src={a.cover}
+              alt=""
+              width={28}
+              height={28}
+              className="object-cover w-full h-full"
+            />
+          ) : (
+            <div className="w-full h-full bg-[#1a2433]" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function UserRow({ u, user, actionId, onToggle, showOverlap }) {
   return (
     <li className="flex items-center gap-3 sm:gap-4 bg-[#131e2c]/80 border border-[#2a3645] rounded-xl px-3 sm:px-4 py-3 hover:border-[#3d5068] transition-colors">
       <Link
@@ -42,6 +69,12 @@ function UserRow({ u, user, actionId, onToggle }) {
               </span>
             )}
           </p>
+          {showOverlap && u.sharedCount > 0 && (
+            <p className="text-[11px] text-[#7cc7e8]/90 mt-0.5">
+              {u.sharedCount} album{u.sharedCount === 1 ? "" : "s"} in common
+            </p>
+          )}
+          {showOverlap && <SharedCovers albums={u.sharedAlbums} />}
         </div>
       </Link>
 
@@ -143,7 +176,7 @@ export default function DiscoverPage() {
         updateFollow(searchUsers, setSearchUsers, target, false);
       } else {
         await api.followUser(user.id, target.id);
-        updateFollow(similar, setSimilar, target, true);
+        setSimilar((prev) => prev.filter((u) => u.id !== target.id));
         updateFollow(active, setActive, target, true);
         updateFollow(searchUsers, setSearchUsers, target, true);
       }
@@ -159,7 +192,7 @@ export default function DiscoverPage() {
       {[1, 2, 3, 4].map((i) => (
         <div
           key={i}
-          className="h-16 rounded-xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
+          className="h-20 rounded-xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
         />
       ))}
     </div>
@@ -195,7 +228,10 @@ export default function DiscoverPage() {
         {loading ? (
           skeleton
         ) : mode === "search" ? (
-          <Section title="Results" subtitle={debouncedQ ? `“${debouncedQ}”` : null}>
+          <Section
+            title="Results"
+            subtitle={debouncedQ ? `“${debouncedQ}”` : null}
+          >
             {searchUsers.length === 0 ? (
               <p className="text-stone-400 text-sm text-center py-12">
                 No users found.
@@ -219,11 +255,12 @@ export default function DiscoverPage() {
             {user && (
               <Section
                 title="Similar taste"
-                subtitle="People who listen to albums you've logged"
+                subtitle="Based on albums you both have logged"
               >
                 {similar.length === 0 ? (
                   <p className="text-stone-500 text-sm py-4">
-                    Log more albums to unlock better recommendations.
+                    Log more albums (or follow fewer people in this list) to see
+                    new recommendations.
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -234,6 +271,7 @@ export default function DiscoverPage() {
                         user={user}
                         actionId={actionId}
                         onToggle={handleFollowToggle}
+                        showOverlap
                       />
                     ))}
                   </ul>
@@ -243,7 +281,10 @@ export default function DiscoverPage() {
 
             {!user && (
               <p className="text-sm text-stone-500 mb-8">
-                <Link href="/auth/login" className="text-[#7cc7e8] hover:underline">
+                <Link
+                  href="/auth/login"
+                  className="text-[#7cc7e8] hover:underline"
+                >
                   Sign in
                 </Link>{" "}
                 to see people with similar taste.
@@ -252,7 +293,7 @@ export default function DiscoverPage() {
 
             <Section
               title="Active lately"
-              subtitle="Listeners with recent activity"
+              subtitle="Listeners with activity in the last 2 weeks"
             >
               {active.length === 0 ? (
                 <p className="text-stone-500 text-sm py-4">
