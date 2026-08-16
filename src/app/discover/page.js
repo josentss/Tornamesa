@@ -8,74 +8,81 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Header, Footer, ErrorMessage } from "@/components/shared";
 
-function SharedCovers({ albums }) {
-  if (!albums?.length) return null;
+function SharedTasteBlock({ sharedCount, sharedAlbums }) {
+  if (!sharedCount && !sharedAlbums?.length) return null;
+
+  const covers = (sharedAlbums || []).slice(0, 3);
+
   return (
-    <div className="flex items-center gap-1 mt-1.5">
-      {albums.slice(0, 3).map((a) => (
-        <div
-          key={a.id}
-          className="relative w-7 h-7 rounded overflow-hidden border border-[#2a3645] bg-[#0a121c] shrink-0"
-          title={`${a.title} — ${a.artist}`}
-        >
-          {a.cover ? (
-            <Image
-              src={a.cover}
-              alt=""
-              width={28}
-              height={28}
-              className="object-cover w-full h-full"
-            />
-          ) : (
-            <div className="w-full h-full bg-[#1a2433]" />
-          )}
-        </div>
-      ))}
+    <div className="mt-3 w-full">
+      <div className="flex items-center justify-center -space-x-2.5 mb-2 min-h-[40px]">
+        {covers.map((a, i) => (
+          <div
+            key={a.id || i}
+            className="relative w-10 h-10 rounded-md overflow-hidden border-2 border-[#131e2c] bg-[#0a121c] shadow-md"
+            style={{ zIndex: 3 - i }}
+            title={a.title ? `${a.title} — ${a.artist}` : undefined}
+          >
+            {a.cover ? (
+              <Image
+                src={a.cover}
+                alt=""
+                width={40}
+                height={40}
+                className="object-cover w-full h-full"
+              />
+            ) : (
+              <div className="w-full h-full bg-[#1a2433]" />
+            )}
+          </div>
+        ))}
+      </div>
+      {sharedCount > 0 && (
+        <p className="text-center text-[11px] font-medium text-[#7cc7e8]/95 leading-tight">
+          {sharedCount} in common
+        </p>
+      )}
     </div>
   );
 }
 
-function UserRow({ u, user, actionId, onToggle, showOverlap }) {
+function UserCard({ u, user, actionId, onToggle, showOverlap }) {
   return (
-    <li className="flex items-center gap-3 sm:gap-4 bg-[#131e2c]/80 border border-[#2a3645] rounded-xl px-3 sm:px-4 py-3 hover:border-[#3d5068] transition-colors">
+    <li className="flex flex-col items-center bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl px-3 pt-5 pb-4 hover:border-[#3d5068] transition-colors h-full">
       <Link
         href={`/${u.username}`}
-        className="flex items-center gap-3 min-w-0 flex-1"
+        className="flex flex-col items-center w-full min-w-0 group"
       >
-        <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-[#0a121c] border border-[#2a3645] shrink-0">
+        <div className="relative w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-full overflow-hidden bg-[#0a121c] border border-[#2a3645] shrink-0 ring-2 ring-transparent group-hover:ring-[#7cc7e8]/30 transition">
           {u.avatar_url ? (
             <Image
               src={u.avatar_url}
               alt=""
-              width={48}
-              height={48}
+              width={72}
+              height={72}
               className="object-cover w-full h-full"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-sm font-bold text-stone-500">
+            <div className="w-full h-full flex items-center justify-center text-lg font-bold text-stone-500">
               {u.username?.charAt(0).toUpperCase()}
             </div>
           )}
         </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-white truncate">
-            {u.full_name || u.username}
-          </p>
-          <p className="text-xs text-stone-500 truncate">
-            @{u.username}
-            {u.is_private && (
-              <span className="ml-1.5 text-[10px] uppercase tracking-wider text-stone-600">
-                Private
-              </span>
-            )}
-          </p>
-          {showOverlap && u.sharedCount > 0 && (
-            <p className="text-[11px] text-[#7cc7e8]/90 mt-0.5">
-              {u.sharedCount} album{u.sharedCount === 1 ? "" : "s"} in common
-            </p>
-          )}
-          {showOverlap && <SharedCovers albums={u.sharedAlbums} />}
-        </div>
+
+        <p className="mt-3 text-sm font-semibold text-white text-center truncate w-full px-1">
+          {u.full_name || u.username}
+        </p>
+        <p className="text-xs text-stone-500 text-center truncate w-full px-1">
+          @{u.username}
+          {u.is_private ? " · Private" : ""}
+        </p>
+
+        {showOverlap && (
+          <SharedTasteBlock
+            sharedCount={u.sharedCount}
+            sharedAlbums={u.sharedAlbums}
+          />
+        )}
       </Link>
 
       {!u.isSelf && (
@@ -83,7 +90,7 @@ function UserRow({ u, user, actionId, onToggle, showOverlap }) {
           type="button"
           onClick={() => onToggle(u)}
           disabled={actionId === u.id}
-          className={`shrink-0 text-xs font-semibold px-3.5 py-2 rounded-lg border transition-all ${
+          className={`mt-4 w-full max-w-[140px] text-xs font-semibold px-3 py-2 rounded-lg border transition-all ${
             u.isFollowing
               ? "bg-transparent border-[#2a3645] text-stone-300 hover:border-stone-400"
               : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-[#a5d8f0]"
@@ -102,6 +109,24 @@ function UserRow({ u, user, actionId, onToggle, showOverlap }) {
   );
 }
 
+function UserGrid({ users, user, actionId, onToggle, showOverlap }) {
+  if (!users.length) return null;
+  return (
+    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      {users.map((u) => (
+        <UserCard
+          key={u.id}
+          u={u}
+          user={user}
+          actionId={actionId}
+          onToggle={onToggle}
+          showOverlap={showOverlap}
+        />
+      ))}
+    </ul>
+  );
+}
+
 function Section({ title, subtitle, children }) {
   return (
     <section className="mb-10">
@@ -109,7 +134,7 @@ function Section({ title, subtitle, children }) {
         {title}
       </h2>
       {subtitle && (
-        <p className="text-xs text-stone-600 mb-3">{subtitle}</p>
+        <p className="text-xs text-stone-600 mb-4">{subtitle}</p>
       )}
       {children}
     </section>
@@ -158,12 +183,6 @@ export default function DiscoverPage() {
     load();
   }, [load]);
 
-  const updateFollow = (list, setList, target, isFollowing) => {
-    setList(
-      list.map((u) => (u.id === target.id ? { ...u, isFollowing } : u))
-    );
-  };
-
   const handleFollowToggle = async (target) => {
     if (!user) return router.push("/auth/login");
     if (target.isSelf) return;
@@ -171,14 +190,22 @@ export default function DiscoverPage() {
     try {
       if (target.isFollowing) {
         await api.unfollowUser(user.id, target.id);
-        updateFollow(similar, setSimilar, target, false);
-        updateFollow(active, setActive, target, false);
-        updateFollow(searchUsers, setSearchUsers, target, false);
+        const mark = (list) =>
+          list.map((u) =>
+            u.id === target.id ? { ...u, isFollowing: false } : u
+          );
+        setSimilar(mark);
+        setActive(mark);
+        setSearchUsers(mark);
       } else {
         await api.followUser(user.id, target.id);
         setSimilar((prev) => prev.filter((u) => u.id !== target.id));
-        updateFollow(active, setActive, target, true);
-        updateFollow(searchUsers, setSearchUsers, target, true);
+        setActive((prev) => prev.filter((u) => u.id !== target.id));
+        setSearchUsers((prev) =>
+          prev.map((u) =>
+            u.id === target.id ? { ...u, isFollowing: true } : u
+          )
+        );
       }
     } catch (err) {
       console.error(err);
@@ -188,11 +215,11 @@ export default function DiscoverPage() {
   };
 
   const skeleton = (
-    <div className="space-y-3">
-      {[1, 2, 3, 4].map((i) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      {[1, 2, 3, 4, 5, 6].map((i) => (
         <div
           key={i}
-          className="h-20 rounded-xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
+          className="h-52 rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
         />
       ))}
     </div>
@@ -202,7 +229,7 @@ export default function DiscoverPage() {
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={user} />
 
-      <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           Discover people
         </h1>
@@ -237,17 +264,12 @@ export default function DiscoverPage() {
                 No users found.
               </p>
             ) : (
-              <ul className="space-y-2">
-                {searchUsers.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    u={u}
-                    user={user}
-                    actionId={actionId}
-                    onToggle={handleFollowToggle}
-                  />
-                ))}
-              </ul>
+              <UserGrid
+                users={searchUsers}
+                user={user}
+                actionId={actionId}
+                onToggle={handleFollowToggle}
+              />
             )}
           </Section>
         ) : (
@@ -255,26 +277,20 @@ export default function DiscoverPage() {
             {user && (
               <Section
                 title="Similar taste"
-                subtitle="Based on albums you both have logged"
+                subtitle="People who share albums you've logged"
               >
                 {similar.length === 0 ? (
                   <p className="text-stone-500 text-sm py-4">
-                    Log more albums (or follow fewer people in this list) to see
-                    new recommendations.
+                    Log more albums to unlock better recommendations.
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {similar.map((u) => (
-                      <UserRow
-                        key={u.id}
-                        u={u}
-                        user={user}
-                        actionId={actionId}
-                        onToggle={handleFollowToggle}
-                        showOverlap
-                      />
-                    ))}
-                  </ul>
+                  <UserGrid
+                    users={similar}
+                    user={user}
+                    actionId={actionId}
+                    onToggle={handleFollowToggle}
+                    showOverlap
+                  />
                 )}
               </Section>
             )}
@@ -292,25 +308,20 @@ export default function DiscoverPage() {
             )}
 
             <Section
-              title="Active lately"
-              subtitle="Listeners with activity in the last 2 weeks"
+              title="Also active"
+              subtitle="Recent listeners you don't follow yet"
             >
               {active.length === 0 ? (
                 <p className="text-stone-500 text-sm py-4">
-                  No recent activity to show.
+                  No one else to suggest right now.
                 </p>
               ) : (
-                <ul className="space-y-2">
-                  {active.map((u) => (
-                    <UserRow
-                      key={u.id}
-                      u={u}
-                      user={user}
-                      actionId={actionId}
-                      onToggle={handleFollowToggle}
-                    />
-                  ))}
-                </ul>
+                <UserGrid
+                  users={active}
+                  user={user}
+                  actionId={actionId}
+                  onToggle={handleFollowToggle}
+                />
               )}
             </Section>
           </>

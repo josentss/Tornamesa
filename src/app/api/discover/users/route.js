@@ -218,7 +218,9 @@ export async function GET(request) {
     );
 
     const similarIds = new Set(similarMapped.map((u) => u.id));
-    const activeFiltered = activeMapped.filter((u) => !similarIds.has(u.id));
+    const activeFiltered = activeMapped.filter(
+      (u) => !similarIds.has(u.id) && !u.isFollowing && !u.isSelf
+    );
 
     return NextResponse.json(
       {
