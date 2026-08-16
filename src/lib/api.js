@@ -33,11 +33,22 @@ export const api = {
 
   getAlbumDetails: (id) => fetchApi(`/api/albums/${id}`),
 
-  registerListen: (albumId, userId, rating, review) =>
-    fetchApi('/api/listen', {
+  registerListen: async (albumId, userId, rating, review) => {
+    const { createClient } = await import('@/lib/supabase/client');
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) throw new Error('You must be logged in');
+
+    return fetchApi('/api/listen', {
       method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({ albumId, userId, rating, review }),
-    }),
+    });
+  },
 
   updateListen: async (listenId, { listened_at, rating, review }) => {
     const { createClient } = await import('@/lib/supabase/client');

@@ -1,67 +1,77 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { sanitizeString } from '@/lib/validators';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 
+export const dynamic = 'force-dynamic';
+
+async function getRequestUser(request) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7);
+  const client = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  const {
+    data: { user },
+    error,
+  } = await client.auth.getUser(token);
+  if (error || !user) return null;
+  return user;
+}
+
 export async function POST(request) {
-  const { albumId, userId, rating, review } = await request.json();
-
-  if (!albumId || !userId) {
-    return NextResponse.json(
-      { error: 'Missing albumId or userId' },
-      { status: 400 }
-    );
-  }
-
-  if (rating !== undefined && rating !== null && rating !== '') {
-    const num = Number(rating);
-    if (Number.isNaN(num) || num < 1 || num > 10) {
-      return NextResponse.json(
-        { error: 'Rating must be between 1 and 10' },
-        { status: 400 }
-      );
-    }
-  }
-
-  const supabase = createSupabaseServer();
-
   try {
-    const { data: userData } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', userId)
-      .single();
-
-    if (!userData) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    const authUser = await getRequestUser(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const body = await request.json();
+    const { albumId, rating, review } = body;
+    const userId = authUser.id;
+
+    if (!albumId) {
+      return NextResponse.json({ error: 'Missing albumId' }, { status: 400 });
+    }
+
+    if (rating !== undefined && rating !== null && rating !== '') {
+      const num = Number(rating);
+      if (Number.isNaN(num) || num < 1 || num > 10) {
+        return NextResponse.json(
+          { error: 'Rating must be between 1 and 10' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const supabase = createSupabaseServer();
 
     const { data: existingAlbum } = await supabase
       .from('albums')
       .select('spotify_id')
       .eq('spotify_id', albumId)
-      .single();
+      .maybeSingle();
 
     if (!existingAlbum) {
       const spotifyResponse = await spotifyFetch(
         `https://api.spotify.com/v1/albums/${albumId}`
       );
-
       if (!spotifyResponse.ok) {
         return NextResponse.json(
           { error: 'Album not found on Spotify' },
           { status: 404 }
         );
       }
-
       const albumData = await spotifyResponse.json();
       const totalDuration = (albumData.tracks?.items || []).reduce(
         (acc, t) => acc + (t.duration_ms || 0),
         0
       );
-
-      await supabase.from('albums').insert([
+      await supabase.from('albums').upsert(
         {
           spotify_id: albumData.id,
           title: albumData.name,
@@ -69,7 +79,8 @@ export async function POST(request) {
           cover_url: albumData.images?.[0]?.url || null,
           duration_ms: totalDuration,
         },
-      ]);
+        { onConflict: 'spotify_id' }
+      );
     }
 
     const ratingValue =
@@ -94,7 +105,6 @@ export async function POST(request) {
 
     if (listenError) throw listenError;
 
-    // Keep Monthly Top in sync (current month only)
     try {
       const d = new Date(listenedAt);
       await recomputeMonthlyTop(
