@@ -102,6 +102,10 @@ function shadeHex(hex, factor) {
   return `rgb(${f(r)},${f(g)},${f(b)})`;
 }
 
+/**
+ * 4:5 portrait (1080×1350) — denser type, text close to covers,
+ * solid bg only (no cover blur), #1 slightly larger.
+ */
 async function generateWrappedPng({
   username,
   periodTitle,
@@ -110,8 +114,8 @@ async function generateWrappedPng({
   albums,
   bgHex = "#1c241c",
 }) {
-  const W = 1200;
-  const H = 900;
+  const W = 1080;
+  const H = 1350; // 4:5
   const PAD = 48;
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -121,108 +125,118 @@ async function generateWrappedPng({
   const list = (albums || []).slice(0, 5);
   const covers = await Promise.all(list.map((a) => loadImage(a.cover)));
 
+  // Solid color + soft depth only (no cover blur)
   ctx.fillStyle = bgHex;
   ctx.fillRect(0, 0, W, H);
 
   const depth = ctx.createLinearGradient(0, 0, 0, H);
-  depth.addColorStop(0, "rgba(255,255,255,0.035)");
+  depth.addColorStop(0, "rgba(255,255,255,0.04)");
   depth.addColorStop(0.5, "rgba(0,0,0,0)");
-  depth.addColorStop(1, "rgba(0,0,0,0.22)");
+  depth.addColorStop(1, "rgba(0,0,0,0.2)");
   ctx.fillStyle = depth;
   ctx.fillRect(0, 0, W, H);
 
   const textMain = "#f5f0e6";
-  const textMuted = "rgba(245,240,230,0.55)";
+  const textMuted = "rgba(245,240,230,0.58)";
   const accent = "#7cc7e8";
 
-  let y = 56;
+  // —— Header (compact) ——
+  let cursorY = 52;
   ctx.fillStyle = textMain;
-  ctx.font = "800 36px system-ui, -apple-system, sans-serif";
+  ctx.font = "800 40px system-ui, -apple-system, sans-serif";
   const left = periodTitle || "";
-  ctx.fillText(left, PAD, y);
+  ctx.fillText(left, PAD, cursorY);
   const leftW = ctx.measureText(left).width;
   ctx.fillStyle = textMuted;
-  ctx.font = "600 36px system-ui, -apple-system, sans-serif";
-  ctx.fillText(" · Top albums", PAD + leftW, y);
+  ctx.font = "600 40px system-ui, -apple-system, sans-serif";
+  ctx.fillText(" · Top albums", PAD + leftW, cursorY);
 
-  y += 36;
+  cursorY += 38;
   ctx.fillStyle = textMuted;
-  ctx.font = "500 20px system-ui, -apple-system, sans-serif";
+  ctx.font = "600 22px system-ui, -apple-system, sans-serif";
   ctx.fillText(
     `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`,
     PAD,
-    y
+    cursorY
   );
 
   if (username) {
-    y += 28;
+    cursorY += 30;
     ctx.fillStyle = accent;
-    ctx.font = "600 18px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`@${username}`, PAD, y);
+    ctx.font = "700 20px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`@${username}`, PAD, cursorY);
   }
 
-  y += 20;
-  ctx.strokeStyle = "rgba(245,240,230,0.12)";
+  cursorY += 22;
+  ctx.strokeStyle = "rgba(245,240,230,0.14)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(PAD, y);
-  ctx.lineTo(W - PAD, y);
+  ctx.moveTo(PAD, cursorY);
+  ctx.lineTo(W - PAD, cursorY);
   ctx.stroke();
 
-  const listTop = y + 18;
-  const listBottom = H - 64;
+  // —— Rank list fills remaining height ——
+  const listTop = cursorY + 16;
+  const listBottom = H - 58;
   const available = listBottom - listTop;
 
   const nRest = Math.max(list.length - 1, 0);
-  const firstRowH =
-    list.length === 0 ? 0 : list.length === 1 ? available : available * 0.28;
+  const firstShare = list.length <= 1 ? 1 : 0.26;
+  const firstRowH = available * firstShare;
   const restRowH = nRest > 0 ? (available - firstRowH) / nRest : 0;
 
-  const COVER_1 = Math.min(148, Math.floor(firstRowH * 0.82));
-  const COVER_N = Math.min(112, Math.floor(restRowH * 0.78));
-  const rankCol = 52;
+  // Covers large relative to row; text sits close (gap ~18px)
+  const COVER_1 = Math.min(168, Math.floor(firstRowH * 0.88));
+  const COVER_N = Math.min(128, Math.floor(restRowH * 0.86));
+  const rankW = 56;
+  const textToCoverGap = 18;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
     const isFirst = i === 0;
     const rowH = isFirst ? firstRowH : restRowH;
-    const rowTop =
-      listTop + (isFirst ? 0 : firstRowH + (i - 1) * restRowH);
+    const rowTop = listTop + (isFirst ? 0 : firstRowH + (i - 1) * restRowH);
     const midY = rowTop + rowH / 2;
+
     const coverSize = isFirst ? COVER_1 : COVER_N;
     const coverX = W - PAD - coverSize;
     const coverY = midY - coverSize / 2;
-    const textX = PAD + rankCol;
-    const textMax = coverX - textX - 20;
 
-    ctx.fillStyle = isFirst ? accent : textMain;
-    ctx.font = isFirst
-      ? "800 40px system-ui, -apple-system, sans-serif"
-      : "800 32px system-ui, -apple-system, sans-serif";
+    const textX = PAD + rankW;
+    const textMax = coverX - textX - textToCoverGap;
+
+    // Rank
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
+    ctx.fillStyle = isFirst ? accent : textMain;
+    ctx.font = isFirst
+      ? "900 44px system-ui, -apple-system, sans-serif"
+      : "800 36px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
+    // Title — bold & large
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "700 30px system-ui, -apple-system, sans-serif"
-      : "700 24px system-ui, -apple-system, sans-serif";
+      ? "800 34px system-ui, -apple-system, sans-serif"
+      : "800 28px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.title || "Unknown", textMax),
       textX,
-      midY - (isFirst ? 16 : 14)
+      midY - (isFirst ? 18 : 15)
     );
 
+    // Artist · plays
     ctx.fillStyle = textMuted;
     ctx.font = isFirst
-      ? "500 18px system-ui, -apple-system, sans-serif"
-      : "500 16px system-ui, -apple-system, sans-serif";
+      ? "600 20px system-ui, -apple-system, sans-serif"
+      : "600 18px system-ui, -apple-system, sans-serif";
     const sub = [item.artist, `${item.count ?? 0} plays`]
       .filter(Boolean)
       .join("  ·  ");
-    ctx.fillText(truncate(ctx, sub, textMax), textX, midY + (isFirst ? 16 : 14));
+    ctx.fillText(truncate(ctx, sub, textMax), textX, midY + (isFirst ? 18 : 15));
 
-    ctx.fillStyle = shadeHex(bgHex, 0.7);
+    // Cover
+    ctx.fillStyle = shadeHex(bgHex, 0.72);
     roundRect(ctx, coverX, coverY, coverSize, coverSize, isFirst ? 14 : 12);
     ctx.fill();
     if (covers[i]) {
@@ -246,22 +260,23 @@ async function generateWrappedPng({
 
   ctx.textBaseline = "alphabetic";
 
-  ctx.strokeStyle = "rgba(245,240,230,0.12)";
+  // —— Footer ——
+  ctx.strokeStyle = "rgba(245,240,230,0.14)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(PAD, H - 44);
-  ctx.lineTo(W - PAD, H - 44);
+  ctx.moveTo(PAD, H - 40);
+  ctx.lineTo(W - PAD, H - 40);
   ctx.stroke();
 
   ctx.fillStyle = textMain;
-  ctx.font = "600 16px system-ui, -apple-system, sans-serif";
+  ctx.font = "600 17px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("tornamesa-nu.vercel.app", PAD, H - 18);
+  ctx.fillText("tornamesa-nu.vercel.app", PAD, H - 16);
 
   ctx.fillStyle = textMuted;
-  ctx.font = "600 14px system-ui, -apple-system, sans-serif";
+  ctx.font = "600 15px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText("ACTIVITY STATISTICS", W - PAD, H - 18);
+  ctx.fillText("ACTIVITY STATISTICS", W - PAD, H - 16);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
@@ -738,7 +753,7 @@ function MonthlyTopContent({ username: usernameProp }) {
           onClick={() => setWrappedOpen(false)}
         >
           <div
-            className="w-full sm:max-w-md bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
+            className="w-full sm:max-w-sm bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3645]">
@@ -779,19 +794,20 @@ function MonthlyTopContent({ username: usernameProp }) {
               </div>
             </div>
 
-            <div className="overflow-y-auto p-3 sm:p-4 flex justify-center bg-[#0a0f16] min-h-[160px]">
+            <div className="overflow-y-auto p-3 sm:p-4 flex justify-center bg-[#0a0f16] min-h-[180px]">
               {wrappedLoading && (
-                <p className="text-stone-500 text-sm py-12">Generating...</p>
+                <p className="text-stone-500 text-sm py-14">Generating...</p>
               )}
               {!wrappedLoading && wrappedUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={wrappedUrl}
                   alt="Wrapped"
-                  className="w-full max-w-[420px] rounded-lg border border-[#2a3645]"
+                  className="w-full max-w-[300px] rounded-lg border border-[#2a3645]"
                 />
               )}
               {!wrappedLoading && !wrappedUrl && (
-                <p className="text-stone-500 text-sm py-12">
+                <p className="text-stone-500 text-sm py-14">
                   Could not generate image
                 </p>
               )}
