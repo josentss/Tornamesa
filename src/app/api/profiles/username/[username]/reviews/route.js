@@ -10,12 +10,14 @@ async function ensureAlbum(supabase, albumId) {
     .from('albums')
     .select('spotify_id, title, artist, cover_url')
     .eq('spotify_id', albumId)
-    .single();
+    .maybeSingle();
 
   if (existing) return existing;
 
   try {
-    const res = await spotifyFetch(`https://api.spotify.com/v1/albums/${albumId}`);
+    const res = await spotifyFetch(
+      `https://api.spotify.com/v1/albums/${albumId}`
+    );
     if (!res.ok) return null;
     const albumData = await res.json();
     const totalDuration = (albumData.tracks?.items || []).reduce(
@@ -47,6 +49,11 @@ export async function GET(request, { params }) {
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const ratingParam = searchParams.get('rating');
+  const ratingFilter =
+    ratingParam && ratingParam !== 'all'
+      ? parseInt(ratingParam, 10)
+      : null;
 
   const supabase = createSupabaseServer();
 
@@ -61,12 +68,25 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const { data: reviewsData, error } = await supabase
+    let query = supabase
       .from('reviews')
       .select('id, album_id, rating, review_text, created_at, updated_at')
       .eq('user_id', profile.id)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .order('created_at', { ascending: false });
+
+    if (
+      ratingFilter != null &&
+      !Number.isNaN(ratingFilter) &&
+      ratingFilter >= 1 &&
+      ratingFilter <= 10
+    ) {
+      query = query.eq('rating', ratingFilter);
+    }
+
+    const { data: reviewsData, error } = await query.range(
+      offset,
+      offset + limit - 1
+    );
 
     if (error) throw error;
 
@@ -88,7 +108,6 @@ export async function GET(request, { params }) {
       albumMap[a.spotify_id] = a;
     });
 
-    // Rellenar los que faltan desde Spotify
     for (const id of albumIds) {
       if (!albumMap[id]) {
         const fetched = await ensureAlbum(supabase, id);
@@ -122,7 +141,11 @@ export async function GET(request, { params }) {
 
     return NextResponse.json(
       { username: profile.username, reviews },
-      { headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } }
+      {
+        headers: {
+          'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        },
+      }
     );
   } catch (err) {
     console.error('GET user reviews error:', err);

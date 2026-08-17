@@ -174,10 +174,20 @@ export const api = {
       body: JSON.stringify({ rating, review_text: reviewText }),
     }),
 
-  getUserReviews: (username) =>
-    fetchApi(`/api/profiles/username/${username}/reviews?_t=${Date.now()}`, {
-      cache: 'no-store',
-    }),
+  getUserReviews: (username, limit = 20, offset = 0, rating = null) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
+      _t: String(Date.now()),
+    });
+    if (rating != null && rating !== 'all' && rating !== '') {
+      params.set('rating', String(rating));
+    }
+    return fetchApi(
+      `/api/profiles/username/${encodeURIComponent(username)}/reviews?${params}`,
+      { cache: 'no-store' }
+    );
+  },
 
   getFriendsReviews: (userId) =>
     fetchApi(`/api/users/${userId}/friends-reviews?_t=${Date.now()}`, {

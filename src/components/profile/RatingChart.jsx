@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 
 function buildYTicks(maxCount) {
   if (maxCount <= 0) return [0, 1];
@@ -18,7 +19,8 @@ function buildYTicks(maxCount) {
   return ticks;
 }
 
-export default function RatingChart({ distribution }) {
+export default function RatingChart({ distribution, username }) {
+  const router = useRouter();
   const ratings = Array.from({ length: 10 }, (_, i) => i + 1);
   const maxCount = Math.max(...ratings.map((r) => distribution[r] || 0), 1);
   const yTicks = useMemo(() => buildYTicks(maxCount), [maxCount]);
@@ -44,11 +46,14 @@ export default function RatingChart({ distribution }) {
     0
   );
 
+  const goToRating = (rating, count) => {
+    if (!username || count <= 0) return;
+    router.push(`/${username}/reviews?rating=${rating}`);
+  };
+
   if (totalRated === 0) {
     return (
-      <p className="text-xs text-stone-500 text-center py-6">
-        No ratings yet
-      </p>
+      <p className="text-xs text-stone-500 text-center py-6">No ratings yet</p>
     );
   }
 
@@ -62,7 +67,6 @@ export default function RatingChart({ distribution }) {
         role="img"
         aria-label="Rating distribution from 1 to 10"
       >
-        {/* Horizontal grid — only at nice ticks */}
         {yTicks.map((t) => (
           <line
             key={`h-${t}`}
@@ -75,7 +79,6 @@ export default function RatingChart({ distribution }) {
           />
         ))}
 
-        {/* Axes */}
         <line
           x1={paddingLeft}
           y1={chartHeight - paddingBottom}
@@ -93,7 +96,6 @@ export default function RatingChart({ distribution }) {
           strokeWidth={1.25}
         />
 
-        {/* Y labels — sparse */}
         {yTicks.map((t) => (
           <text
             key={`yl-${t}`}
@@ -107,7 +109,6 @@ export default function RatingChart({ distribution }) {
           </text>
         ))}
 
-        {/* X labels 1–10 */}
         {ratings.map((r) => (
           <text
             key={`xl-${r}`}
@@ -121,22 +122,23 @@ export default function RatingChart({ distribution }) {
           </text>
         ))}
 
-        {/* Bars — all scores, empty slots stay subtle */}
         {ratings.map((rating) => {
           const count = distribution[rating] || 0;
           const x = xScale(rating);
           const y = count > 0 ? yScale(count) : yScale(0);
           const height = count > 0 ? Math.max(2, yScale(0) - y) : 0;
           const isHot = hovered === rating;
+          const clickable = Boolean(username) && count > 0;
 
           return (
             <g
               key={rating}
               onMouseEnter={() => setHovered(rating)}
               onMouseLeave={() => setHovered(null)}
-              className="cursor-pointer"
+              onClick={() => goToRating(rating, count)}
+              className={clickable ? "cursor-pointer" : undefined}
+              style={clickable ? { cursor: "pointer" } : undefined}
             >
-              {/* Hit area */}
               <rect
                 x={x - barWidth / 2 - 2}
                 y={paddingTop}
@@ -155,7 +157,6 @@ export default function RatingChart({ distribution }) {
                   className="transition-colors duration-150"
                 />
               )}
-              {/* Count only when hovered or bar is tall enough */}
               {count > 0 && (isHot || height > 18) && (
                 <text
                   x={x}
@@ -180,6 +181,9 @@ export default function RatingChart({ distribution }) {
           </span>{" "}
           album{(distribution[hovered] || 0) !== 1 ? "s" : ""} rated{" "}
           <span className="font-semibold">{hovered}</span>
+          {username && (distribution[hovered] || 0) > 0 && (
+            <span className="text-stone-500"> · click to view</span>
+          )}
         </div>
       )}
     </div>

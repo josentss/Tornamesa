@@ -272,8 +272,8 @@ export default function UserProfileClient({ params }) {
       )}
 
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
-        <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-7 sm:pb-8 px-5 sm:px-6 md:px-8 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
-          {/* Avatar.. centrado al card bien */}
+      <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-7 sm:pb-8 px-5 sm:px-6 md:px-8 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm overflow-hidden md:min-h-[17.5rem]">
+          {/* profile picture centrada */}
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2 z-10">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
@@ -296,9 +296,9 @@ export default function UserProfileClient({ params }) {
             </div>
           </div>
 
-          {/* Desktop stats.. izquierda ajustado */}
+          {/* stats en pc ajustadas a la izquierda */}
           {!isPrivateLocked && (
-            <div className="hidden md:block absolute left-5 lg:left-8 top-[4.25rem] w-[7.25rem] lg:w-32">
+            <div className="hidden md:block absolute left-5 lg:left-8 top-[4.25rem] bottom-6 w-[7.25rem] lg:w-32 overflow-hidden">
               <div className="space-y-4 text-left">
                 {profileStats.map((s) => {
                   const clickable = typeof s.go === "function";
@@ -336,7 +336,7 @@ export default function UserProfileClient({ params }) {
             </div>
           )}
 
-          {/* Desktop actions.. derecha ajustado */}
+          {/* pc actions ajustado a derecha*/}
           <div className="hidden md:flex absolute right-5 lg:right-8 top-[4.25rem] flex-col items-end gap-2.5">
             <button
               type="button"
@@ -377,7 +377,7 @@ export default function UserProfileClient({ params }) {
             )}
           </div>
 
-          {/* Identity.. centrado al avatar correctamente */}
+          {/* datos centrados a profile picture */}
           <div className="text-center md:px-36 lg:px-40">
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight">
@@ -443,7 +443,7 @@ export default function UserProfileClient({ params }) {
             )}
           </div>
 
-          {/* Mobile actions */}
+          {/* botones en celular */}
           <div className="md:hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 mt-6">
             <button
               type="button"
@@ -484,7 +484,7 @@ export default function UserProfileClient({ params }) {
             )}
           </div>
 
-          {/* Mobile stats */}
+          {/* stats en celular */}
           {!isPrivateLocked && (
             <div className="md:hidden grid grid-cols-3 gap-2 pt-4 mt-5 border-t border-[#2a3645]">
               {profileStats.map((s) => {
@@ -621,6 +621,7 @@ export default function UserProfileClient({ params }) {
                     <ReviewsList
                       reviews={recentReviews}
                       emptyMessage="Reviews written by this user will appear here."
+                      username={profileData.username}
                     />
                     {recentReviews.length > 0 && (
                       <div className="mt-5 text-center sm:text-left">
@@ -778,6 +779,7 @@ export default function UserProfileClient({ params }) {
                   <div className="overflow-x-auto">
                     <RatingChart
                       distribution={stats?.ratingDistribution || {}}
+                      username={profileData.username}
                     />
                   </div>
                 </div>
