@@ -140,7 +140,6 @@ export default function AlbumPage({ params }) {
     };
   }, [id, user]);
 
-  // Bookmark filled if album is in any list
   useEffect(() => {
     if (!user || !id) {
       setSavedSomewhere(false);
@@ -163,19 +162,29 @@ export default function AlbumPage({ params }) {
     };
   }, [user, id, saveOpen]);
 
-  // Scroll to #reviews after content is ready
   useEffect(() => {
     if (loading || !album) return;
     if (typeof window === "undefined") return;
-    if (window.location.hash !== "#reviews") return;
+
+    const hash = window.location.hash;
+    if (!hash || hash === "#") return;
+
+    const tryScroll = () => {
+      const el = document.getElementById(hash.slice(1));
+      if (!el) return false;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-2", "ring-[#7cc7e8]/50", "rounded-xl");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-[#7cc7e8]/50");
+      }, 2200);
+      return true;
+    };
+
+    if (tryScroll()) return undefined;
 
     const t = requestAnimationFrame(() => {
-      document.getElementById("reviews")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      if (!tryScroll()) setTimeout(tryScroll, 120);
     });
-
     return () => cancelAnimationFrame(t);
   }, [loading, album, reviews]);
 
@@ -303,7 +312,7 @@ export default function AlbumPage({ params }) {
 
       <main className="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 md:px-8 pt-8 sm:pt-10 md:pt-14 pb-14 sm:pb-16">
         <div className="flex flex-col md:flex-row gap-6 sm:gap-8 md:gap-10">
-          {/* LEFT */}
+          {/* left */}
           <div className="w-full md:w-72 flex-shrink-0 flex flex-col gap-4 sm:gap-5 md:sticky md:top-24 self-start">
             <div className="w-full max-w-[280px] sm:max-w-none mx-auto md:mx-0 aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#1f2b3a] shadow-2xl shadow-black/50">
               {album.coverUrl ? (
@@ -445,7 +454,7 @@ export default function AlbumPage({ params }) {
             )}
           </div>
 
-          {/* RIGHT */}
+          {/* derecha */}
           <div className="flex-1 min-w-0">
             <div className="mb-6 sm:mb-8 text-center md:text-left">
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight">
@@ -533,7 +542,8 @@ export default function AlbumPage({ params }) {
                   {reviews.map((review) => (
                     <div
                       key={review.id}
-                      className="bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors"
+                      id={`review-${review.id}`}
+                      className="scroll-mt-24 bg-[#131e2c]/60 border border-[#2a3645] rounded-xl p-4 sm:p-5 hover:border-[#3d5068] transition-colors"
                     >
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <Link

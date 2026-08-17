@@ -21,6 +21,71 @@ function toDateInputValue(iso) {
   return String(iso).slice(0, 10);
 }
 
+function StarRatingFilter({ value, onChange, size = "sm" }) {
+  const [hovered, setHovered] = useState(0);
+  const selected =
+    value === "all" || value == null || value === "" ? 0 : Number(value);
+  const display = hovered || selected || 0;
+  const starSize = size === "sm" ? "w-5 h-5" : "w-6 h-6";
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onChange("all")}
+        className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+          selected === 0
+            ? "bg-[#7cc7e8]/15 border-[#7cc7e8]/50 text-[#7cc7e8]"
+            : "border-[#2a3645] text-stone-500 hover:text-stone-300"
+        }`}
+      >
+        All
+      </button>
+      <div
+        className="flex items-center gap-0.5"
+        onMouseLeave={() => setHovered(0)}
+      >
+        {Array.from({ length: 10 }, (_, i) => {
+          const n = i + 1;
+          const active = n <= display;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(String(n))}
+              onMouseEnter={() => setHovered(n)}
+              className={`${starSize} flex items-center justify-center transition-transform hover:scale-110 focus:outline-none`}
+              aria-label={`Filter ${n} stars`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                className={`w-full h-full transition-colors duration-100 ${
+                  active
+                    ? "fill-yellow-400 text-yellow-400"
+                    : "fill-transparent text-stone-600"
+                }`}
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"
+                />
+              </svg>
+            </button>
+          );
+        })}
+        {selected > 0 && (
+          <span className="ml-1.5 text-xs font-semibold text-yellow-400 tabular-nums">
+            {selected}/10
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StarRating({ value, onChange, size = "md" }) {
   const [hovered, setHovered] = useState(0);
   const display = hovered || value || 0;
@@ -370,13 +435,18 @@ export default function DiaryView({
 
     if (ratingFilter !== "all") {
       const r = Number(ratingFilter);
-      grouped = grouped.filter((e) => e.rating === r);
+      grouped = grouped.filter(
+        (e) => e.rating != null && Number(e.rating) === r
+      );
     }
 
     return groupByDay(grouped);
   }, [items, period, query, ratingFilter]);
 
-  const entryCount = processed.reduce((acc, [, dayItems]) => acc + dayItems.length, 0);
+  const entryCount = processed.reduce(
+    (acc, [, dayItems]) => acc + dayItems.length,
+    0
+  );
 
   const applyPatch = (updated) => {
     if (!updated?.id) return;
@@ -430,26 +500,19 @@ export default function DiaryView({
           ))}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0">
+        <div className="flex flex-col gap-2 w-full min-w-0">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search album or artist..."
-            className="w-full min-w-0 flex-1 bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8]"
+            className="w-full min-w-0 bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8]"
           />
-          <select
+          <StarRatingFilter
             value={ratingFilter}
-            onChange={(e) => setRatingFilter(e.target.value)}
-            className="w-full sm:w-auto sm:min-w-[130px] bg-[#0a121c] border border-[#2a3645] rounded-lg px-3 py-2 text-sm text-stone-300 focus:outline-none focus:border-[#7cc7e8]"
-          >
-            <option value="all">All ratings</option>
-            {Array.from({ length: 10 }, (_, i) => 10 - i).map((n) => (
-              <option key={n} value={n}>
-                ★ {n}
-              </option>
-            ))}
-          </select>
+            onChange={setRatingFilter}
+            size="sm"
+          />
         </div>
       </div>
 

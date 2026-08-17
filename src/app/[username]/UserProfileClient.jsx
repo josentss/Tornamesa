@@ -259,6 +259,109 @@ export default function UserProfileClient({ params }) {
     { id: "lists", label: "Lists" },
   ].filter(Boolean);
 
+  const identityBlock = (
+    <>
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight">
+          {profileData.full_name || profileData.username}
+        </h1>
+        {profileData.pronouns && (
+          <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-[#7cc7e8] px-2 sm:px-2.5 py-0.5 rounded-md border border-[#2a3645] shrink-0">
+            {profileData.pronouns}
+          </span>
+        )}
+        {profileData.is_private && isOwner && (
+          <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-stone-400 px-2 py-0.5 rounded-md border border-[#2a3645] shrink-0">
+            Private
+          </span>
+        )}
+      </div>
+
+      <p className="text-stone-400 text-sm mt-1.5">@{profileData.username}</p>
+
+      <div className="flex justify-center gap-6 sm:gap-8 mt-3 sm:mt-3.5 text-sm">
+        <button
+          type="button"
+          onClick={() => router.push(`/${profileData.username}/followers`)}
+          className="hover:opacity-80 transition-opacity focus:outline-none"
+        >
+          <strong className="text-white font-semibold">
+            {profileData.followers || 0}
+          </strong>{" "}
+          <span className="text-stone-400">Followers</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push(`/${profileData.username}/following`)}
+          className="hover:opacity-80 transition-opacity focus:outline-none"
+        >
+          <strong className="text-white font-semibold">
+            {profileData.following || 0}
+          </strong>{" "}
+          <span className="text-stone-400">Following</span>
+        </button>
+      </div>
+
+      {!isPrivateLocked && profileData.bio && (
+        <p className="text-stone-300 text-sm mt-4 leading-relaxed max-w-md mx-auto px-1">
+          {profileData.bio}
+        </p>
+      )}
+      {!isPrivateLocked && profileData.website && (
+        <a
+          href={profileData.website}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block mt-3 text-xs text-[#7cc7e8] hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645]"
+        >
+          {profileData.website.replace(/^https?:\/\//, "")}
+        </a>
+      )}
+    </>
+  );
+
+  const actionButtons = (
+    <>
+      <button
+        type="button"
+        onClick={handleShare}
+        className={`text-sm font-semibold px-4 py-2 rounded-lg border transition-all ${
+          shareCopied
+            ? "bg-[#7cc7e8]/10 border-[#7cc7e8]/50 text-[#7cc7e8]"
+            : "bg-[#1f2b3a] hover:bg-[#2a3645] border-[#2a3645]"
+        }`}
+      >
+        {shareCopied ? "Copied!" : "Share"}
+      </button>
+      {isOwner ? (
+        <button
+          type="button"
+          onClick={() => router.push("/settings")}
+          className="bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-5 py-2 rounded-lg border border-[#2a3645]"
+        >
+          Edit Profile
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleFollowToggle}
+          disabled={actionLoading}
+          className={`text-sm font-semibold px-5 py-2 rounded-lg border transition-all ${
+            profileData.isFollowing
+              ? "bg-transparent border-[#2a3645] text-white"
+              : "bg-[#7cc7e8] text-[#0a121c] border-transparent"
+          }`}
+        >
+          {actionLoading
+            ? "..."
+            : profileData.isFollowing
+              ? "Following"
+              : "Follow"}
+        </button>
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={currentUser} />
@@ -272,8 +375,9 @@ export default function UserProfileClient({ params }) {
       )}
 
       <div className="relative w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 mt-16 sm:mt-20 animate-in fade-in duration-500">
-      <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-7 sm:pb-8 px-5 sm:px-6 md:px-8 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm overflow-hidden md:min-h-[17.5rem]">
-          {/* profile picture centrada */}
+        {/* -. */}
+        <div className="relative bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl pt-16 sm:pt-20 pb-7 sm:pb-8 px-5 sm:px-6 md:px-8 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] backdrop-blur-sm">
+          {/* profile pic */}
           <div className="absolute -top-12 sm:-top-16 left-1/2 -translate-x-1/2 z-10">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-[#7cc7e8]/20 blur-xl scale-110" />
@@ -296,154 +400,58 @@ export default function UserProfileClient({ params }) {
             </div>
           </div>
 
-          {/* stats en pc ajustadas a la izquierda */}
-          {!isPrivateLocked && (
-            <div className="hidden md:block absolute left-5 lg:left-8 top-[4.25rem] bottom-6 w-[7.25rem] lg:w-32 overflow-hidden">
-              <div className="space-y-4 text-left">
-                {profileStats.map((s) => {
-                  const clickable = typeof s.go === "function";
-                  const Comp = clickable ? "button" : "div";
-                  return (
-                    <Comp
-                      key={s.label}
-                      type={clickable ? "button" : undefined}
-                      onClick={clickable ? s.go : undefined}
-                      className={`text-left w-full focus:outline-none ${
-                        clickable ? "group cursor-pointer" : "cursor-default"
-                      }`}
-                    >
-                      <p
-                        className={`text-2xl lg:text-3xl font-bold tracking-tight transition-colors ${
-                          clickable
-                            ? "text-white group-hover:text-[#7cc7e8]"
-                            : "text-stone-300"
+          {/* pc - stats, identity y actions */}
+          <div className="hidden md:grid md:grid-cols-[7.5rem_minmax(0,1fr)_7.5rem] lg:grid-cols-[8.5rem_minmax(0,1fr)_8.5rem] md:items-start md:gap-3 lg:gap-4">
+            <div className="pt-1">
+              {!isPrivateLocked && (
+                <div className="space-y-4 text-left">
+                  {profileStats.map((s) => {
+                    const clickable = typeof s.go === "function";
+                    const Comp = clickable ? "button" : "div";
+                    return (
+                      <Comp
+                        key={s.label}
+                        type={clickable ? "button" : undefined}
+                        onClick={clickable ? s.go : undefined}
+                        className={`text-left w-full focus:outline-none ${
+                          clickable ? "group cursor-pointer" : "cursor-default"
                         }`}
                       >
-                        {s.value}
-                      </p>
-                      <p className="text-[10px] lg:text-[11px] text-stone-400 uppercase tracking-wider mt-0.5 flex items-center gap-1 flex-wrap">
-                        <span>{s.label}</span>
-                        {s.showPrivateHint && (
-                          <span className="text-[9px] normal-case tracking-normal text-stone-600 font-normal">
-                            private
-                          </span>
-                        )}
-                      </p>
-                    </Comp>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* pc actions ajustado a derecha*/}
-          <div className="hidden md:flex absolute right-5 lg:right-8 top-[4.25rem] flex-col items-end gap-2.5">
-            <button
-              type="button"
-              onClick={handleShare}
-              className={`text-sm font-semibold px-4 py-2 rounded-lg border transition-all ${
-                shareCopied
-                  ? "bg-[#7cc7e8]/10 border-[#7cc7e8]/50 text-[#7cc7e8]"
-                  : "bg-[#1f2b3a] hover:bg-[#2a3645] border-[#2a3645]"
-              }`}
-            >
-              {shareCopied ? "Copied!" : "Share"}
-            </button>
-            {isOwner ? (
-              <button
-                type="button"
-                onClick={() => router.push("/settings")}
-                className="bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-5 py-2 rounded-lg border border-[#2a3645]"
-              >
-                Edit Profile
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleFollowToggle}
-                disabled={actionLoading}
-                className={`text-sm font-semibold px-5 py-2 rounded-lg border transition-all ${
-                  profileData.isFollowing
-                    ? "bg-transparent border-[#2a3645] text-white"
-                    : "bg-[#7cc7e8] text-[#0a121c] border-transparent"
-                }`}
-              >
-                {actionLoading
-                  ? "..."
-                  : profileData.isFollowing
-                    ? "Following"
-                    : "Follow"}
-              </button>
-            )}
-          </div>
-
-          {/* datos centrados a profile picture */}
-          <div className="text-center md:px-36 lg:px-40">
-            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight">
-                {profileData.full_name || profileData.username}
-              </h1>
-              {profileData.pronouns && (
-                <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-[#7cc7e8] px-2 sm:px-2.5 py-0.5 rounded-md border border-[#2a3645] shrink-0">
-                  {profileData.pronouns}
-                </span>
-              )}
-              {profileData.is_private && isOwner && (
-                <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-stone-400 px-2 py-0.5 rounded-md border border-[#2a3645] shrink-0">
-                  Private
-                </span>
+                        <p
+                          className={`text-2xl lg:text-3xl font-bold tracking-tight transition-colors ${
+                            clickable
+                              ? "text-white group-hover:text-[#7cc7e8]"
+                              : "text-stone-300"
+                          }`}
+                        >
+                          {s.value}
+                        </p>
+                        <p className="text-[10px] lg:text-[11px] text-stone-400 uppercase tracking-wider mt-0.5">
+                          {s.label}
+                          {s.showPrivateHint && (
+                            <span className="ml-1 text-[9px] normal-case tracking-normal text-stone-600">
+                              private
+                            </span>
+                          )}
+                        </p>
+                      </Comp>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            <p className="text-stone-400 text-sm mt-1.5">
-              @{profileData.username}
-            </p>
+            <div className="text-center min-w-0 px-1">{identityBlock}</div>
 
-            <div className="flex justify-center gap-6 sm:gap-8 mt-3 sm:mt-3.5 text-sm">
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(`/${profileData.username}/followers`)
-                }
-                className="hover:opacity-80 transition-opacity focus:outline-none"
-              >
-                <strong className="text-white font-semibold">
-                  {profileData.followers || 0}
-                </strong>{" "}
-                <span className="text-stone-400">Followers</span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(`/${profileData.username}/following`)
-                }
-                className="hover:opacity-80 transition-opacity focus:outline-none"
-              >
-                <strong className="text-white font-semibold">
-                  {profileData.following || 0}
-                </strong>{" "}
-                <span className="text-stone-400">Following</span>
-              </button>
+            <div className="flex flex-col items-end gap-2.5 pt-1">
+              {actionButtons}
             </div>
-
-            {!isPrivateLocked && profileData.bio && (
-              <p className="text-stone-300 text-sm mt-4 leading-relaxed max-w-md mx-auto px-1">
-                {profileData.bio}
-              </p>
-            )}
-            {!isPrivateLocked && profileData.website && (
-              <a
-                href={profileData.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-3 text-xs text-[#7cc7e8] hover:underline bg-[#0a121c] px-3.5 py-1.5 rounded-full border border-[#2a3645]"
-              >
-                {profileData.website.replace(/^https?:\/\//, "")}
-              </a>
-            )}
           </div>
 
-          {/* botones en celular */}
+          {/* datos en celular */}
+          <div className="md:hidden text-center">{identityBlock}</div>
+
+          {/* btns en celular */}
           <div className="md:hidden flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 mt-6">
             <button
               type="button"
@@ -484,7 +492,7 @@ export default function UserProfileClient({ params }) {
             )}
           </div>
 
-          {/* stats en celular */}
+          {/* stats celular */}
           {!isPrivateLocked && (
             <div className="md:hidden grid grid-cols-3 gap-2 pt-4 mt-5 border-t border-[#2a3645]">
               {profileStats.map((s) => {
