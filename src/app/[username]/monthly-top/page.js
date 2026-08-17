@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
@@ -17,6 +17,15 @@ const MONTH_NAMES = [
 const MONTH_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+const BG_PRESETS = [
+  { id: "forest", label: "Forest", hex: "#1c241c" },
+  { id: "night", label: "Night", hex: "#0a121c" },
+  { id: "ink", label: "Ink", hex: "#121018" },
+  { id: "slate", label: "Slate", hex: "#1a222c" },
+  { id: "wine", label: "Wine", hex: "#241818" },
+  { id: "ocean", label: "Ocean", hex: "#0f1c24" },
 ];
 
 function weekRangeLabel(week, month, year) {
@@ -74,13 +83,16 @@ function loadImage(src) {
   });
 }
 
-function formatMinutes(ms) {
-  if (!ms || ms <= 0) return null;
-  const mins = Math.round(ms / 60000);
-  if (mins < 60) return `${mins} min`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+function hexToRgb(hex) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function shadeHex(hex, factor) {
+  const { r, g, b } = hexToRgb(hex);
+  const f = (c) => Math.max(0, Math.min(255, Math.round(c * factor)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
 }
 
 async function generateWrappedPng({
@@ -88,12 +100,12 @@ async function generateWrappedPng({
   periodTitle,
   totalListens,
   uniqueArtists,
-  totalMs,
   albums,
+  bgHex = "#1c241c",
 }) {
   const W = 1080;
   const H = 1920;
-  const PAD = 72;
+  const PAD = 64;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -102,156 +114,156 @@ async function generateWrappedPng({
   const list = (albums || []).slice(0, 5);
   const covers = await Promise.all(list.map((a) => loadImage(a.cover)));
 
-  ctx.fillStyle = "#1c241c";
+  ctx.fillStyle = bgHex;
+  ctx.fillRect(0, 0, W, H);
+
+  const vertical = ctx.createLinearGradient(0, 0, 0, H);
+  vertical.addColorStop(0, "rgba(255,255,255,0.04)");
+  vertical.addColorStop(0.45, "rgba(0,0,0,0)");
+  vertical.addColorStop(1, "rgba(0,0,0,0.28)");
+  ctx.fillStyle = vertical;
+  ctx.fillRect(0, 0, W, H);
+
+  const vignette = ctx.createRadialGradient(
+    W / 2,
+    H * 0.4,
+    H * 0.15,
+    W / 2,
+    H * 0.45,
+    H * 0.75
+  );
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.22)");
+  ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, W, H);
 
   if (covers[0]) {
     ctx.save();
-    ctx.globalAlpha = 0.18;
-    ctx.filter = "blur(48px)";
+    ctx.globalAlpha = 0.1;
+    ctx.filter = "blur(56px)";
     const c = covers[0];
-    const scale = Math.max(W / c.width, H / c.height) * 1.15;
+    const scale = (W / c.width) * 1.4;
     const bw = c.width * scale;
     const bh = c.height * scale;
-    ctx.drawImage(c, (W - bw) / 2, -bh * 0.15, bw, bh);
+    ctx.drawImage(c, (W - bw) / 2, -bh * 0.2, bw, bh);
     ctx.filter = "none";
     ctx.globalAlpha = 1;
     ctx.restore();
-    ctx.fillStyle = "rgba(28,36,28,0.55)";
-    ctx.fillRect(0, 0, W, H);
   }
 
-  const headerY = 120;
-  ctx.fillStyle = "#f5f0e6";
-  ctx.font = "800 52px system-ui, -apple-system, sans-serif";
-  const headerLeft = periodTitle || "";
-  ctx.fillText(headerLeft, PAD, headerY);
+  const textMain = "#f5f0e6";
+  const textMuted = "rgba(245,240,230,0.55)";
+  const accent = "#7cc7e8";
 
-  const leftW = ctx.measureText(headerLeft).width;
-  ctx.fillStyle = "rgba(245,240,230,0.55)";
-  ctx.font = "600 52px system-ui, -apple-system, sans-serif";
+  const headerY = 110;
+  ctx.fillStyle = textMain;
+  ctx.font = "800 48px system-ui, -apple-system, sans-serif";
+  const left = periodTitle || "";
+  ctx.fillText(left, PAD, headerY);
+  const leftW = ctx.measureText(left).width;
+  ctx.fillStyle = textMuted;
+  ctx.font = "600 48px system-ui, -apple-system, sans-serif";
   ctx.fillText(" · Top albums", PAD + leftW, headerY);
 
-  const minutesLabel = formatMinutes(totalMs);
-  const metaParts = [
-    `${totalListens ?? 0} listens`,
-    `${uniqueArtists ?? 0} artists`,
-  ];
-  if (minutesLabel) metaParts.push(minutesLabel);
-  ctx.fillStyle = "rgba(245,240,230,0.55)";
-  ctx.font = "500 28px system-ui, -apple-system, sans-serif";
-  ctx.fillText(metaParts.join("  ·  "), PAD, headerY + 56);
+  ctx.fillStyle = textMuted;
+  ctx.font = "500 26px system-ui, -apple-system, sans-serif";
+  ctx.fillText(
+    `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`,
+    PAD,
+    headerY + 48
+  );
 
   if (username) {
-    ctx.fillStyle = "rgba(124,199,232,0.9)";
-    ctx.font = "600 26px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`@${username}`, PAD, headerY + 100);
+    ctx.fillStyle = accent;
+    ctx.font = "600 24px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`@${username}`, PAD, headerY + 88);
   }
 
-  let y = headerY + 160;
+  ctx.strokeStyle = "rgba(245,240,230,0.12)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(PAD, headerY + 118);
+  ctx.lineTo(W - PAD, headerY + 118);
+  ctx.stroke();
 
-  if (list[0]) {
-    const top = list[0];
-    const coverSize = 280;
-    const coverX = W - PAD - coverSize;
-    const textMax = coverX - PAD - 40;
+  const listTop = headerY + 150;
+  const listBottom = H - 130;
+  const n = Math.max(list.length, 1);
+  const rowH = (listBottom - listTop) / n;
+  const COVER = Math.min(168, Math.floor(rowH * 0.72));
+  const rankColW = 72;
 
-    ctx.fillStyle = "#f5f0e6";
-    ctx.font = "800 72px system-ui, -apple-system, sans-serif";
-    ctx.fillText("1", PAD, y + 70);
-
-    ctx.font = "800 64px system-ui, -apple-system, sans-serif";
-    const title = top.title || "Unknown";
-    const words = title.split(/\s+/);
-    let line1 = "";
-    let line2 = "";
-    for (const w of words) {
-      const test = line1 ? `${line1} ${w}` : w;
-      if (ctx.measureText(test).width <= textMax) {
-        line1 = test;
-      } else if (!line2) {
-        line2 = w;
-      } else {
-        const t2 = `${line2} ${w}`;
-        if (ctx.measureText(t2).width <= textMax) line2 = t2;
-        else {
-          line2 = truncate(ctx, `${line2} ${w}`, textMax);
-          break;
-        }
-      }
-    }
-    ctx.fillStyle = "#f5f0e6";
-    ctx.fillText(line1, PAD + 70, y + 70);
-    if (line2) {
-      ctx.fillText(line2, PAD + 70, y + 140);
-    }
-
-    const playsY = line2 ? y + 190 : y + 130;
-    ctx.fillStyle = "rgba(245,240,230,0.55)";
-    ctx.font = "500 28px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`${top.count ?? 0} plays`, PAD + 70, playsY);
-
-    const coverY = y;
-    ctx.fillStyle = "#2a332a";
-    roundRect(ctx, coverX, coverY, coverSize, coverSize, 16);
-    ctx.fill();
-    if (covers[0]) {
-      ctx.save();
-      roundRect(ctx, coverX, coverY, coverSize, coverSize, 16);
-      ctx.clip();
-      ctx.drawImage(covers[0], coverX, coverY, coverSize, coverSize);
-      ctx.restore();
-    }
-
-    y = Math.max(playsY, coverY + coverSize) + 72;
-  }
-
-  const rowH = 150;
-  const smallCover = 112;
-
-  for (let i = 1; i < list.length; i++) {
+  for (let i = 0; i < list.length; i++) {
     const item = list[i];
-    const rank = item.rank ?? i + 1;
-    const rowY = y + (i - 1) * rowH;
+    const rowTop = listTop + i * rowH;
+    const midY = rowTop + rowH / 2;
+    const coverX = W - PAD - COVER;
+    const coverY = midY - COVER / 2;
+    const textX = PAD + rankColW;
+    const textMax = coverX - textX - 28;
 
-    ctx.fillStyle = "#f5f0e6";
-    ctx.font = "800 48px system-ui, -apple-system, sans-serif";
-    ctx.fillText(String(rank), PAD, rowY + 72);
+    ctx.fillStyle = i === 0 ? accent : textMain;
+    ctx.font = "800 44px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
-    const textX = PAD + 70;
-    const textMax = W - PAD - smallCover - 40 - textX;
+    ctx.fillStyle = textMain;
+    ctx.font = "700 34px system-ui, -apple-system, sans-serif";
+    ctx.fillText(
+      truncate(ctx, item.title || "Unknown", textMax),
+      textX,
+      midY - 22
+    );
 
-    ctx.fillStyle = "#f5f0e6";
-    ctx.font = "700 36px system-ui, -apple-system, sans-serif";
-    ctx.fillText(truncate(ctx, item.title || "", textMax), textX, rowY + 48);
+    ctx.fillStyle = textMuted;
+    ctx.font = "500 24px system-ui, -apple-system, sans-serif";
+    const sub = [item.artist, `${item.count ?? 0} plays`]
+      .filter(Boolean)
+      .join("  ·  ");
+    ctx.fillText(truncate(ctx, sub, textMax), textX, midY + 22);
 
-    ctx.fillStyle = "rgba(245,240,230,0.5)";
-    ctx.font = "500 26px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`${item.count ?? 0} plays`, textX, rowY + 88);
-
-    const cx = W - PAD - smallCover;
-    const cy = rowY + 8;
-    ctx.fillStyle = "#2a332a";
-    roundRect(ctx, cx, cy, smallCover, smallCover, 12);
+    ctx.fillStyle = shadeHex(bgHex, 0.65);
+    roundRect(ctx, coverX, coverY, COVER, COVER, 14);
     ctx.fill();
+
     if (covers[i]) {
       ctx.save();
-      roundRect(ctx, cx, cy, smallCover, smallCover, 12);
+      roundRect(ctx, coverX, coverY, COVER, COVER, 14);
       ctx.clip();
-      ctx.drawImage(covers[i], cx, cy, smallCover, smallCover);
+      ctx.drawImage(covers[i], coverX, coverY, COVER, COVER);
       ctx.restore();
+    }
+
+    if (i < list.length - 1) {
+      const lineY = rowTop + rowH;
+      ctx.strokeStyle = "rgba(245,240,230,0.08)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, lineY);
+      ctx.lineTo(W - PAD, lineY);
+      ctx.stroke();
     }
   }
 
-  const footY = H - 72;
-  ctx.fillStyle = "#7cc7e8";
-  ctx.font = "800 28px system-ui, -apple-system, sans-serif";
-  ctx.fillText("Tornamesa", PAD, footY);
+  ctx.textBaseline = "alphabetic";
 
-  ctx.fillStyle = "rgba(245,240,230,0.45)";
-  ctx.font = "600 22px system-ui, -apple-system, sans-serif";
+  ctx.strokeStyle = "rgba(245,240,230,0.12)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(PAD, H - 96);
+  ctx.lineTo(W - PAD, H - 96);
+  ctx.stroke();
+
+  ctx.fillStyle = accent;
+  ctx.font = "800 26px system-ui, -apple-system, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("Tornamesa", PAD, H - 48);
+
+  ctx.fillStyle = textMuted;
+  ctx.font = "600 20px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText("ACTIVITY STATISTICS", W - PAD, footY);
+  ctx.fillText("ACTIVITY STATISTICS", W - PAD, H - 48);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
@@ -277,6 +289,7 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [wrappedOpen, setWrappedOpen] = useState(false);
   const [wrappedUrl, setWrappedUrl] = useState(null);
   const [wrappedLoading, setWrappedLoading] = useState(false);
+  const [wrappedBg, setWrappedBg] = useState(BG_PRESETS[0].hex);
   const [importOpen, setImportOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -361,7 +374,6 @@ function MonthlyTopContent({ username: usernameProp }) {
       week == null ? data?.uniqueAlbums ?? list.length : list.length;
 
     const artistSet = new Set();
-    let totalMs = 0;
     list.forEach((a) => {
       if (a.artist) {
         String(a.artist)
@@ -370,15 +382,12 @@ function MonthlyTopContent({ username: usernameProp }) {
           .filter(Boolean)
           .forEach((name) => artistSet.add(name));
       }
-      const dur = a.durationMs ?? a.duration_ms;
-      if (dur && a.count) totalMs += Number(dur) * Number(a.count);
     });
 
     return {
       totalListens,
       uniqueAlbums,
       uniqueArtists: artistSet.size,
-      totalMs: totalMs > 0 ? totalMs : null,
     };
   }, [data, week, albums]);
 
@@ -387,26 +396,47 @@ function MonthlyTopContent({ username: usernameProp }) {
       ? weekRangeLabel(week, month, year).toUpperCase()
       : `${MONTH_SHORT[month - 1].toUpperCase()} ${year}`;
 
+  const runGenerate = useCallback(
+    async (bg) => {
+      if (!data || !isOwner) return;
+      setWrappedLoading(true);
+      setWrappedUrl(null);
+      try {
+        const url = await generateWrappedPng({
+          username: usernameProp,
+          periodTitle,
+          totalListens: wrappedStats.totalListens,
+          uniqueArtists: wrappedStats.uniqueArtists,
+          albums: data.albums || [],
+          bgHex: bg || wrappedBg,
+        });
+        setWrappedUrl(url);
+      } catch (e) {
+        console.error("Wrapped generate error:", e);
+      } finally {
+        setWrappedLoading(false);
+      }
+    },
+    [
+      data,
+      isOwner,
+      usernameProp,
+      periodTitle,
+      wrappedStats.totalListens,
+      wrappedStats.uniqueArtists,
+      wrappedBg,
+    ]
+  );
+
   const openWrapped = async () => {
     if (!data || !isOwner) return;
     setWrappedOpen(true);
-    setWrappedLoading(true);
-    setWrappedUrl(null);
-    try {
-      const url = await generateWrappedPng({
-        username: usernameProp,
-        periodTitle,
-        totalListens: wrappedStats.totalListens,
-        uniqueArtists: wrappedStats.uniqueArtists,
-        totalMs: wrappedStats.totalMs,
-        albums: data.albums || [],
-      });
-      setWrappedUrl(url);
-    } catch (e) {
-      console.error("Wrapped generate error:", e);
-    } finally {
-      setWrappedLoading(false);
-    }
+    await runGenerate(wrappedBg);
+  };
+
+  const onPickBg = async (hex) => {
+    setWrappedBg(hex);
+    if (wrappedOpen) await runGenerate(hex);
   };
 
   const downloadWrapped = () => {
@@ -464,7 +494,6 @@ function MonthlyTopContent({ username: usernameProp }) {
           <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
         </div>
 
-        {/* btns: import, calendar y wrapped */}
         <div className="flex items-center gap-2 flex-shrink-0 self-start flex-wrap">
           {isOwner && (
             <button
@@ -727,6 +756,30 @@ function MonthlyTopContent({ username: usernameProp }) {
               >
                 ✕
               </button>
+            </div>
+
+            {/* selector de color background */}
+            <div className="px-4 py-3 border-b border-[#2a3645]">
+              <p className="text-[10px] uppercase tracking-wider text-stone-500 mb-2">
+                Background
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {BG_PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    title={p.label}
+                    onClick={() => onPickBg(p.hex)}
+                    className={`w-8 h-8 rounded-full border-2 transition-transform ${
+                      wrappedBg === p.hex
+                        ? "border-[#7cc7e8] scale-110"
+                        : "border-[#2a3645] hover:border-stone-400"
+                    }`}
+                    style={{ backgroundColor: p.hex }}
+                    aria-label={p.label}
+                  />
+                ))}
+              </div>
             </div>
 
             <div className="overflow-y-auto p-3 sm:p-4 flex justify-center bg-[#0a0f16] min-h-[180px]">
