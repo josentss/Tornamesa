@@ -56,7 +56,7 @@ function roundRect(ctx, x, y, w, h, r) {
 function truncate(ctx, text, maxWidth) {
   if (!text) return "";
   if (ctx.measureText(text).width <= maxWidth) return text;
-  let t = text;
+  let t = String(text);
   while (t.length > 0 && ctx.measureText(t + "…").width > maxWidth) {
     t = t.slice(0, -1);
   }
@@ -74,214 +74,184 @@ function loadImage(src) {
   });
 }
 
+function formatMinutes(ms) {
+  if (!ms || ms <= 0) return null;
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
 async function generateWrappedPng({
   username,
-  label,
-  weekLabel,
+  periodTitle,
   totalListens,
-  uniqueAlbums,
+  uniqueArtists,
+  totalMs,
   albums,
 }) {
   const W = 1080;
   const H = 1920;
+  const PAD = 72;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
   const list = (albums || []).slice(0, 5);
-  const top = list[0];
-  const topCover = top ? await loadImage(top.cover) : null;
+  const covers = await Promise.all(list.map((a) => loadImage(a.cover)));
 
-  ctx.fillStyle = "#070b12";
+  ctx.fillStyle = "#1c241c";
   ctx.fillRect(0, 0, W, H);
 
-  const g1 = ctx.createRadialGradient(W * 0.2, H * 0.15, 0, W * 0.2, H * 0.15, 500);
-  g1.addColorStop(0, "rgba(124,199,232,0.22)");
-  g1.addColorStop(1, "rgba(124,199,232,0)");
-  ctx.fillStyle = g1;
-  ctx.fillRect(0, 0, W, H);
-
-  const g2 = ctx.createRadialGradient(W * 0.85, H * 0.55, 0, W * 0.85, H * 0.55, 420);
-  g2.addColorStop(0, "rgba(99,102,241,0.18)");
-  g2.addColorStop(1, "rgba(99,102,241,0)");
-  ctx.fillStyle = g2;
-  ctx.fillRect(0, 0, W, H);
-
-  if (topCover) {
+  if (covers[0]) {
     ctx.save();
-    ctx.globalAlpha = 0.12;
-    ctx.filter = "blur(40px)";
-    const scale = Math.max(W / topCover.width, H / topCover.height) * 1.2;
-    const bw = topCover.width * scale;
-    const bh = topCover.height * scale;
-    ctx.drawImage(topCover, (W - bw) / 2, (H - bh) / 2, bw, bh);
+    ctx.globalAlpha = 0.18;
+    ctx.filter = "blur(48px)";
+    const c = covers[0];
+    const scale = Math.max(W / c.width, H / c.height) * 1.15;
+    const bw = c.width * scale;
+    const bh = c.height * scale;
+    ctx.drawImage(c, (W - bw) / 2, -bh * 0.15, bw, bh);
     ctx.filter = "none";
     ctx.globalAlpha = 1;
     ctx.restore();
+    ctx.fillStyle = "rgba(28,36,28,0.55)";
+    ctx.fillRect(0, 0, W, H);
   }
 
-  ctx.fillStyle = "#7cc7e8";
-  ctx.font = "700 26px system-ui, -apple-system, sans-serif";
-  ctx.fillText("TORNAMESA WRAPPED", 64, 100);
+  const headerY = 120;
+  ctx.fillStyle = "#f5f0e6";
+  ctx.font = "800 52px system-ui, -apple-system, sans-serif";
+  const headerLeft = periodTitle || "";
+  ctx.fillText(headerLeft, PAD, headerY);
 
-  ctx.fillStyle = "#f0f9ff";
-  ctx.font = "800 64px system-ui, -apple-system, sans-serif";
-  ctx.fillText(label || "", 64, 180);
+  const leftW = ctx.measureText(headerLeft).width;
+  ctx.fillStyle = "rgba(245,240,230,0.55)";
+  ctx.font = "600 52px system-ui, -apple-system, sans-serif";
+  ctx.fillText(" · Top albums", PAD + leftW, headerY);
 
-  if (weekLabel) {
-    ctx.fillStyle = "#7cc7e8";
-    ctx.font = "600 28px system-ui, -apple-system, sans-serif";
-    ctx.fillText(weekLabel, 64, 230);
-  }
-
-  ctx.fillStyle = "#94a3b8";
+  const minutesLabel = formatMinutes(totalMs);
+  const metaParts = [
+    `${totalListens ?? 0} listens`,
+    `${uniqueArtists ?? 0} artists`,
+  ];
+  if (minutesLabel) metaParts.push(minutesLabel);
+  ctx.fillStyle = "rgba(245,240,230,0.55)";
   ctx.font = "500 28px system-ui, -apple-system, sans-serif";
-  ctx.fillText(`@${username || ""}`, 64, weekLabel ? 280 : 240);
+  ctx.fillText(metaParts.join("  ·  "), PAD, headerY + 56);
 
-  const statsY = weekLabel ? 330 : 300;
-  const chipW = 280;
-  const chipH = 110;
-  const gap = 24;
-  [
-    { value: String(totalListens ?? 0), label: "listens" },
-    { value: String(uniqueAlbums ?? 0), label: "albums" },
-  ].forEach((c, i) => {
-    const x = 64 + i * (chipW + gap);
-    ctx.fillStyle = "rgba(19,30,44,0.9)";
-    roundRect(ctx, x, statsY, chipW, chipH, 20);
+  if (username) {
+    ctx.fillStyle = "rgba(124,199,232,0.9)";
+    ctx.font = "600 26px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`@${username}`, PAD, headerY + 100);
+  }
+
+  let y = headerY + 160;
+
+  if (list[0]) {
+    const top = list[0];
+    const coverSize = 280;
+    const coverX = W - PAD - coverSize;
+    const textMax = coverX - PAD - 40;
+
+    ctx.fillStyle = "#f5f0e6";
+    ctx.font = "800 72px system-ui, -apple-system, sans-serif";
+    ctx.fillText("1", PAD, y + 70);
+
+    ctx.font = "800 64px system-ui, -apple-system, sans-serif";
+    const title = top.title || "Unknown";
+    const words = title.split(/\s+/);
+    let line1 = "";
+    let line2 = "";
+    for (const w of words) {
+      const test = line1 ? `${line1} ${w}` : w;
+      if (ctx.measureText(test).width <= textMax) {
+        line1 = test;
+      } else if (!line2) {
+        line2 = w;
+      } else {
+        const t2 = `${line2} ${w}`;
+        if (ctx.measureText(t2).width <= textMax) line2 = t2;
+        else {
+          line2 = truncate(ctx, `${line2} ${w}`, textMax);
+          break;
+        }
+      }
+    }
+    ctx.fillStyle = "#f5f0e6";
+    ctx.fillText(line1, PAD + 70, y + 70);
+    if (line2) {
+      ctx.fillText(line2, PAD + 70, y + 140);
+    }
+
+    const playsY = line2 ? y + 190 : y + 130;
+    ctx.fillStyle = "rgba(245,240,230,0.55)";
+    ctx.font = "500 28px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`${top.count ?? 0} plays`, PAD + 70, playsY);
+
+    const coverY = y;
+    ctx.fillStyle = "#2a332a";
+    roundRect(ctx, coverX, coverY, coverSize, coverSize, 16);
     ctx.fill();
-    ctx.strokeStyle = "rgba(42,54,69,0.9)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = "#f0f9ff";
-    ctx.font = "800 44px system-ui, -apple-system, sans-serif";
-    ctx.fillText(c.value, x + 28, statsY + 55);
-    ctx.fillStyle = "#7cc7e8";
-    ctx.font = "600 22px system-ui, -apple-system, sans-serif";
-    ctx.fillText(c.label, x + 28, statsY + 88);
-  });
-
-  let y = statsY + chipH + 56;
-
-  if (top) {
-    const heroSize = 420;
-    const hx = (W - heroSize) / 2;
-
-    ctx.save();
-    ctx.shadowColor = "rgba(124,199,232,0.45)";
-    ctx.shadowBlur = 60;
-    roundRect(ctx, hx, y, heroSize, heroSize, 28);
-    ctx.fillStyle = "#131e2c";
-    ctx.fill();
-    ctx.restore();
-
-    if (topCover) {
+    if (covers[0]) {
       ctx.save();
-      roundRect(ctx, hx, y, heroSize, heroSize, 28);
+      roundRect(ctx, coverX, coverY, coverSize, coverSize, 16);
       ctx.clip();
-      ctx.drawImage(topCover, hx, y, heroSize, heroSize);
+      ctx.drawImage(covers[0], coverX, coverY, coverSize, coverSize);
       ctx.restore();
     }
 
-    ctx.fillStyle = "#7cc7e8";
-    roundRect(ctx, hx + 20, y + 20, 72, 48, 12);
+    y = Math.max(playsY, coverY + coverSize) + 72;
+  }
+
+  const rowH = 150;
+  const smallCover = 112;
+
+  for (let i = 1; i < list.length; i++) {
+    const item = list[i];
+    const rank = item.rank ?? i + 1;
+    const rowY = y + (i - 1) * rowH;
+
+    ctx.fillStyle = "#f5f0e6";
+    ctx.font = "800 48px system-ui, -apple-system, sans-serif";
+    ctx.fillText(String(rank), PAD, rowY + 72);
+
+    const textX = PAD + 70;
+    const textMax = W - PAD - smallCover - 40 - textX;
+
+    ctx.fillStyle = "#f5f0e6";
+    ctx.font = "700 36px system-ui, -apple-system, sans-serif";
+    ctx.fillText(truncate(ctx, item.title || "", textMax), textX, rowY + 48);
+
+    ctx.fillStyle = "rgba(245,240,230,0.5)";
+    ctx.font = "500 26px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`${item.count ?? 0} plays`, textX, rowY + 88);
+
+    const cx = W - PAD - smallCover;
+    const cy = rowY + 8;
+    ctx.fillStyle = "#2a332a";
+    roundRect(ctx, cx, cy, smallCover, smallCover, 12);
     ctx.fill();
-    ctx.fillStyle = "#0a121c";
-    ctx.font = "800 28px system-ui, -apple-system, sans-serif";
-    ctx.fillText("#1", hx + 36, y + 52);
-
-    y += heroSize + 36;
-
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#f0f9ff";
-    ctx.font = "800 44px system-ui, -apple-system, sans-serif";
-    ctx.fillText(truncate(ctx, top.title || "", W - 120), W / 2, y);
-    y += 42;
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "500 28px system-ui, -apple-system, sans-serif";
-    ctx.fillText(truncate(ctx, top.artist || "", W - 120), W / 2, y);
-    y += 36;
-    ctx.fillStyle = "#7cc7e8";
-    ctx.font = "700 26px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`×${top.count ?? 0} plays`, W / 2, y);
-    ctx.textAlign = "left";
-    y += 56;
-  }
-
-  const rest = list.slice(1);
-  if (rest.length > 0) {
-    ctx.fillStyle = "#64748b";
-    ctx.font = "700 20px system-ui, -apple-system, sans-serif";
-    ctx.fillText("ALSO IN THE MIX", 64, y);
-    y += 28;
-
-    const coverS = 140;
-    const totalW = rest.length * coverS + (rest.length - 1) * 20;
-    let cx = (W - totalW) / 2;
-
-    for (let i = 0; i < rest.length; i++) {
-      const item = rest[i];
-      const img = await loadImage(item.cover);
-
-      ctx.fillStyle = "#131e2c";
-      roundRect(ctx, cx, y, coverS, coverS, 16);
-      ctx.fill();
-
-      if (img) {
-        ctx.save();
-        roundRect(ctx, cx, y, coverS, coverS, 16);
-        ctx.clip();
-        ctx.drawImage(img, cx, y, coverS, coverS);
-        ctx.restore();
-      }
-
-      ctx.fillStyle = "rgba(10,18,28,0.85)";
-      roundRect(ctx, cx + 8, y + 8, 36, 28, 8);
-      ctx.fill();
-      ctx.fillStyle = "#7cc7e8";
-      ctx.font = "700 16px system-ui, -apple-system, sans-serif";
-      ctx.fillText(String(item.rank ?? i + 2), cx + 16, y + 28);
-
-      cx += coverS + 20;
-    }
-
-    y += coverS + 28;
-
-    for (let i = 0; i < rest.length; i++) {
-      const item = rest[i];
-      ctx.fillStyle = "#64748b";
-      ctx.font = "700 22px system-ui, -apple-system, sans-serif";
-      ctx.fillText(`${item.rank}`, 64, y);
-      ctx.fillStyle = "#e2e8f0";
-      ctx.font = "600 24px system-ui, -apple-system, sans-serif";
-      ctx.fillText(truncate(ctx, item.title || "", W - 220), 110, y);
-      ctx.fillStyle = "#7cc7e8";
-      ctx.textAlign = "right";
-      ctx.font = "700 22px system-ui, -apple-system, sans-serif";
-      ctx.fillText(`×${item.count ?? 0}`, W - 64, y);
-      ctx.textAlign = "left";
-      y += 40;
+    if (covers[i]) {
+      ctx.save();
+      roundRect(ctx, cx, cy, smallCover, smallCover, 12);
+      ctx.clip();
+      ctx.drawImage(covers[i], cx, cy, smallCover, smallCover);
+      ctx.restore();
     }
   }
 
-  ctx.strokeStyle = "#2a3645";
-  ctx.beginPath();
-  ctx.moveTo(64, H - 100);
-  ctx.lineTo(W - 64, H - 100);
-  ctx.stroke();
-
+  const footY = H - 72;
   ctx.fillStyle = "#7cc7e8";
   ctx.font = "800 28px system-ui, -apple-system, sans-serif";
-  ctx.fillText("Tornamesa", 64, H - 52);
-  ctx.fillStyle = "#475569";
-  ctx.font = "500 20px system-ui, -apple-system, sans-serif";
+  ctx.fillText("Tornamesa", PAD, footY);
+
+  ctx.fillStyle = "rgba(245,240,230,0.45)";
+  ctx.font = "600 22px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText(
-    weekLabel ? "Your week in music" : "Your month in music",
-    W - 64,
-    H - 52
-  );
+  ctx.fillText("ACTIVITY STATISTICS", W - PAD, footY);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
@@ -379,20 +349,43 @@ function MonthlyTopContent({ username: usernameProp }) {
     setCalendarYear(availableYears[idx]);
   };
 
+  const albums = data?.albums || [];
+
   const wrappedStats = useMemo(() => {
-    if (!data) return { totalListens: 0, uniqueAlbums: 0 };
-    if (week == null) {
-      return {
-        totalListens: data.totalListens ?? 0,
-        uniqueAlbums: data.uniqueAlbums ?? 0,
-      };
-    }
-    const list = data.albums || [];
+    const list = albums || [];
+    const totalListens =
+      week == null
+        ? data?.totalListens ?? list.reduce((s, a) => s + (a.count || 0), 0)
+        : list.reduce((s, a) => s + (a.count || 0), 0);
+    const uniqueAlbums =
+      week == null ? data?.uniqueAlbums ?? list.length : list.length;
+
+    const artistSet = new Set();
+    let totalMs = 0;
+    list.forEach((a) => {
+      if (a.artist) {
+        String(a.artist)
+          .split(/,|&| feat\.? | ft\.? /i)
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean)
+          .forEach((name) => artistSet.add(name));
+      }
+      const dur = a.durationMs ?? a.duration_ms;
+      if (dur && a.count) totalMs += Number(dur) * Number(a.count);
+    });
+
     return {
-      totalListens: list.reduce((s, a) => s + (a.count || 0), 0),
-      uniqueAlbums: list.length,
+      totalListens,
+      uniqueAlbums,
+      uniqueArtists: artistSet.size,
+      totalMs: totalMs > 0 ? totalMs : null,
     };
-  }, [data, week]);
+  }, [data, week, albums]);
+
+  const periodTitle =
+    week != null
+      ? weekRangeLabel(week, month, year).toUpperCase()
+      : `${MONTH_SHORT[month - 1].toUpperCase()} ${year}`;
 
   const openWrapped = async () => {
     if (!data || !isOwner) return;
@@ -402,13 +395,10 @@ function MonthlyTopContent({ username: usernameProp }) {
     try {
       const url = await generateWrappedPng({
         username: usernameProp,
-        label: data.label,
-        weekLabel:
-          week != null
-            ? `Week ${week} · ${weekRangeLabel(week, month, year)}`
-            : null,
+        periodTitle,
         totalListens: wrappedStats.totalListens,
-        uniqueAlbums: wrappedStats.uniqueAlbums,
+        uniqueArtists: wrappedStats.uniqueArtists,
+        totalMs: wrappedStats.totalMs,
         albums: data.albums || [],
       });
       setWrappedUrl(url);
@@ -446,12 +436,16 @@ function MonthlyTopContent({ username: usernameProp }) {
     );
   }
 
-  const albums = data?.albums || [];
   const weeksAvailable = data?.weeksAvailable || [];
   const subtitle =
     week != null
       ? `Week ${week} · ${weekRangeLabel(week, month, year)}`
       : data?.label || `${MONTH_NAMES[month - 1]} ${year}`;
+
+  const canWrap =
+    isOwner &&
+    data &&
+    (wrappedStats.totalListens > 0 || albums.length > 0);
 
   return (
     <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 overflow-x-hidden">
@@ -470,7 +464,8 @@ function MonthlyTopContent({ username: usernameProp }) {
           <p className="text-stone-400 text-sm mt-1">{subtitle}</p>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0 self-start">
+        {/* btns: import, calendar y wrapped */}
+        <div className="flex items-center gap-2 flex-shrink-0 self-start flex-wrap">
           {isOwner && (
             <button
               type="button"
@@ -478,6 +473,16 @@ function MonthlyTopContent({ username: usernameProp }) {
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-[#7cc7e8] hover:border-[#7cc7e8]/40 transition-colors"
             >
               Import logs
+            </button>
+          )}
+
+          {canWrap && (
+            <button
+              type="button"
+              onClick={openWrapped}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
+            >
+              {week != null ? `Week ${week} Wrapped` : "Generate Wrapped"}
             </button>
           )}
 
@@ -568,19 +573,21 @@ function MonthlyTopContent({ username: usernameProp }) {
       <div className="mt-6 flex flex-wrap gap-4 sm:gap-6 text-sm">
         <div>
           <span className="text-white font-semibold">
-            {week == null
-              ? data?.totalListens ?? 0
-              : wrappedStats.totalListens}
+            {wrappedStats.totalListens}
           </span>{" "}
           <span className="text-stone-500 text-xs">listens</span>
         </div>
         <div>
           <span className="text-white font-semibold">
-            {week == null
-              ? data?.uniqueAlbums ?? 0
-              : wrappedStats.uniqueAlbums}
+            {wrappedStats.uniqueAlbums}
           </span>{" "}
           <span className="text-stone-500 text-xs">albums</span>
+        </div>
+        <div>
+          <span className="text-white font-semibold">
+            {wrappedStats.uniqueArtists}
+          </span>{" "}
+          <span className="text-stone-500 text-xs">artists</span>
         </div>
       </div>
 
@@ -698,22 +705,6 @@ function MonthlyTopContent({ username: usernameProp }) {
         })}
       </div>
 
-      {isOwner &&
-        data &&
-        (wrappedStats.totalListens > 0 || albums.length > 0) && (
-          <div className="mt-10 pt-6 border-t border-[#2a3645] flex justify-center">
-            <button
-              type="button"
-              onClick={openWrapped}
-              className="text-sm font-semibold px-5 py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
-            >
-              {week != null
-                ? `Generate Week ${week} Wrapped`
-                : "Generate Wrapped"}
-            </button>
-          </div>
-        )}
-
       {wrappedOpen && (
         <div
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4"
@@ -743,7 +734,6 @@ function MonthlyTopContent({ username: usernameProp }) {
                 <p className="text-stone-500 text-sm py-16">Generating...</p>
               )}
               {!wrappedLoading && wrappedUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={wrappedUrl}
                   alt="Wrapped"
