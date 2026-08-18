@@ -138,11 +138,9 @@ async function generateWrappedPng({
 
   ctx.fillStyle = accent;
   ctx.font = "700 13px system-ui, -apple-system, sans-serif";
-  ctx.letterSpacing = "0.12em";
   ctx.fillText("TOP ALBUMS", PAD, y);
-  ctx.font = "700 13px system-ui, -apple-system, sans-serif";
 
-  y += 48;
+  y += 50;
   ctx.fillStyle = textMain;
   ctx.font = "900 56px system-ui, -apple-system, sans-serif";
   ctx.fillText(periodTitle || "", PAD, y);
@@ -154,29 +152,26 @@ async function generateWrappedPng({
   ctx.fillText(meta, PAD, y);
 
   if (username) {
-    const metaW = ctx.measureText(meta + "  ·  ").width;
+    const metaW = ctx.measureText(meta).width;
+    const sep = "  ·  ";
     ctx.fillStyle = textMuted;
-    ctx.fillText("  ·  ", PAD + ctx.measureText(meta).width, y);
+    ctx.fillText(sep, PAD + metaW, y);
     ctx.fillStyle = accent;
     ctx.font = "700 22px system-ui, -apple-system, sans-serif";
-    ctx.fillText(
-      `@${username}`,
-      PAD + ctx.measureText(meta).width + ctx.measureText("  ·  ").width,
-      y
-    );
+    ctx.fillText(`@${username}`, PAD + metaW + ctx.measureText(sep).width, y);
   }
 
-  const listTop = y + 48;
-  const listBottom = H - 72;
+  const listTop = y + 44;
+  const listBottom = H - 70;
   const available = listBottom - listTop;
   const n = Math.max(list.length, 1);
   const rowH = available / n;
 
-  const COVER_N = Math.min(140, Math.floor(rowH * 0.72));
-  const COVER_1 = Math.min(156, Math.floor(rowH * 0.8));
+  const COVER_N = Math.min(138, Math.floor(rowH * 0.74));
+  const COVER_1 = Math.min(158, Math.floor(rowH * 0.84));
   const RANK_W = 56;
   const GAP = 20;
-  const PLAYS_W = 120;
+  const PLAYS_W = 100;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
@@ -189,6 +184,7 @@ async function generateWrappedPng({
     const coverY = midY - coverSize / 2;
     const textX = coverX + coverSize + GAP;
     const textMax = W - PAD - PLAYS_W - textX;
+    const radius = isFirst ? 14 : 12;
 
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -198,43 +194,62 @@ async function generateWrappedPng({
       : "800 40px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = isFirst ? 22 : 16;
+    ctx.shadowOffsetY = isFirst ? 8 : 6;
     ctx.fillStyle = shadeHex(bgHex, 0.7);
-    roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
+    roundRect(ctx, coverX, coverY, coverSize, coverSize, radius);
     ctx.fill();
+    ctx.restore();
+
     if (covers[i]) {
       ctx.save();
-      roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
+      roundRect(ctx, coverX, coverY, coverSize, coverSize, radius);
       ctx.clip();
       ctx.drawImage(covers[i], coverX, coverY, coverSize, coverSize);
       ctx.restore();
     }
 
+    if (isFirst) {
+      ctx.strokeStyle = "rgba(124,199,232,0.35)";
+      ctx.lineWidth = 2;
+      roundRect(
+        ctx,
+        coverX - 1,
+        coverY - 1,
+        coverSize + 2,
+        coverSize + 2,
+        radius + 1
+      );
+      ctx.stroke();
+    }
+
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "800 32px system-ui, -apple-system, sans-serif"
-      : "800 28px system-ui, -apple-system, sans-serif";
+      ? "800 30px system-ui, -apple-system, sans-serif"
+      : "800 26px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.title || "Unknown", textMax),
       textX,
-      midY - 16
+      midY - 15
     );
 
     ctx.fillStyle = textMuted;
-    ctx.font = "600 20px system-ui, -apple-system, sans-serif";
+    ctx.font = "600 18px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.artist || "", textMax),
       textX,
-      midY + 18
+      midY + 16
     );
 
     const plays = item.count ?? 0;
-    const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
     ctx.textAlign = "right";
     ctx.fillStyle = isFirst ? accent : textMuted;
     ctx.font = isFirst
-      ? "700 24px system-ui, -apple-system, sans-serif"
+      ? "700 26px system-ui, -apple-system, sans-serif"
       : "600 22px system-ui, -apple-system, sans-serif";
-    ctx.fillText(playsLabel, W - PAD, midY);
+    ctx.fillText(`×${plays}`, W - PAD, midY);
     ctx.textAlign = "left";
   }
 
