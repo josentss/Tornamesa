@@ -4,9 +4,14 @@ import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 import { buildListenTimestamps } from '@/lib/notesImport';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const MAX_ITEMS = 150;
+const MAX_COUNT_PER_ITEM = 30;
+const MAX_TOTAL_LISTENS = 400;
 
 async function getUser(request) {
   const authHeader = request.headers.get('authorization');
@@ -67,6 +72,12 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const rl = rateLimit(clientKey(request, 'import-commit', user.id), {
+      limit: 5,
+      windowMs: 5 * 60_000,
+    });
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
+
     const body = await request.json();
     const items = body.items;
 
@@ -76,8 +87,30 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    if (items.length > 500) {
-      return NextResponse.json({ error: 'Too many items' }, { status: 400 });
+    if (items.length > MAX_ITEMS) {
+      return NextResponse.json(
+        {
+          error: `Too many items (max ${MAX_ITEMS}). Split the import into smaller batches.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    let projectedListens = 0;
+    for (const item of items) {
+      const c = Math.min(
+        MAX_COUNT_PER_ITEM,
+        Math.max(1, Number(item.count) || 1)
+      );
+      projectedListens += c;
+    }
+    if (projectedListens > MAX_TOTAL_LISTENS) {
+      return NextResponse.json(
+        {
+          error: `Too many total listens in one request (max ${MAX_TOTAL_LISTENS}). Import fewer rows or lower counts.`,
+        },
+        { status: 400 }
+      );
     }
 
     const supabase = createSupabaseServer();
@@ -87,7 +120,10 @@ export async function POST(request) {
 
     for (const item of items) {
       const albumId = item.albumId;
-      const count = Math.min(50, Math.max(1, Number(item.count) || 1));
+      const count = Math.min(
+        MAX_COUNT_PER_ITEM,
+        Math.max(1, Number(item.count) || 1)
+      );
       const year = Number(item.year);
       const month = Number(item.month);
       const lineIndex = Number(item.lineIndex) || 0;
@@ -103,12 +139,7 @@ export async function POST(request) {
         continue;
       }
 
-      const timestamps = buildListenTimestamps(
-        year,
-        month,
-        count,
-        lineIndex
-      );
+      const timestamps = buildListenTimestamps(year, month, count, lineIndex);
       const rows = timestamps.map((listened_at) => ({
         user_id: user.id,
         album_id: albumId,
@@ -145,7 +176,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('import commit:', error);
     return NextResponse.json(
-      { error: error.message || 'Import failed' },
+      { error: 'Import failed' },
       { status: 500 }
     );
   }

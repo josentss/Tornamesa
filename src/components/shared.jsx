@@ -184,12 +184,12 @@ export function Footer() {
     <footer className="border-t border-[#1e293b] mt-auto py-6 bg-[#0a0f16]">
       <div className="max-w-5xl mx-auto px-4 md:px-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-stone-500">
         <p>© {new Date().getFullYear()} Tornamesa</p>
-        <div className="flex gap-6">
-          <Link href="#" className="hover:text-[#87ceeb] transition-colors">
-            About
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+          <Link href="/privacy" className="hover:text-[#87ceeb] transition-colors">
+            Privacy
           </Link>
-          <Link href="#" className="hover:text-[#87ceeb] transition-colors">
-            Contact
+          <Link href="/terms" className="hover:text-[#87ceeb] transition-colors">
+            Terms
           </Link>
         </div>
       </div>

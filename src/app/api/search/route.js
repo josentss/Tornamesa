@@ -7,6 +7,7 @@ import {
   searchSpotifyAlbums,
   dedupeAlbums,
 } from '@/lib/albumResolve';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,12 @@ export async function GET(request) {
       { status: 400 }
     );
   }
+
+  const rl = rateLimit(clientKey(request, 'search'), {
+    limit: 45,
+    windowMs: 60_000,
+  });
+  if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
   try {
     const trimmed = q.trim();
@@ -69,7 +76,7 @@ export async function GET(request) {
         }
       } else if (local.length === 0 && extras.length === 0) {
         return NextResponse.json(
-          { error: 'Search temporarily unavailable', message: e.message },
+          { error: 'Search temporarily unavailable' },
           { status: 503 }
         );
       }
@@ -89,7 +96,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Search error:', error.message);
     return NextResponse.json(
-      { error: 'Search temporarily unavailable', message: error.message },
+      { error: 'Search temporarily unavailable' },
       { status: 503 }
     );
   }

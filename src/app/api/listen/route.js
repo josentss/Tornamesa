@@ -4,6 +4,7 @@ import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { sanitizeString } from '@/lib/validators';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,12 @@ export async function POST(request) {
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const rl = rateLimit(clientKey(request, 'listen', authUser.id), {
+      limit: 40,
+      windowMs: 60_000,
+    });
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const body = await request.json();
     const { albumId, rating, review } = body;
@@ -127,7 +134,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Listen error:', error);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
