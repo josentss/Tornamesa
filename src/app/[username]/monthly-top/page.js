@@ -168,10 +168,10 @@ async function generateWrappedPng({
   const n = Math.max(list.length, 1);
   const rowH = available / n;
 
-  const COVER_N = Math.min(160, Math.floor(rowH * 0.85));
-  const COVER_1 = Math.min(180, Math.floor(rowH * 0.9));
+  const COVER_N = Math.min(200, Math.floor(rowH * 0.95));
+  const COVER_1 = Math.min(260, Math.floor(rowH * 1.0));
   const RANK_W = 42;
-  const GAP = 20;
+  const GAP = 16;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
