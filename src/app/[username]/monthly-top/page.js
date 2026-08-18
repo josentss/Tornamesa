@@ -112,7 +112,7 @@ async function generateWrappedPng({
 }) {
   const W = 1080;
   const H = 1350;
-  const PAD = 52;
+  const PAD = 48;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -124,9 +124,9 @@ async function generateWrappedPng({
   ctx.fillStyle = bgHex;
   ctx.fillRect(0, 0, W, H);
   const depth = ctx.createLinearGradient(0, 0, 0, H);
-  depth.addColorStop(0, "rgba(255,255,255,0.035)");
-  depth.addColorStop(0.55, "rgba(0,0,0,0)");
-  depth.addColorStop(1, "rgba(0,0,0,0.18)");
+  depth.addColorStop(0, "rgba(255,255,255,0.03)");
+  depth.addColorStop(0.5, "rgba(0,0,0,0)");
+  depth.addColorStop(1, "rgba(0,0,0,0.16)");
   ctx.fillStyle = depth;
   ctx.fillRect(0, 0, W, H);
 
@@ -134,19 +134,19 @@ async function generateWrappedPng({
   const textMuted = "rgba(245,240,230,0.55)";
   const accent = "#7cc7e8";
 
-  let y = 56;
+  let y = 48;
 
   ctx.fillStyle = accent;
   ctx.font = "700 13px system-ui, -apple-system, sans-serif";
   ctx.fillText("TOP ALBUMS", PAD, y);
 
-  y += 50;
+  y += 44;
   ctx.fillStyle = textMain;
-  ctx.font = "900 56px system-ui, -apple-system, sans-serif";
+  ctx.font = "900 52px system-ui, -apple-system, sans-serif";
   ctx.fillText(periodTitle || "", PAD, y);
 
-  y += 40;
-  ctx.font = "600 22px system-ui, -apple-system, sans-serif";
+  y += 36;
+  ctx.font = "600 20px system-ui, -apple-system, sans-serif";
   const meta = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`;
   ctx.fillStyle = textMuted;
   ctx.fillText(meta, PAD, y);
@@ -157,47 +157,46 @@ async function generateWrappedPng({
     ctx.fillStyle = textMuted;
     ctx.fillText(sep, PAD + metaW, y);
     ctx.fillStyle = accent;
-    ctx.font = "700 22px system-ui, -apple-system, sans-serif";
+    ctx.font = "700 20px system-ui, -apple-system, sans-serif";
     ctx.fillText(`@${username}`, PAD + metaW + ctx.measureText(sep).width, y);
   }
 
-  const listTop = y + 44;
-  const listBottom = H - 70;
+  const listTop = y + 32;
+  const listBottom = H - 56;
   const available = listBottom - listTop;
   const n = Math.max(list.length, 1);
   const rowH = available / n;
 
-  const COVER_N = Math.min(138, Math.floor(rowH * 0.74));
-  const COVER_1 = Math.min(158, Math.floor(rowH * 0.84));
-  const RANK_W = 56;
-  const GAP = 20;
-  const PLAYS_W = 100;
+  const COVER_N = Math.min(148, Math.floor(rowH * 0.82));
+  const COVER_1 = Math.min(160, Math.floor(rowH * 0.88));
+  const RANK_W = 52;
+  const GAP = 18;
+  const PLAYS_W = 118;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
     const isFirst = i === 0;
-    const rowTop = listTop + i * rowH;
-    const midY = rowTop + rowH / 2;
+    const midY = listTop + i * rowH + rowH / 2;
 
     const coverSize = isFirst ? COVER_1 : COVER_N;
     const coverX = PAD + RANK_W + GAP;
     const coverY = midY - coverSize / 2;
     const textX = coverX + coverSize + GAP;
     const textMax = W - PAD - PLAYS_W - textX;
-    const radius = isFirst ? 14 : 12;
+    const radius = 12;
 
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillStyle = isFirst ? accent : textMain;
     ctx.font = isFirst
-      ? "900 48px system-ui, -apple-system, sans-serif"
-      : "800 40px system-ui, -apple-system, sans-serif";
+      ? "900 44px system-ui, -apple-system, sans-serif"
+      : "800 38px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = isFirst ? 22 : 16;
-    ctx.shadowOffsetY = isFirst ? 8 : 6;
+    ctx.shadowColor = "rgba(0,0,0,0.4)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 5;
     ctx.fillStyle = shadeHex(bgHex, 0.7);
     roundRect(ctx, coverX, coverY, coverSize, coverSize, radius);
     ctx.fill();
@@ -211,28 +210,14 @@ async function generateWrappedPng({
       ctx.restore();
     }
 
-    if (isFirst) {
-      ctx.strokeStyle = "rgba(124,199,232,0.35)";
-      ctx.lineWidth = 2;
-      roundRect(
-        ctx,
-        coverX - 1,
-        coverY - 1,
-        coverSize + 2,
-        coverSize + 2,
-        radius + 1
-      );
-      ctx.stroke();
-    }
-
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "800 30px system-ui, -apple-system, sans-serif"
+      ? "800 28px system-ui, -apple-system, sans-serif"
       : "800 26px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.title || "Unknown", textMax),
       textX,
-      midY - 15
+      midY - 14
     );
 
     ctx.fillStyle = textMuted;
@@ -240,25 +225,26 @@ async function generateWrappedPng({
     ctx.fillText(
       truncate(ctx, item.artist || "", textMax),
       textX,
-      midY + 16
+      midY + 14
     );
 
     const plays = item.count ?? 0;
+    const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
     ctx.textAlign = "right";
     ctx.fillStyle = isFirst ? accent : textMuted;
     ctx.font = isFirst
-      ? "700 26px system-ui, -apple-system, sans-serif"
-      : "600 22px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`×${plays}`, W - PAD, midY);
+      ? "700 22px system-ui, -apple-system, sans-serif"
+      : "600 20px system-ui, -apple-system, sans-serif";
+    ctx.fillText(playsLabel, W - PAD, midY);
     ctx.textAlign = "left";
   }
 
   ctx.textBaseline = "alphabetic";
 
   ctx.fillStyle = textMuted;
-  ctx.font = "600 16px system-ui, -apple-system, sans-serif";
+  ctx.font = "600 15px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("tornamesa-nu.vercel.app", W / 2, H - 28);
+  ctx.fillText("tornamesa-nu.vercel.app", W / 2, H - 24);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
