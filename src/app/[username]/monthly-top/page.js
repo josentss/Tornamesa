@@ -168,10 +168,10 @@ async function generateWrappedPng({
   const n = Math.max(list.length, 1);
   const rowH = available / n;
 
-  const COVER_N = Math.min(200, Math.floor(rowH * 0.95));
-  const COVER_1 = Math.min(260, Math.floor(rowH * 1.0));
-  const RANK_W = 42;
-  const GAP = 16;
+  const COVER_N = 140;
+  const COVER_1 = 160;
+  const RANK_W = 35;
+  const GAP = 14;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
@@ -190,8 +190,8 @@ async function generateWrappedPng({
 
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "900 48px system-ui, -apple-system, sans-serif"
-      : "800 36px system-ui, -apple-system, sans-serif";
+      ? "900 42px system-ui, -apple-system, sans-serif"
+      : "800 32px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
     ctx.save();
@@ -213,20 +213,28 @@ async function generateWrappedPng({
 
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "800 32px system-ui, -apple-system, sans-serif"
-      : "800 30px system-ui, -apple-system, sans-serif";
+      ? "800 28px system-ui, -apple-system, sans-serif"
+      : "800 26px system-ui, -apple-system, sans-serif";
+    ctx.textBaseline = "top";
+    const titleY = midY - 24;
     ctx.fillText(
       truncate(ctx, item.title || "Unknown", textMax),
       textX,
-      midY - 16
+      titleY
+    );
+
+    ctx.fillStyle = textMuted;
+    ctx.font = "600 18px system-ui, -apple-system, sans-serif";
+    ctx.fillText(
+      truncate(ctx, item.artist || "Unknown", textMax),
+      textX,
+      titleY + 32
     );
 
     const plays = item.count ?? 0;
     const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
-    const sub = [item.artist, playsLabel].filter(Boolean).join("  ·  ");
-    ctx.fillStyle = textMuted;
-    ctx.font = "600 20px system-ui, -apple-system, sans-serif";
-    ctx.fillText(truncate(ctx, sub, textMax), textX, midY + 18);
+    ctx.font = "600 16px system-ui, -apple-system, sans-serif";
+    ctx.fillText(playsLabel, textX, titleY + 56);
   }
 
   ctx.textBaseline = "alphabetic";
