@@ -34,6 +34,19 @@ async function authHeaders() {
   return { Authorization: `Bearer ${session.access_token}` };
 }
 
+async function authHeadersOptional() {
+  try {
+    const client = createClient();
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+    if (!session?.access_token) return {};
+    return { Authorization: `Bearer ${session.access_token}` };
+  } catch {
+    return {};
+  }
+}
+
 export const api = {
   searchAlbums: (query, type = 'album') =>
     fetchApi(
@@ -84,29 +97,29 @@ export const api = {
       body: JSON.stringify({ is_private, diary_public, show_activity }),
     }),
 
-  getPublicProfile: (username, currentUserId = null) => {
-    const params = new URLSearchParams({ _t: String(Date.now()) });
-    if (currentUserId) params.set('currentUserId', currentUserId);
+  getPublicProfile: async (username, _ignored = null) => {
+    const headers = await authHeadersOptional();
     return fetchApi(
-      `/api/profiles/username/${encodeURIComponent(username)}?${params}`,
-      { cache: 'no-store' }
+      `/api/profiles/username/${encodeURIComponent(username)}?_t=${Date.now()}`,
+      { cache: 'no-store', headers }
     );
   },
 
-  getPublicHistory: (username, limit = 40, offset = 0, currentUserId = null) => {
+  getPublicHistory: async (username, limit = 40, offset = 0, _ignored = null) => {
+    const headers = await authHeadersOptional();
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
       _t: String(Date.now()),
     });
-    if (currentUserId) params.set('currentUserId', currentUserId);
-    return fetchApi(`/api/profiles/username/${username}/history?${params}`, {
-      cache: 'no-store',
-    });
+    return fetchApi(
+      `/api/profiles/username/${encodeURIComponent(username)}/history?${params}`,
+      { cache: 'no-store', headers }
+    );
   },
 
   getProfileStats: (username) =>
-    fetchApi(`/api/profiles/username/${username}/stats?_t=${Date.now()}`, {
+    fetchApi(`/api/profiles/username/${encodeURIComponent(username)}/stats?_t=${Date.now()}`, {
       cache: 'no-store',
     }),
 
@@ -123,41 +136,44 @@ export const api = {
       headers: await authHeaders(),
     }),
 
-  getFollowers: (username, currentUserId = null, limit = 40, offset = 0) => {
+  getFollowers: async (username, _ignored = null, limit = 40, offset = 0) => {
+    const headers = await authHeadersOptional();
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
       _t: String(Date.now()),
     });
-    if (currentUserId) params.set('currentUserId', currentUserId);
     return fetchApi(
       `/api/profiles/username/${encodeURIComponent(username)}/followers?${params}`,
-      { cache: 'no-store' }
+      { cache: 'no-store', headers }
     );
   },
 
-  getFollowing: (username, currentUserId = null, limit = 40, offset = 0) => {
+  getFollowing: async (username, _ignored = null, limit = 40, offset = 0) => {
+    const headers = await authHeadersOptional();
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
       _t: String(Date.now()),
     });
-    if (currentUserId) params.set('currentUserId', currentUserId);
     return fetchApi(
       `/api/profiles/username/${encodeURIComponent(username)}/following?${params}`,
-      { cache: 'no-store' }
+      { cache: 'no-store', headers }
     );
   },
 
-  discoverUsers: (q = '', currentUserId = null, limit = 24, offset = 0) => {
+  discoverUsers: async (q = '', _ignored = null, limit = 24, offset = 0) => {
+    const headers = await authHeadersOptional();
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
       _t: String(Date.now()),
     });
     if (q) params.set('q', q);
-    if (currentUserId) params.set('currentUserId', currentUserId);
-    return fetchApi(`/api/discover/users?${params}`, { cache: 'no-store' });
+    return fetchApi(`/api/discover/users?${params}`, {
+      cache: 'no-store',
+      headers,
+    });
   },
 
   getFriendsFeed: (userId) => fetchApi(`/api/users/${userId}/feed`),
@@ -254,7 +270,7 @@ export const api = {
     if (week != null) params.set('week', week);
     if (limit != null) params.set('limit', limit);
     return fetchApi(
-      `/api/profiles/username/${username}/monthly-top?${params}`,
+      `/api/profiles/username/${encodeURIComponent(username)}/monthly-top?${params}`,
       { cache: 'no-store' }
     );
   },

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getLastFmNowPlaying, getLastFmUsername } from '@/lib/lastfm';
+import { getRequestUser } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -13,13 +14,13 @@ const noStoreHeaders = {
 
 export async function GET(request, { params }) {
   const { username } = params;
-  const { searchParams } = new URL(request.url);
-  const currentUserId = searchParams.get('currentUserId');
+
+  const authUser = await getRequestUser(request);
+  const viewerId = authUser?.id || null;
 
   const supabase = createSupabaseServer();
 
   try {
-    // 1) Resolve user by username
     const { data: base, error: baseError } = await supabase
       .from('profiles')
       .select(
@@ -35,7 +36,6 @@ export async function GET(request, { params }) {
       );
     }
 
-    // 2) Re-read privacy by id (same path as GET /api/users/[id])
     const { data: privacy, error: privacyError } = await supabase
       .from('profiles')
       .select('is_private, diary_public, show_activity')
@@ -44,7 +44,7 @@ export async function GET(request, { params }) {
 
     if (privacyError) {
       return NextResponse.json(
-        { error: privacyError.message },
+        { error: 'Failed to load profile' },
         { status: 500, headers: noStoreHeaders }
       );
     }
@@ -53,7 +53,7 @@ export async function GET(request, { params }) {
     const diary_public = privacy?.diary_public !== false;
     const show_activity = privacy?.show_activity !== false;
 
-    const isOwner = !!(currentUserId && currentUserId === base.id);
+    const isOwner = !!(viewerId && viewerId === base.id);
 
     const [{ count: followers }, { count: following }] = await Promise.all([
       supabase
@@ -67,17 +67,16 @@ export async function GET(request, { params }) {
     ]);
 
     let isFollowing = false;
-    if (currentUserId) {
+    if (viewerId && viewerId !== base.id) {
       const { data: followCheck } = await supabase
         .from('follows')
         .select('follower_id')
-        .eq('follower_id', currentUserId)
+        .eq('follower_id', viewerId)
         .eq('following_id', base.id)
         .maybeSingle();
       if (followCheck) isFollowing = true;
     }
 
-    // Private + visitor → limited view
     if (is_private && !isOwner) {
       return NextResponse.json(
         {
@@ -164,7 +163,7 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { error: error.message },
+      { error: 'Internal server error' },
       { status: 500, headers: noStoreHeaders }
     );
   }

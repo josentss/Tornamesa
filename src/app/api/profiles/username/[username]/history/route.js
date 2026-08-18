@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,7 +16,9 @@ export async function GET(request, { params }) {
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 100);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
-  const currentUserId = searchParams.get('currentUserId');
+
+  const authUser = await getRequestUser(request);
+  const viewerId = authUser?.id || null;
 
   const supabase = createSupabaseServer();
 
@@ -39,7 +42,7 @@ export async function GET(request, { params }) {
       .eq('id', base.id)
       .maybeSingle();
 
-    const isOwner = !!(currentUserId && currentUserId === base.id);
+    const isOwner = !!(viewerId && viewerId === base.id);
     const isPrivate = privacy?.is_private === true;
     const diaryClosed = privacy?.diary_public === false;
 
@@ -115,7 +118,7 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error('GET history:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to load diary' },
+      { error: 'Failed to load diary' },
       { status: 500, headers: noStoreHeaders }
     );
   }
