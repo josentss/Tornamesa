@@ -112,7 +112,7 @@ async function generateWrappedPng({
 }) {
   const W = 1080;
   const H = 1350;
-  const PAD = 40;
+  const PAD = 60;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -168,10 +168,10 @@ async function generateWrappedPng({
   const n = Math.max(list.length, 1);
   const rowH = available / n;
 
-  const COVER_N = 140;
-  const COVER_1 = 160;
-  const RANK_W = 35;
-  const GAP = 14;
+  const COVER_N = Math.min(190, Math.floor(rowH * 0.92));
+  const COVER_1 = Math.min(205, Math.floor(rowH * 0.96));
+  const RANK_W = 50;
+  const GAP = 16;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
@@ -190,8 +190,8 @@ async function generateWrappedPng({
 
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "900 42px system-ui, -apple-system, sans-serif"
-      : "800 32px system-ui, -apple-system, sans-serif";
+      ? "900 46px system-ui, -apple-system, sans-serif"
+      : "800 38px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
     ctx.save();
@@ -213,28 +213,20 @@ async function generateWrappedPng({
 
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "800 28px system-ui, -apple-system, sans-serif"
-      : "800 26px system-ui, -apple-system, sans-serif";
-    ctx.textBaseline = "top";
-    const titleY = midY - 24;
+      ? "800 34px system-ui, -apple-system, sans-serif"
+      : "800 32px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.title || "Unknown", textMax),
       textX,
-      titleY
-    );
-
-    ctx.fillStyle = textMuted;
-    ctx.font = "600 18px system-ui, -apple-system, sans-serif";
-    ctx.fillText(
-      truncate(ctx, item.artist || "Unknown", textMax),
-      textX,
-      titleY + 32
+      midY - 16
     );
 
     const plays = item.count ?? 0;
     const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
-    ctx.font = "600 16px system-ui, -apple-system, sans-serif";
-    ctx.fillText(playsLabel, textX, titleY + 56);
+    const sub = [item.artist, playsLabel].filter(Boolean).join("  ·  ");
+    ctx.fillStyle = textMuted;
+    ctx.font = "600 20px system-ui, -apple-system, sans-serif";
+    ctx.fillText(truncate(ctx, sub, textMax), textX, midY + 18);
   }
 
   ctx.textBaseline = "alphabetic";
