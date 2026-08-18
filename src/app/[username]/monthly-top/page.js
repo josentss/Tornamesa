@@ -108,11 +108,11 @@ async function generateWrappedPng({
   totalListens,
   uniqueArtists,
   albums,
-  bgHex = "#1a1a1a",
+  bgHex = "#1c241c",
 }) {
   const W = 1080;
   const H = 1350;
-  const PAD = 60;
+  const PAD = 52;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -123,11 +123,10 @@ async function generateWrappedPng({
 
   ctx.fillStyle = bgHex;
   ctx.fillRect(0, 0, W, H);
-
   const depth = ctx.createLinearGradient(0, 0, 0, H);
-  depth.addColorStop(0, "rgba(255,255,255,0.02)");
-  depth.addColorStop(0.5, "rgba(0,0,0,0)");
-  depth.addColorStop(1, "rgba(0,0,0,0.1)");
+  depth.addColorStop(0, "rgba(255,255,255,0.035)");
+  depth.addColorStop(0.55, "rgba(0,0,0,0)");
+  depth.addColorStop(1, "rgba(0,0,0,0.18)");
   ctx.fillStyle = depth;
   ctx.fillRect(0, 0, W, H);
 
@@ -135,77 +134,76 @@ async function generateWrappedPng({
   const textMuted = "rgba(245,240,230,0.55)";
   const accent = "#7cc7e8";
 
-  let y = 44;
+  let y = 56;
 
   ctx.fillStyle = accent;
   ctx.font = "700 13px system-ui, -apple-system, sans-serif";
+  ctx.letterSpacing = "0.12em";
   ctx.fillText("TOP ALBUMS", PAD, y);
+  ctx.font = "700 13px system-ui, -apple-system, sans-serif";
 
   y += 48;
   ctx.fillStyle = textMain;
   ctx.font = "900 56px system-ui, -apple-system, sans-serif";
   ctx.fillText(periodTitle || "", PAD, y);
 
-  y += 42;
-  ctx.font = "600 20px system-ui, -apple-system, sans-serif";
+  y += 40;
+  ctx.font = "600 22px system-ui, -apple-system, sans-serif";
   const meta = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`;
   ctx.fillStyle = textMuted;
   ctx.fillText(meta, PAD, y);
 
   if (username) {
-    const metaW = ctx.measureText(meta).width;
-    const sep = "  ·  ";
+    const metaW = ctx.measureText(meta + "  ·  ").width;
     ctx.fillStyle = textMuted;
-    ctx.fillText(sep, PAD + metaW, y);
+    ctx.fillText("  ·  ", PAD + ctx.measureText(meta).width, y);
     ctx.fillStyle = accent;
-    ctx.font = "700 20px system-ui, -apple-system, sans-serif";
-    ctx.fillText(`@${username}`, PAD + metaW + ctx.measureText(sep).width, y);
+    ctx.font = "700 22px system-ui, -apple-system, sans-serif";
+    ctx.fillText(
+      `@${username}`,
+      PAD + ctx.measureText(meta).width + ctx.measureText("  ·  ").width,
+      y
+    );
   }
 
-  const listTop = y + 32;
-  const listBottom = H - 52;
+  const listTop = y + 48;
+  const listBottom = H - 72;
   const available = listBottom - listTop;
   const n = Math.max(list.length, 1);
   const rowH = available / n;
 
-  const COVER_N = Math.min(190, Math.floor(rowH * 0.92));
-  const COVER_1 = Math.min(205, Math.floor(rowH * 0.96));
-  const RANK_W = 50;
-  const GAP = 16;
+  const COVER_N = Math.min(140, Math.floor(rowH * 0.72));
+  const COVER_1 = Math.min(156, Math.floor(rowH * 0.8));
+  const RANK_W = 56;
+  const GAP = 20;
+  const PLAYS_W = 120;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
     const isFirst = i === 0;
-    const midY = listTop + i * rowH + rowH / 2;
+    const rowTop = listTop + i * rowH;
+    const midY = rowTop + rowH / 2;
 
     const coverSize = isFirst ? COVER_1 : COVER_N;
     const coverX = PAD + RANK_W + GAP;
     const coverY = midY - coverSize / 2;
     const textX = coverX + coverSize + GAP;
-    const textMax = W - PAD - textX;
-    const radius = 12;
+    const textMax = W - PAD - PLAYS_W - textX;
 
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-
-    ctx.fillStyle = textMain;
+    ctx.fillStyle = isFirst ? accent : textMain;
     ctx.font = isFirst
-      ? "900 46px system-ui, -apple-system, sans-serif"
-      : "800 38px system-ui, -apple-system, sans-serif";
+      ? "900 48px system-ui, -apple-system, sans-serif"
+      : "800 40px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.42)";
-    ctx.shadowBlur = 16;
-    ctx.shadowOffsetY = 5;
     ctx.fillStyle = shadeHex(bgHex, 0.7);
-    roundRect(ctx, coverX, coverY, coverSize, coverSize, radius);
+    roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
     ctx.fill();
-    ctx.restore();
-
     if (covers[i]) {
       ctx.save();
-      roundRect(ctx, coverX, coverY, coverSize, coverSize, radius);
+      roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
       ctx.clip();
       ctx.drawImage(covers[i], coverX, coverY, coverSize, coverSize);
       ctx.restore();
@@ -213,28 +211,39 @@ async function generateWrappedPng({
 
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "800 34px system-ui, -apple-system, sans-serif"
-      : "800 32px system-ui, -apple-system, sans-serif";
+      ? "800 32px system-ui, -apple-system, sans-serif"
+      : "800 28px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.title || "Unknown", textMax),
       textX,
       midY - 16
     );
 
-    const plays = item.count ?? 0;
-    const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
-    const sub = [item.artist, playsLabel].filter(Boolean).join("  ·  ");
     ctx.fillStyle = textMuted;
     ctx.font = "600 20px system-ui, -apple-system, sans-serif";
-    ctx.fillText(truncate(ctx, sub, textMax), textX, midY + 18);
+    ctx.fillText(
+      truncate(ctx, item.artist || "", textMax),
+      textX,
+      midY + 18
+    );
+
+    const plays = item.count ?? 0;
+    const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
+    ctx.textAlign = "right";
+    ctx.fillStyle = isFirst ? accent : textMuted;
+    ctx.font = isFirst
+      ? "700 24px system-ui, -apple-system, sans-serif"
+      : "600 22px system-ui, -apple-system, sans-serif";
+    ctx.fillText(playsLabel, W - PAD, midY);
+    ctx.textAlign = "left";
   }
 
   ctx.textBaseline = "alphabetic";
 
   ctx.fillStyle = textMuted;
-  ctx.font = "600 15px system-ui, -apple-system, sans-serif";
+  ctx.font = "600 16px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("tornamesa-nu.vercel.app", W / 2, H - 22);
+  ctx.fillText("tornamesa-nu.vercel.app", W / 2, H - 28);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
