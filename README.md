@@ -16,17 +16,13 @@ Tornamesa está pensado para quien lleva (o quiere llevar) un registro serio de 
 
 ## Capturas
 
-**Perfil:**
-https://i.imgur.com/9ahMPnf.png
+![Perfil](tornamesa-perfil.png)
 
-**Top mensual:**
-https://i.imgur.com/H6CQ0R3.png
+![Diary](tornamesa-diary.png)
 
-**Diario:**
-https://i.imgur.com/5pi7Axu.png
+![Monthly top](tornamesa-monthlytop.png)
 
-**Página de álbum:**
-https://i.imgur.com/F958P2s.png
+![Página de álbum](tornamesa-albumpage.png)
 
 ---
 
