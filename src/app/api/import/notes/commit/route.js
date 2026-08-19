@@ -72,9 +72,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const rl = rateLimit(clientKey(request, 'import-commit', user.id), {
+    const rl = await rateLimit(clientKey(request, 'import-commit', user.id), {
       limit: 5,
       windowMs: 5 * 60_000,
+      name: 'import-commit',
     });
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
@@ -175,9 +176,6 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('import commit:', error);
-    return NextResponse.json(
-      { error: 'Import failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Import failed' }, { status: 500 });
   }
 }

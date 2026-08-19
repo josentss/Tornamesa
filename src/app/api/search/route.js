@@ -22,9 +22,10 @@ export async function GET(request) {
     );
   }
 
-  const rl = rateLimit(clientKey(request, 'search'), {
+  const rl = await rateLimit(clientKey(request, 'search'), {
     limit: 45,
     windowMs: 60_000,
+    name: 'search',
   });
   if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
@@ -83,14 +84,12 @@ export async function GET(request) {
     }
 
     const merged = dedupeAlbums([...remote, ...extras, ...local]);
-
-    const clean = merged
-      .map(({ _score, ...rest }) => rest)
-      .slice(0, 15);
+    const clean = merged.map(({ _score, ...rest }) => rest).slice(0, 15);
 
     const res = NextResponse.json(clean);
     if (rateLimited) res.headers.set('X-Search-Source', 'local-fallback');
-    else if (remote.length > 0) res.headers.set('X-Search-Source', 'spotify+local');
+    else if (remote.length > 0)
+      res.headers.set('X-Search-Source', 'spotify+local');
     else res.headers.set('X-Search-Source', 'local');
     return res;
   } catch (error) {

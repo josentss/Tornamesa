@@ -31,9 +31,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const rl = rateLimit(clientKey(request, 'listen', authUser.id), {
+    const rl = await rateLimit(clientKey(request, 'listen', authUser.id), {
       limit: 40,
       windowMs: 60_000,
+      name: 'listen',
     });
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
