@@ -90,93 +90,103 @@ function IconChart({ className = "w-5 h-5" }) {
 
 // public landing
 const PublicHeader = () => (
-  <header className="absolute top-0 w-full z-20 flex justify-between items-center px-6 py-4">
-    <Link
-      href="/"
-      className="text-xl font-bold tracking-tighter text-[#f0f9ff]"
-    >
-      Tornamesa
-    </Link>
-    <nav className="flex items-center gap-3 sm:gap-4 text-xs md:text-sm font-semibold">
+  <header className="absolute top-0 left-0 right-0 z-20 px-4 sm:px-6 py-5">
+    <div className="max-w-lg mx-auto flex items-center justify-center gap-5 sm:gap-8">
+      <Link
+        href="/"
+        className="text-lg sm:text-xl font-bold tracking-tighter text-[#f0f9ff] hover:text-white transition-colors"
+      >
+        Tornamesa
+      </Link>
+      <span className="text-[#2a3645] select-none" aria-hidden>
+        ·
+      </span>
       <Link
         href="/auth/login"
-        className="text-stone-300 hover:text-white transition-colors px-2 py-1.5"
+        className="text-xs sm:text-sm font-semibold text-stone-400 hover:text-white transition-colors"
       >
         Log in
       </Link>
       <Link
         href="/auth/register"
-        className="bg-[#87ceeb]/15 text-[#87ceeb] border border-[#87ceeb]/30 hover:bg-[#87ceeb]/25 px-3 py-1.5 rounded-lg transition-colors"
+        className="text-xs sm:text-sm font-semibold text-[#0a0f16] bg-[#87ceeb] hover:bg-white px-3.5 py-1.5 rounded-lg transition-colors"
       >
-        Create account
+        Sign up
       </Link>
-    </nav>
+    </div>
   </header>
 );
 
 const FEATURES = [
   {
     title: "Track albums",
-    body: "Log every record you play. Keep an exact diary with dates, counts, and ratings from 1 to 10.",
+    body: "Log every record you play. An exact diary with dates, counts, and ratings from 1 to 10.",
     Icon: IconHeadphones,
   },
   {
     title: "Rate & review",
-    body: "Score albums and write short reviews. Your notes stay linked to each release.",
+    body: "Score albums and write short notes. Your thoughts stay attached to each release.",
     Icon: IconPen,
   },
   {
     title: "Monthly top",
-    body: "See what dominated your month, dig into past archives, and export a shareable wrapped image.",
+    body: "See what dominated your month, browse past archives, and export a shareable image.",
     Icon: IconChart,
   },
   {
     title: "Friends & discovery",
-    body: "Follow people, browse their activity, and find listeners with similar 10★ taste.",
+    body: "Follow people, see their activity, and find listeners with similar 10★ taste.",
     Icon: IconUsers,
   },
 ];
 
 const LandingView = () => (
   <div className="flex-1 flex flex-col w-full bg-[#0a0f16]">
-    <div className="relative w-full min-h-[72vh] sm:min-h-[75vh] flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden">
+    {/* bg back */}
+    <div className="relative w-full min-h-[78vh] sm:min-h-[82vh] flex flex-col items-center justify-center px-6 overflow-hidden text-center">
       <div className="absolute inset-0 z-0">
         <Image
           src="/img/hero-bg.jpg"
           alt=""
           fill
           priority
-          className="object-cover opacity-30 mix-blend-luminosity"
+          className="object-cover opacity-25 mix-blend-luminosity"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0a0f16] via-[#0a0f16]/90 to-transparent z-10" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-transparent to-transparent z-10" />
+        <div className="absolute inset-0 bg-[#0a0f16]/75 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-[#0a0f16]/40 to-[#0a0f16]/80 z-10" />
       </div>
 
-      <div className="relative z-20 max-w-3xl space-y-6 sm:space-y-8 mt-16 sm:mt-20">
-        <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] text-[#87ceeb]/90">
+      <div className="relative z-20 max-w-2xl mx-auto space-y-6 sm:space-y-7 pt-20 pb-12">
+        <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.22em] text-[#87ceeb]">
           Album listening diary
         </p>
-        <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-medium tracking-tight leading-[1.12]">
-          <span className="text-[#f0f9ff]">Track the albums you listen to.</span>
-          <br />
-          <span className="text-stone-400">Save the ones you want to hear.</span>
-          <br />
-          <span className="text-[#87ceeb]">Share what your friends play.</span>
+
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight leading-[1.15] text-[#f0f9ff]">
+          Track the albums you listen to.
+          <span className="block text-stone-400 font-medium mt-2 sm:mt-3">
+            Rate them. Keep a diary.
+          </span>
+          <span className="block text-[#87ceeb] font-medium mt-1">
+            See your monthly top.
+          </span>
         </h1>
-        <p className="text-stone-400 max-w-xl text-base sm:text-lg font-light leading-relaxed">
-          A focused place for album logs, ratings, reviews, and monthly tops —
-          built for listeners who care about records, not only tracks.
+
+        <p className="text-stone-400 text-sm sm:text-base font-light leading-relaxed max-w-md mx-auto">
+          Built for people who care about{" "}
+          <span className="text-stone-300">records</span>, not only tracks —
+          logs, reviews, lists, and a clear picture of what you actually played.
         </p>
-        <div className="flex flex-wrap items-center gap-3 pt-1">
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
           <Link
             href="/auth/register"
-            className="inline-flex items-center justify-center bg-[#87ceeb] text-[#0a0f16] px-7 py-3 rounded-lg font-semibold hover:bg-white transition-all text-sm shadow-[0_0_15px_rgba(135,206,235,0.2)] hover:shadow-[0_0_20px_rgba(255,255,255,0.35)]"
+            className="w-full sm:w-auto inline-flex items-center justify-center bg-[#87ceeb] text-[#0a0f16] px-8 py-3 rounded-lg font-semibold hover:bg-white transition-all text-sm shadow-[0_0_20px_rgba(135,206,235,0.25)]"
           >
             Create free account
           </Link>
           <Link
             href="/auth/login"
-            className="inline-flex items-center justify-center px-5 py-3 rounded-lg text-sm font-semibold text-stone-300 border border-[#2a3645] hover:border-[#3d5068] hover:text-white transition-colors"
+            className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 rounded-lg text-sm font-semibold text-stone-300 border border-[#2a3645] hover:border-[#3d5068] hover:text-white transition-colors"
           >
             Log in
           </Link>
@@ -184,49 +194,53 @@ const LandingView = () => (
       </div>
     </div>
 
-    <div className="w-full max-w-6xl mx-auto px-6 py-14 sm:py-16 relative z-20">
-      <div className="mb-8 sm:mb-10 max-w-xl">
+    {/* features */}
+    <div className="w-full max-w-5xl mx-auto px-6 py-14 sm:py-16 relative z-20">
+      <div className="text-center max-w-lg mx-auto mb-10">
         <h2 className="text-lg sm:text-xl font-semibold text-[#f0f9ff] tracking-tight">
-          What you can do
+          Why Tornamesa
         </h2>
-        <p className="text-sm text-stone-500 mt-1.5 leading-relaxed">
-          Everything revolves around albums: log them, rate them, list them, and
-          look back at your months.
+        <p className="text-sm text-stone-500 mt-2 leading-relaxed">
+          A calm space to log albums, look back at your months, and optionally
+          share with friends.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
         {FEATURES.map(({ title, body, Icon }) => (
           <div
             key={title}
-            className="bg-[#131b26]/80 backdrop-blur-sm border border-[#1e293b] p-6 sm:p-7 rounded-xl space-y-3.5 hover:border-[#87ceeb]/40 transition-colors"
+            className="bg-[#131b26]/80 border border-[#1e293b] p-6 sm:p-7 rounded-xl flex gap-4 hover:border-[#87ceeb]/35 transition-colors text-left"
           >
-            <div className="w-10 h-10 bg-[#1e293b] rounded-lg flex items-center justify-center text-[#87ceeb]">
+            <div className="w-10 h-10 flex-shrink-0 bg-[#1e293b] rounded-lg flex items-center justify-center text-[#87ceeb]">
               <Icon className="w-5 h-5" />
             </div>
-            <h3 className="font-semibold text-[15px] text-[#f0f9ff]">{title}</h3>
-            <p className="text-stone-400 text-sm leading-relaxed">{body}</p>
+            <div className="min-w-0 space-y-1.5">
+              <h3 className="font-semibold text-[15px] text-[#f0f9ff]">
+                {title}
+              </h3>
+              <p className="text-stone-400 text-sm leading-relaxed">{body}</p>
+            </div>
           </div>
         ))}
       </div>
     </div>
 
+    {/* btn signin */}
     <div className="w-full border-t border-[#1e293b]/80">
-      <div className="max-w-6xl mx-auto px-6 py-12 sm:py-14 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-        <div className="max-w-md">
-          <h2 className="text-base sm:text-lg font-semibold text-[#f0f9ff]">
-            Start your listening diary
-          </h2>
-          <p className="text-sm text-stone-500 mt-1.5 leading-relaxed">
-            Free account. Import old notes later if you already track albums by
-            hand.
-          </p>
-        </div>
+      <div className="max-w-5xl mx-auto px-6 py-12 sm:py-14 text-center space-y-5">
+        <h2 className="text-base sm:text-lg font-semibold text-[#f0f9ff]">
+          Start your listening diary
+        </h2>
+        <p className="text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+          Free to join. You can import past months from notes later if you
+          already track albums by hand.
+        </p>
         <Link
           href="/auth/register"
-          className="inline-flex self-start sm:self-center items-center justify-center bg-[#87ceeb] text-[#0a0f16] px-6 py-2.5 rounded-lg font-semibold hover:bg-white transition-colors text-sm"
+          className="inline-flex items-center justify-center bg-[#87ceeb] text-[#0a0f16] px-7 py-2.5 rounded-lg font-semibold hover:bg-white transition-colors text-sm"
         >
-          Create account
+          Sign up
         </Link>
       </div>
     </div>
