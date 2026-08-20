@@ -95,7 +95,7 @@ const FEATURES = [
   },
   {
     n: "04",
-    title: "Social, optional",
+    title: "Social activity",
     body: "Follow friends or keep the diary private. Either way the log is yours.",
     Icon: IconUsers,
   },
@@ -204,19 +204,18 @@ function LandingView() {
 
         <div className="relative z-20 max-w-2xl mx-auto space-y-6 pt-24 pb-14">
           <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.25em] text-[#87ceeb]">
-            Album listening diary
+            A More Personal Count
           </p>
 
           <h1 className="text-[1.85rem] sm:text-4xl md:text-[2.75rem] font-semibold tracking-tight leading-[1.18] text-[#f0f9ff]">
-            The albums you actually play.
+            The albums you actually play
             <span className="block mt-2 text-stone-400 font-medium">
-              Logged. Rated. Remembered.
+              Recorded by you and actually tallied
             </span>
           </h1>
 
           <p className="text-stone-400 text-sm sm:text-[15px] font-light leading-relaxed max-w-md mx-auto">
-            A home for full records — not another stream of singles. Keep a
-            diary, look back at your months, write when something sticks.
+            Streaming platforms generally track individual songs, but Tornamesa helps you keep a clearer count by taking entire albums into account.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
@@ -224,7 +223,7 @@ function LandingView() {
               href="/auth/register"
               className="w-full sm:w-auto inline-flex items-center justify-center bg-[#87ceeb] text-[#0a0f16] px-8 py-3 rounded-full font-semibold hover:bg-white transition-all text-sm shadow-[0_0_24px_rgba(135,206,235,0.22)]"
             >
-              Create free account
+              Create account
             </Link>
             <Link
               href="/auth/login"
@@ -281,8 +280,8 @@ function LandingView() {
             Start with the next album you finish
           </h2>
           <p className="text-sm text-stone-500 leading-relaxed">
-            Free to join. Already track albums in notes? You can import those
-            months later.
+            Get started right away. Do you already keep track of your albums in your notes?
+            You can import them later.
           </p>
           <Link
             href="/auth/register"
