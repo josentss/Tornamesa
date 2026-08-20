@@ -78,25 +78,25 @@ const FEATURES = [
   {
     n: "01",
     title: "Log the record",
-    body: "One click when you finish an album. Dates, repeats, and a real diary — not a streak of singles.",
+    body: "Finish an album, mark it once. Dates, repeats, and a diary that stays honest.",
     Icon: IconHeadphones,
   },
   {
     n: "02",
-    title: "Score it your way",
-    body: "1–10 ratings and optional reviews. Your scale stays attached to the release, forever.",
+    title: "Score when it counts",
+    body: "1–10 and a short note if you feel like writing. Nothing forced.",
     Icon: IconPen,
   },
   {
     n: "03",
-    title: "Own your months",
-    body: "Monthly tops, archives, and a wrapped image you can actually share.",
+    title: "Own the month",
+    body: "Your top albums, past months, and a wrapped image when you want to share.",
     Icon: IconChart,
   },
   {
     n: "04",
-    title: "Optional social",
-    body: "Follow people, peek at activity, or stay private. The diary works either way.",
+    title: "Social, optional",
+    body: "Follow friends or keep the diary private. Either way the log is yours.",
     Icon: IconUsers,
   },
 ];
@@ -107,56 +107,41 @@ function PopularRail({ albums }) {
   const loop = [...albums, ...albums];
 
   return (
-    <section className="relative z-20 w-full py-10 sm:py-12 border-y border-[#1e293b]/60 bg-[#0c1219]/80">
-      <div className="max-w-5xl mx-auto px-6 mb-6 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#87ceeb]/90 mb-1">
-            On Tornamesa
-          </p>
-          <h2 className="text-base sm:text-lg font-semibold text-[#f0f9ff]">
-            Most played albums
-          </h2>
-        </div>
-        <p className="text-[11px] text-stone-500 hidden sm:block max-w-[200px] text-right leading-snug">
-          Ranked by real logs from listeners on the site
+    <section className="relative z-20 w-full py-10 sm:py-12 border-y border-[#1e293b]/60 bg-[#0c1219]/50">
+      <div className="max-w-5xl mx-auto px-6 mb-6 text-center">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#87ceeb]/90 mb-1.5">
+          On Tornamesa
         </p>
+        <h2 className="text-base sm:text-lg font-semibold text-[#f0f9ff]">
+          Most played albums
+        </h2>
       </div>
 
       <div className="relative overflow-hidden group">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-12 sm:w-20 z-10 bg-gradient-to-r from-[#0a0f16] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-12 sm:w-20 z-10 bg-gradient-to-l from-[#0a0f16] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-10 sm:w-16 z-10 bg-gradient-to-r from-[#0a0f16] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 sm:w-16 z-10 bg-gradient-to-l from-[#0a0f16] to-transparent" />
 
-        <div className="flex gap-3 sm:gap-4 w-max animate-tornamesa-marquee group-hover:[animation-play-state:paused] py-1">
+        <div className="flex gap-3 sm:gap-3.5 w-max animate-tornamesa-marquee group-hover:[animation-play-state:paused] py-1 px-2">
           {loop.map((a, i) => (
             <Link
               key={`${a.id}-${i}`}
               href={`/album/${a.id}`}
-              className="flex-shrink-0 w-[112px] sm:w-[132px] group/card"
+              className="flex-shrink-0 w-[100px] sm:w-[120px] group/card"
+              title={a.title ? `${a.title} — ${a.artist}` : undefined}
             >
-              <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] shadow-lg shadow-black/30 transition-transform duration-300 group-hover/card:-translate-y-1 group-hover/card:border-[#87ceeb]/40">
+              <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] shadow-md shadow-black/25 transition-transform duration-300 group-hover/card:-translate-y-0.5 group-hover/card:border-[#87ceeb]/35">
                 {a.cover ? (
                   <Image
                     src={a.cover}
                     alt=""
                     fill
-                    sizes="132px"
+                    sizes="120px"
                     className="object-cover"
                   />
                 ) : (
                   <div className="w-full h-full bg-[#1a2433]" />
                 )}
-                {a.listens > 0 && (
-                  <span className="absolute bottom-1.5 left-1.5 text-[9px] font-bold bg-black/75 text-[#87ceeb] px-1.5 py-0.5 rounded">
-                    {a.listens}×
-                  </span>
-                )}
               </div>
-              <p className="mt-2 text-[11px] font-semibold text-stone-200 truncate px-0.5">
-                {a.title}
-              </p>
-              <p className="text-[10px] text-stone-500 truncate px-0.5">
-                {a.artist}
-              </p>
             </Link>
           ))}
         </div>
@@ -193,7 +178,6 @@ function LandingView() {
         const json = await res.json();
         if (!cancelled) setPopular(json.albums || []);
       } catch {
-
       }
     })();
     return () => {
@@ -203,7 +187,7 @@ function LandingView() {
 
   return (
     <div className="flex-1 flex flex-col w-full bg-[#0a0f16]">
-      {/* bg hero */}
+      {/* bg w hero */}
       <div className="relative w-full min-h-[70vh] sm:min-h-[75vh] flex flex-col items-center justify-center px-6 overflow-hidden text-center">
         <div className="absolute inset-0 z-0">
           <Image
@@ -214,7 +198,7 @@ function LandingView() {
             className="object-cover opacity-20 mix-blend-luminosity scale-105"
           />
           <div className="absolute inset-0 bg-[#0a0f16]/80 z-10" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(135,206,235,0.08)_0%,_transparent_55%)] z-10" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(135,206,235,0.07)_0%,_transparent_55%)] z-10" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f16] via-transparent to-[#0a0f16]/90 z-10" />
         </div>
 
@@ -231,8 +215,8 @@ function LandingView() {
           </h1>
 
           <p className="text-stone-400 text-sm sm:text-[15px] font-light leading-relaxed max-w-md mx-auto">
-            Tornamesa is a quiet home for full records — not playlists of
-            singles. Keep a diary, build monthly tops, write when it matters.
+            A home for full records — not another stream of singles. Keep a
+            diary, look back at your months, write when something sticks.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
@@ -252,14 +236,13 @@ function LandingView() {
         </div>
       </div>
 
-      {/* catalogo popular */}
       <PopularRail albums={popular} />
 
-      {/* features */}
-      <div className="w-full max-w-3xl mx-auto px-6 py-16 sm:py-20 relative z-20">
-        <div className="mb-10 sm:mb-12">
+      {/* features columnas centradas */}
+      <div className="w-full max-w-2xl mx-auto px-6 py-16 sm:py-20 relative z-20">
+        <div className="mb-10 sm:mb-12 text-center">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#87ceeb]/90 mb-2">
-            How it feels
+            The idea
           </p>
           <h2 className="text-xl sm:text-2xl font-semibold text-[#f0f9ff] tracking-tight">
             Built around the record
@@ -270,15 +253,15 @@ function LandingView() {
           {FEATURES.map(({ n, title, body, Icon }) => (
             <li
               key={n}
-              className="flex gap-4 sm:gap-6 py-6 sm:py-7 first:pt-0 last:pb-0"
+              className="flex gap-4 sm:gap-5 py-6 sm:py-7 first:pt-0 last:pb-0"
             >
-              <span className="text-[11px] font-bold text-[#87ceeb]/70 tracking-widest w-8 flex-shrink-0 pt-1">
+              <span className="text-[11px] font-bold text-[#87ceeb]/70 tracking-widest w-7 flex-shrink-0 pt-1 tabular-nums">
                 {n}
               </span>
               <div className="w-9 h-9 flex-shrink-0 rounded-full bg-[#131e2c] border border-[#2a3645] flex items-center justify-center text-[#87ceeb]">
                 <Icon className="w-[18px] h-[18px]" />
               </div>
-              <div className="min-w-0 flex-1 pt-0.5">
+              <div className="min-w-0 flex-1 pt-0.5 text-left">
                 <h3 className="font-semibold text-[#f0f9ff] text-[15px] sm:text-base">
                   {title}
                 </h3>
@@ -291,15 +274,15 @@ function LandingView() {
         </ul>
       </div>
 
-      {/* info sign in para cerrar*/}
-      <div className="w-full border-t border-[#1e293b]/80 bg-[#0c1219]/50">
+      {/* cierre info */}
+      <div className="w-full border-t border-[#1e293b]/80">
         <div className="max-w-md mx-auto px-6 py-14 text-center space-y-5">
           <h2 className="text-lg font-semibold text-[#f0f9ff] tracking-tight">
             Start with the next album you finish
           </h2>
           <p className="text-sm text-stone-500 leading-relaxed">
-            Free account. Import old handwritten months later if you already
-            track albums offline.
+            Free to join. Already track albums in notes? You can import those
+            months later.
           </p>
           <Link
             href="/auth/register"
