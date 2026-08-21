@@ -143,19 +143,37 @@ export function Header({ user: initialUser }) {
                   <div className="absolute right-0 mt-2 w-48 bg-[#131b26] border border-[#1e293b] rounded-lg shadow-lg z-50 overflow-hidden">
                     <Link
                       href={profileUrl}
-                      className="block px-4 py-2.5 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                      className="block px-4 py-2.5 text-sm text-stone-300 hover:text-[#87ceeb] hover:bg-[#1e293b]"
                       onClick={() => setShowMenu(false)}
                     >
                       Profile
                     </Link>
                     <Link
+                      href="/diary"
+                      className="block px-4 py-2.5 text-sm text-stone-300 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                      onClick={() => setShowMenu(false)}
+                    >
+                      Diary
+                    </Link>
+                    {username && (
+                      <Link
+                        href={`/${username}/monthly-top`}
+                        className="block px-4 py-2.5 text-sm text-stone-300 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                        onClick={() => setShowMenu(false)}
+                      >
+                        Monthly top
+                      </Link>
+                    )}
+                    <Link
                       href="/settings/profile"
-                      className="block px-4 py-2.5 text-sm text-stone-400 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                      className="block px-4 py-2.5 text-sm text-stone-300 hover:text-[#87ceeb] hover:bg-[#1e293b]"
                       onClick={() => setShowMenu(false)}
                     >
                       Settings
                     </Link>
+                    <div className="border-t border-[#1e293b]" />
                     <button
+                      type="button"
                       onClick={handleSignOut}
                       className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-[#1e293b]"
                     >

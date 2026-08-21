@@ -489,83 +489,57 @@ const DashboardView = ({
     year: "numeric",
   });
 
+  const AlbumStrip = ({ children, gridClass }) => (
+    <>
+      <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-none">
+        {children}
+      </div>
+      <div className={`hidden md:grid ${gridClass}`}>{children}</div>
+    </>
+  );
+
+  const stripCardClass =
+    "w-[42vw] max-w-[148px] flex-shrink-0 snap-start md:w-auto md:max-w-none";
+
   return (
-    <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-9 sm:space-y-12 overflow-x-hidden">
+    <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-9 sm:space-y-11 overflow-x-hidden">
       {/* bienvenida */}
-      <section className="bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl p-4 sm:p-6">
-        <div className="flex flex-col gap-4">
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-xs text-stone-500 uppercase tracking-[0.18em] font-bold mb-1">
-              Home
-            </p>
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight truncate">
-              {username ? `@${username}` : "Your diary"}
-            </h1>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-xl border border-[#2a3645] bg-[#0a121c]/60 px-3 py-2 min-w-[7.5rem]">
-              <p className="text-lg sm:text-xl font-bold text-white tabular-nums leading-none">
-                {stats?.monthlyListens ?? 0}
-              </p>
-              <p className="text-[10px] text-stone-500 mt-1">albums this month</p>
-            </div>
-            <div className="rounded-xl border border-[#2a3645] bg-[#0a121c]/60 px-3 py-2 min-w-[7.5rem]">
-              <p className="text-lg sm:text-xl font-bold text-white tabular-nums leading-none">
-                {stats?.yearlyListens ?? 0}
-              </p>
-              <p className="text-[10px] text-stone-500 mt-1">albums this year</p>
-            </div>
-            {typeof toListen?.itemCount === "number" && (
-              <div className="rounded-xl border border-[#2a3645] bg-[#0a121c]/60 px-3 py-2 min-w-[7.5rem]">
-                <p className="text-lg sm:text-xl font-bold text-white tabular-nums leading-none">
+      <div className="pt-1 sm:pt-2">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#f0f9ff]">
+          {username ? (
+            <>
+              Welcome back,{" "}
+              <span className="text-[#7cc7e8]">@{username}</span>
+            </>
+          ) : (
+            "Welcome back"
+          )}
+        </h1>
+        {(stats?.monthlyListens != null || stats?.yearlyListens != null) && (
+          <p className="text-sm text-stone-500 mt-1.5">
+            <span className="text-stone-400 font-medium tabular-nums">
+              {stats?.monthlyListens ?? 0}
+            </span>{" "}
+            albums this month
+            <span className="text-stone-600 mx-1.5">·</span>
+            <span className="text-stone-400 font-medium tabular-nums">
+              {stats?.yearlyListens ?? 0}
+            </span>{" "}
+            this year
+            {typeof toListen?.itemCount === "number" && toListen.itemCount > 0 && (
+              <>
+                <span className="text-stone-600 mx-1.5">·</span>
+                <span className="text-stone-400 font-medium tabular-nums">
                   {toListen.itemCount}
-                </p>
-                <p className="text-[10px] text-stone-500 mt-1">to listen</p>
-              </div>
+                </span>{" "}
+                to listen
+              </>
             )}
-          </div>
+          </p>
+        )}
+      </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 scrollbar-none">
-            <Link
-              href="/search"
-              className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
-            >
-              Search albums
-            </Link>
-            <Link
-              href="/diary"
-              className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
-            >
-              Diary
-            </Link>
-            {username && (
-              <Link
-                href={`/${username}/monthly-top`}
-                className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
-              >
-                Monthly top
-              </Link>
-            )}
-            {username && (
-              <Link
-                href={`/${username}`}
-                className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
-              >
-                Profile
-              </Link>
-            )}
-            <Link
-              href="/discover"
-              className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
-            >
-              Discover
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* top mes actual */}
+      {/* this month */}
       {dataReady && topFive.length > 0 && (
         <section>
           <div className="flex items-end justify-between gap-3 border-b border-[#2a3645] pb-2 mb-4">
@@ -584,13 +558,56 @@ const DashboardView = ({
               </Link>
             )}
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5 sm:gap-4">
+
+          <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
             {topFive.map((entry, i) => {
-              const id = entry.album_id || entry.albumId || entry.id;
+              const id = entry.id || entry.album_id || entry.albumId;
               const cover =
                 entry.cover || entry.cover_url || entry.album?.cover;
               const title = entry.title || entry.album?.title || "Album";
-              const count = entry.listen_count ?? entry.count ?? entry.listens;
+              const count =
+                entry.count ?? entry.listen_count ?? entry.listens;
+              return (
+                <Link
+                  key={id || i}
+                  href={id ? `/album/${id}` : "#"}
+                  className="w-[38vw] max-w-[140px] flex-shrink-0 snap-start group"
+                >
+                  <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c]">
+                    {cover ? (
+                      <Image
+                        src={cover}
+                        alt=""
+                        fill
+                        sizes="140px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-[#1f2b3a]" />
+                    )}
+                    <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-black/70 text-[#7cc7e8] w-5 h-5 rounded-full flex items-center justify-center">
+                      {i + 1}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-[11px] font-semibold text-white truncate">
+                    {title}
+                  </p>
+                  {count != null && (
+                    <p className="text-[10px] text-stone-500">{count} plays</p>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:grid md:grid-cols-5 gap-4">
+            {topFive.map((entry, i) => {
+              const id = entry.id || entry.album_id || entry.albumId;
+              const cover =
+                entry.cover || entry.cover_url || entry.album?.cover;
+              const title = entry.title || entry.album?.title || "Album";
+              const count =
+                entry.count ?? entry.listen_count ?? entry.listens;
               return (
                 <Link
                   key={id || i}
@@ -603,7 +620,7 @@ const DashboardView = ({
                         src={cover}
                         alt=""
                         fill
-                        sizes="(max-width: 640px) 33vw, 20vw"
+                        sizes="20vw"
                         className="object-cover"
                       />
                     ) : (
@@ -642,26 +659,44 @@ const DashboardView = ({
               </Link>
             )}
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 sm:gap-4">
+          <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
             {toListenItems.map((item, i) => {
               const id =
-                item.album_id ||
-                item.spotify_id ||
-                item.id ||
-                item.album?.id;
+                item.album_id || item.spotify_id || item.id || item.album?.id;
               const cover =
                 item.cover ||
                 item.cover_url ||
                 item.album?.cover ||
                 item.album?.cover_url;
-              const title =
-                item.title || item.album?.title || "Album";
-              const artist =
-                item.artist || item.album?.artist || "";
+              const title = item.title || item.album?.title || "Album";
+              const artist = item.artist || item.album?.artist || "";
+              return (
+                <div key={id || i} className={stripCardClass}>
+                  <AlbumGridCard
+                    href={id && !String(id).startsWith("preview") ? `/album/${id}` : "#"}
+                    cover={cover}
+                    title={title}
+                    subtitle={artist}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {toListenItems.map((item, i) => {
+              const id =
+                item.album_id || item.spotify_id || item.id || item.album?.id;
+              const cover =
+                item.cover ||
+                item.cover_url ||
+                item.album?.cover ||
+                item.album?.cover_url;
+              const title = item.title || item.album?.title || "Album";
+              const artist = item.artist || item.album?.artist || "";
               return (
                 <AlbumGridCard
                   key={id || i}
-                  href={id ? `/album/${id}` : "#"}
+                  href={id && !String(id).startsWith("preview") ? `/album/${id}` : "#"}
                   cover={cover}
                   title={title}
                   subtitle={artist}
@@ -672,7 +707,7 @@ const DashboardView = ({
         </section>
       )}
 
-      {/* friends activity */}
+      {/* activity friends */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -686,44 +721,85 @@ const DashboardView = ({
           </Link>
         </div>
         {friendsGrouped.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-            {friendsGrouped.map((item) => (
-              <AlbumGridCard
-                key={item.key}
-                href={`/album/${item.album_id}`}
-                cover={item.album_cover}
-                title={item.album_title}
-                subtitle={item.artist_name}
-                rating={item.rating}
-                count={item.count}
-                footerLeft={
-                  <Link
-                    href={`/${item.username}`}
-                    className="flex items-center gap-1.5 min-w-0"
-                  >
-                    <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
-                      {item.avatar_url ? (
-                        <Image
-                          src={item.avatar_url}
-                          alt=""
-                          width={20}
-                          height={20}
-                          className="object-cover w-full h-full"
-                        />
-                      ) : (
-                        <span className="text-[9px] font-bold text-[#7cc7e8]">
-                          {(item.username || "?").charAt(0).toUpperCase()}
+          <>
+            <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+              {friendsGrouped.map((item) => (
+                <div key={item.key} className={stripCardClass}>
+                  <AlbumGridCard
+                    href={`/album/${item.album_id}`}
+                    cover={item.album_cover}
+                    title={item.album_title}
+                    subtitle={item.artist_name}
+                    rating={item.rating}
+                    count={item.count}
+                    footerLeft={
+                      <Link
+                        href={`/${item.username}`}
+                        className="flex items-center gap-1.5 min-w-0"
+                      >
+                        <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
+                          {item.avatar_url ? (
+                            <Image
+                              src={item.avatar_url}
+                              alt=""
+                              width={20}
+                              height={20}
+                              className="object-cover w-full h-full"
+                            />
+                          ) : (
+                            <span className="text-[9px] font-bold text-[#7cc7e8]">
+                              {(item.username || "?").charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-stone-400 truncate">
+                          {item.username}
                         </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-stone-400 hover:text-white truncate transition-colors">
-                      {item.username}
-                    </span>
-                  </Link>
-                }
-              />
-            ))}
-          </div>
+                      </Link>
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {friendsGrouped.map((item) => (
+                <AlbumGridCard
+                  key={item.key}
+                  href={`/album/${item.album_id}`}
+                  cover={item.album_cover}
+                  title={item.album_title}
+                  subtitle={item.artist_name}
+                  rating={item.rating}
+                  count={item.count}
+                  footerLeft={
+                    <Link
+                      href={`/${item.username}`}
+                      className="flex items-center gap-1.5 min-w-0"
+                    >
+                      <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
+                        {item.avatar_url ? (
+                          <Image
+                            src={item.avatar_url}
+                            alt=""
+                            width={20}
+                            height={20}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <span className="text-[9px] font-bold text-[#7cc7e8]">
+                            {(item.username || "?").charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-stone-400 hover:text-white truncate transition-colors">
+                        {item.username}
+                      </span>
+                    </Link>
+                  }
+                />
+              ))}
+            </div>
+          </>
         ) : dataReady ? (
           <EmptyState
             title="No friend activity yet"
@@ -745,19 +821,35 @@ const DashboardView = ({
           </Link>
         </div>
         {ownGrouped.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-            {ownGrouped.map((entry) => (
-              <AlbumGridCard
-                key={entry.key}
-                href={`/album/${entry.album.id}`}
-                cover={entry.album.cover}
-                title={entry.album.title}
-                subtitle={entry.album.artist}
-                rating={entry.rating}
-                count={entry.count}
-              />
-            ))}
-          </div>
+          <>
+            <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+              {ownGrouped.map((entry) => (
+                <div key={entry.key} className={stripCardClass}>
+                  <AlbumGridCard
+                    href={`/album/${entry.album.id}`}
+                    cover={entry.album.cover}
+                    title={entry.album.title}
+                    subtitle={entry.album.artist}
+                    rating={entry.rating}
+                    count={entry.count}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {ownGrouped.map((entry) => (
+                <AlbumGridCard
+                  key={entry.key}
+                  href={`/album/${entry.album.id}`}
+                  cover={entry.album.cover}
+                  title={entry.album.title}
+                  subtitle={entry.album.artist}
+                  rating={entry.rating}
+                  count={entry.count}
+                />
+              ))}
+            </div>
+          </>
         ) : dataReady ? (
           <EmptyState
             title="No listens yet"
@@ -768,7 +860,7 @@ const DashboardView = ({
         ) : null}
       </section>
 
-      {/* reviews amigos */}
+      {/* reviews/rating*/}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -776,7 +868,7 @@ const DashboardView = ({
           </h2>
         </div>
         {reviewsSix.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-3">
             {reviewsSix.map((review) => (
               <FriendReviewCard key={review.id} review={review} />
             ))}
@@ -942,7 +1034,6 @@ export default function HomeClient({ initialLoggedIn = false }) {
                 );
               }
             } catch {
-              /* keep count from list summary; grid may stay empty */
             }
           }
         }
