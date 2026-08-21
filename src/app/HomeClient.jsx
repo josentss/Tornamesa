@@ -801,6 +801,8 @@ export default function HomeClient({ initialLoggedIn = false }) {
   const [stats, setStats] = useState(null);
   const [friendsReviews, setFriendsReviews] = useState([]);
   const [username, setUsername] = useState(null);
+  const [monthlyTop, setMonthlyTop] = useState([]);
+  const [toListen, setToListen] = useState(null);
   const [dataReady, setDataReady] = useState(false);
 
   const needsOnboarding = !!user && user.onboarding_completed === false;
@@ -827,6 +829,8 @@ export default function HomeClient({ initialLoggedIn = false }) {
         setStats(null);
         setFriendsReviews([]);
         setUsername(null);
+        setMonthlyTop([]);
+        setToListen(null);
       }
       return;
     }
@@ -843,25 +847,106 @@ export default function HomeClient({ initialLoggedIn = false }) {
           uname = user.username || user.user_metadata?.username || null;
         }
 
-        const [feedRes, historyRes, statsRes, friendsReviewsRes] =
-          await Promise.all([
-            api.getFriendsFeed(user.id).catch(() => []),
-            api.getUserHistory(user.id, 30, 0).catch(() => ({ history: [] })),
-            uname
-              ? api.getProfileStats(uname).catch(() => null)
-              : Promise.resolve(null),
-            api.getFriendsReviews(user.id).catch(() => []),
-          ]);
+        const now = new Date();
+        const year = now.getUTCFullYear();
+        const month = now.getUTCMonth() + 1;
+
+        const [
+          feedRes,
+          historyRes,
+          statsRes,
+          friendsReviewsRes,
+          monthlyRes,
+          listsRes,
+        ] = await Promise.all([
+          api.getFriendsFeed(user.id).catch(() => []),
+          api.getUserHistory(user.id, 30, 0).catch(() => ({ history: [] })),
+          uname
+            ? api.getProfileStats(uname).catch(() => null)
+            : Promise.resolve(null),
+          api.getFriendsReviews(user.id).catch(() => []),
+          uname
+            ? api
+                .getMonthlyTop(uname, { year, month, limit: 5 })
+                .catch(() => null)
+            : Promise.resolve(null),
+          api.getUserLists(user.id).catch(() => ({ lists: [] })),
+        ]);
 
         if (cancelled) return;
 
         setUsername(uname);
         setFeed(Array.isArray(feedRes) ? feedRes : []);
-        setOwnHistory(historyRes.history || []);
+        setOwnHistory(historyRes?.history || []);
         setStats(statsRes);
         setFriendsReviews(
           Array.isArray(friendsReviewsRes) ? friendsReviewsRes : []
         );
+
+        const topEntries =
+          monthlyRes?.albums ||
+          monthlyRes?.entries ||
+          monthlyRes?.top ||
+          (Array.isArray(monthlyRes) ? monthlyRes : []);
+        setMonthlyTop(Array.isArray(topEntries) ? topEntries : []);
+
+        const lists = Array.isArray(listsRes)
+          ? listsRes
+          : listsRes?.lists || [];
+        const systemList =
+          lists.find(
+            (l) =>
+              l.isSystem === true ||
+              l.is_system === true ||
+              (l.name || "").toLowerCase() === "to listen"
+          ) || null;
+
+        let toListenPayload = null;
+        if (systemList) {
+          toListenPayload = {
+            id: systemList.id,
+            itemCount:
+              systemList.count ??
+              systemList.item_count ??
+              systemList.itemCount ??
+              0,
+            items: [],
+          };
+
+          if (systemList.id && typeof api.getList === "function") {
+            try {
+              const full = await api.getList(systemList.id);
+              const items =
+                full?.albums || full?.items || full?.list_items || [];
+              toListenPayload.items = (items || [])
+                .slice(0, 6)
+                .map((it) => {
+                  const alb = it.album || it;
+                  return {
+                    id: alb.id || alb.spotify_id || it.album_id,
+                    album_id: alb.id || alb.spotify_id || it.album_id,
+                    title: alb.title || it.title,
+                    artist: alb.artist || it.artist,
+                    cover: alb.cover || alb.cover_url || it.cover,
+                  };
+                })
+                .filter((x) => x.id);
+              if (full?.list?.count != null) {
+                toListenPayload.itemCount = full.list.count;
+              } else if (full?.count != null) {
+                toListenPayload.itemCount = full.count;
+              } else if (items?.length) {
+                toListenPayload.itemCount = Math.max(
+                  toListenPayload.itemCount || 0,
+                  items.length
+                );
+              }
+            } catch {
+              /* keep count from list summary; grid may stay empty */
+            }
+          }
+        }
+        setToListen(toListenPayload);
       } catch (err) {
         console.error("Dashboard load error:", err);
       } finally {
@@ -890,6 +975,8 @@ export default function HomeClient({ initialLoggedIn = false }) {
           ownHistory={ownHistory}
           stats={stats}
           friendsReviews={friendsReviews}
+          monthlyTop={monthlyTop}
+          toListen={toListen}
           dataReady={dataReady}
         />
       ) : (
