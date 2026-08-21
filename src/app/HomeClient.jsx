@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -187,7 +187,6 @@ function LandingView() {
 
   return (
     <div className="flex-1 flex flex-col w-full bg-[#0a0f16]">
-      {/* bg w hero */}
       <div className="relative w-full min-h-[70vh] sm:min-h-[75vh] flex flex-col items-center justify-center px-6 overflow-hidden text-center">
         <div className="absolute inset-0 z-0">
           <Image
@@ -204,18 +203,19 @@ function LandingView() {
 
         <div className="relative z-20 max-w-2xl mx-auto space-y-6 pt-24 pb-14">
           <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.25em] text-[#87ceeb]">
-            A More Personal Count
+            Album listening diary
           </p>
 
           <h1 className="text-[1.85rem] sm:text-4xl md:text-[2.75rem] font-semibold tracking-tight leading-[1.18] text-[#f0f9ff]">
-            The albums you actually play
+            The albums you actually play.
             <span className="block mt-2 text-stone-400 font-medium">
-              Recorded by you and actually tallied
+              Logged. Rated. Remembered.
             </span>
           </h1>
 
           <p className="text-stone-400 text-sm sm:text-[15px] font-light leading-relaxed max-w-md mx-auto">
-            Streaming platforms generally track individual songs, but Tornamesa helps you keep a clearer count by taking entire albums into account.
+            A home for full records — not another stream of singles. Keep a
+            diary, look back at your months, write when something sticks.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
@@ -223,7 +223,7 @@ function LandingView() {
               href="/auth/register"
               className="w-full sm:w-auto inline-flex items-center justify-center bg-[#87ceeb] text-[#0a0f16] px-8 py-3 rounded-full font-semibold hover:bg-white transition-all text-sm shadow-[0_0_24px_rgba(135,206,235,0.22)]"
             >
-              Create account
+              Create free account
             </Link>
             <Link
               href="/auth/login"
@@ -237,7 +237,6 @@ function LandingView() {
 
       <PopularRail albums={popular} />
 
-      {/* features columnas centradas */}
       <div className="w-full max-w-2xl mx-auto px-6 py-16 sm:py-20 relative z-20">
         <div className="mb-10 sm:mb-12 text-center">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#87ceeb]/90 mb-2">
@@ -273,15 +272,14 @@ function LandingView() {
         </ul>
       </div>
 
-      {/* cierre info */}
       <div className="w-full border-t border-[#1e293b]/80">
         <div className="max-w-md mx-auto px-6 py-14 text-center space-y-5">
           <h2 className="text-lg font-semibold text-[#f0f9ff] tracking-tight">
             Start with the next album you finish
           </h2>
           <p className="text-sm text-stone-500 leading-relaxed">
-            Get started right away. Do you already keep track of your albums in your notes?
-            You can import them later.
+            Free to join. Already track albums in notes? You can import those
+            months later.
           </p>
           <Link
             href="/auth/register"
@@ -294,8 +292,6 @@ function LandingView() {
     </div>
   );
 }
-
-// helpers en dashboard
 
 function groupOwnHistory(history) {
   const map = {};
@@ -373,8 +369,9 @@ const AlbumGridCard = ({
           src={cover}
           alt={title}
           fill
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
+          sizes="132px"
           className="object-cover group-hover:scale-105 transition-transform duration-500"
+          loading="lazy"
         />
       ) : (
         <div className="w-full h-full bg-[#1f2b3a]" />
@@ -468,6 +465,27 @@ const FriendReviewCard = ({ review }) => (
   </Link>
 );
 
+function HScroll({ children, resetKey = "" }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollLeft = 0;
+  }, [resetKey]);
+
+  return (
+    <div
+      ref={ref}
+      className="md:hidden overflow-x-auto overscroll-x-contain pb-1"
+      style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
+    >
+      <div className="flex gap-3 w-max">{children}</div>
+    </div>
+  );
+}
+
+const stripItemClass = "w-[132px] flex-shrink-0";
+
 const DashboardView = ({
   username,
   feed,
@@ -489,21 +507,82 @@ const DashboardView = ({
     year: "numeric",
   });
 
-  const AlbumStrip = ({ children, gridClass }) => (
-    <>
-      <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory scrollbar-none">
-        {children}
-      </div>
-      <div className={`hidden md:grid ${gridClass}`}>{children}</div>
-    </>
-  );
+  const renderTopCard = (entry, i, fixed) => {
+    const id = entry.id || entry.album_id || entry.albumId;
+    const cover = entry.cover || entry.cover_url || entry.album?.cover;
+    const title = entry.title || entry.album?.title || "Album";
+    const count = entry.count ?? entry.listen_count ?? entry.listens;
+    return (
+      <Link
+        key={id || i}
+        href={id ? `/album/${id}` : "#"}
+        className={fixed ? `${stripItemClass} group` : "group min-w-0"}
+      >
+        <div
+          className={
+            fixed
+              ? "relative w-[132px] h-[132px] rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c]"
+              : "relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] group-hover:border-[#7cc7e8]/40 transition-colors"
+          }
+        >
+          {cover ? (
+            <Image
+              src={cover}
+              alt=""
+              fill
+              sizes={fixed ? "132px" : "20vw"}
+              className="object-cover"
+              loading={i < 3 ? "eager" : "lazy"}
+            />
+          ) : (
+            <div className="w-full h-full bg-[#1f2b3a]" />
+          )}
+          <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-black/70 text-[#7cc7e8] w-5 h-5 rounded-full flex items-center justify-center">
+            {i + 1}
+          </span>
+        </div>
+        <p
+          className={`mt-1.5 text-[11px] font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors ${
+            fixed ? "w-[132px]" : ""
+          }`}
+        >
+          {title}
+        </p>
+        {count != null && (
+          <p className="text-[10px] text-stone-500">{count} plays</p>
+        )}
+      </Link>
+    );
+  };
 
-  const stripCardClass =
-    "w-[42vw] max-w-[148px] flex-shrink-0 snap-start md:w-auto md:max-w-none";
+  const friendFooter = (item) => (
+    <Link
+      href={`/${item.username}`}
+      className="flex items-center gap-1.5 min-w-0"
+    >
+      <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
+        {item.avatar_url ? (
+          <Image
+            src={item.avatar_url}
+            alt=""
+            width={20}
+            height={20}
+            className="object-cover w-full h-full"
+          />
+        ) : (
+          <span className="text-[9px] font-bold text-[#7cc7e8]">
+            {(item.username || "?").charAt(0).toUpperCase()}
+          </span>
+        )}
+      </div>
+      <span className="text-[11px] text-stone-400 hover:text-white truncate transition-colors">
+        {item.username}
+      </span>
+    </Link>
+  );
 
   return (
     <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-9 sm:space-y-11 overflow-x-hidden">
-      {/* bienvenida */}
       <div className="pt-1 sm:pt-2">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#f0f9ff]">
           {username ? (
@@ -526,20 +605,20 @@ const DashboardView = ({
               {stats?.yearlyListens ?? 0}
             </span>{" "}
             this year
-            {typeof toListen?.itemCount === "number" && toListen.itemCount > 0 && (
-              <>
-                <span className="text-stone-600 mx-1.5">·</span>
-                <span className="text-stone-400 font-medium tabular-nums">
-                  {toListen.itemCount}
-                </span>{" "}
-                to listen
-              </>
-            )}
+            {typeof toListen?.itemCount === "number" &&
+              toListen.itemCount > 0 && (
+                <>
+                  <span className="text-stone-600 mx-1.5">·</span>
+                  <span className="text-stone-400 font-medium tabular-nums">
+                    {toListen.itemCount}
+                  </span>{" "}
+                  to listen
+                </>
+              )}
           </p>
         )}
       </div>
 
-      {/* this month */}
       {dataReady && topFive.length > 0 && (
         <section>
           <div className="flex items-end justify-between gap-3 border-b border-[#2a3645] pb-2 mb-4">
@@ -558,92 +637,17 @@ const DashboardView = ({
               </Link>
             )}
           </div>
-
-          <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
-            {topFive.map((entry, i) => {
-              const id = entry.id || entry.album_id || entry.albumId;
-              const cover =
-                entry.cover || entry.cover_url || entry.album?.cover;
-              const title = entry.title || entry.album?.title || "Album";
-              const count =
-                entry.count ?? entry.listen_count ?? entry.listens;
-              return (
-                <Link
-                  key={id || i}
-                  href={id ? `/album/${id}` : "#"}
-                  className="w-[38vw] max-w-[140px] flex-shrink-0 snap-start group"
-                >
-                  <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c]">
-                    {cover ? (
-                      <Image
-                        src={cover}
-                        alt=""
-                        fill
-                        sizes="140px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-[#1f2b3a]" />
-                    )}
-                    <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-black/70 text-[#7cc7e8] w-5 h-5 rounded-full flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[11px] font-semibold text-white truncate">
-                    {title}
-                  </p>
-                  {count != null && (
-                    <p className="text-[10px] text-stone-500">{count} plays</p>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-
+          <HScroll
+            resetKey={topFive.map((e) => e.id || e.album_id || "").join(",")}
+          >
+            {topFive.map((e, i) => renderTopCard(e, i, true))}
+          </HScroll>
           <div className="hidden md:grid md:grid-cols-5 gap-4">
-            {topFive.map((entry, i) => {
-              const id = entry.id || entry.album_id || entry.albumId;
-              const cover =
-                entry.cover || entry.cover_url || entry.album?.cover;
-              const title = entry.title || entry.album?.title || "Album";
-              const count =
-                entry.count ?? entry.listen_count ?? entry.listens;
-              return (
-                <Link
-                  key={id || i}
-                  href={id ? `/album/${id}` : "#"}
-                  className="group min-w-0"
-                >
-                  <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] group-hover:border-[#7cc7e8]/40 transition-colors">
-                    {cover ? (
-                      <Image
-                        src={cover}
-                        alt=""
-                        fill
-                        sizes="20vw"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-[#1f2b3a]" />
-                    )}
-                    <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-black/70 text-[#7cc7e8] w-5 h-5 rounded-full flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[11px] font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors">
-                    {title}
-                  </p>
-                  {count != null && (
-                    <p className="text-[10px] text-stone-500">{count} plays</p>
-                  )}
-                </Link>
-              );
-            })}
+            {topFive.map((e, i) => renderTopCard(e, i, false))}
           </div>
         </section>
       )}
 
-      {/* to listen */}
       {dataReady && toListenItems.length > 0 && (
         <section>
           <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
@@ -659,7 +663,11 @@ const DashboardView = ({
               </Link>
             )}
           </div>
-          <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+          <HScroll
+            resetKey={toListenItems
+              .map((x) => x.id || x.album_id || "")
+              .join(",")}
+          >
             {toListenItems.map((item, i) => {
               const id =
                 item.album_id || item.spotify_id || item.id || item.album?.id;
@@ -670,10 +678,14 @@ const DashboardView = ({
                 item.album?.cover_url;
               const title = item.title || item.album?.title || "Album";
               const artist = item.artist || item.album?.artist || "";
+              const href =
+                id && !String(id).startsWith("preview")
+                  ? `/album/${id}`
+                  : "#";
               return (
-                <div key={id || i} className={stripCardClass}>
+                <div key={id || i} className={stripItemClass}>
                   <AlbumGridCard
-                    href={id && !String(id).startsWith("preview") ? `/album/${id}` : "#"}
+                    href={href}
                     cover={cover}
                     title={title}
                     subtitle={artist}
@@ -681,7 +693,7 @@ const DashboardView = ({
                 </div>
               );
             })}
-          </div>
+          </HScroll>
           <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-6 gap-4">
             {toListenItems.map((item, i) => {
               const id =
@@ -693,10 +705,14 @@ const DashboardView = ({
                 item.album?.cover_url;
               const title = item.title || item.album?.title || "Album";
               const artist = item.artist || item.album?.artist || "";
+              const href =
+                id && !String(id).startsWith("preview")
+                  ? `/album/${id}`
+                  : "#";
               return (
                 <AlbumGridCard
                   key={id || i}
-                  href={id && !String(id).startsWith("preview") ? `/album/${id}` : "#"}
+                  href={href}
                   cover={cover}
                   title={title}
                   subtitle={artist}
@@ -707,7 +723,6 @@ const DashboardView = ({
         </section>
       )}
 
-      {/* activity friends */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -722,9 +737,9 @@ const DashboardView = ({
         </div>
         {friendsGrouped.length > 0 ? (
           <>
-            <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+            <HScroll resetKey={friendsGrouped.map((x) => x.key).join(",")}>
               {friendsGrouped.map((item) => (
-                <div key={item.key} className={stripCardClass}>
+                <div key={item.key} className={stripItemClass}>
                   <AlbumGridCard
                     href={`/album/${item.album_id}`}
                     cover={item.album_cover}
@@ -732,35 +747,11 @@ const DashboardView = ({
                     subtitle={item.artist_name}
                     rating={item.rating}
                     count={item.count}
-                    footerLeft={
-                      <Link
-                        href={`/${item.username}`}
-                        className="flex items-center gap-1.5 min-w-0"
-                      >
-                        <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
-                          {item.avatar_url ? (
-                            <Image
-                              src={item.avatar_url}
-                              alt=""
-                              width={20}
-                              height={20}
-                              className="object-cover w-full h-full"
-                            />
-                          ) : (
-                            <span className="text-[9px] font-bold text-[#7cc7e8]">
-                              {(item.username || "?").charAt(0).toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-stone-400 truncate">
-                          {item.username}
-                        </span>
-                      </Link>
-                    }
+                    footerLeft={friendFooter(item)}
                   />
                 </div>
               ))}
-            </div>
+            </HScroll>
             <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-6 gap-4">
               {friendsGrouped.map((item) => (
                 <AlbumGridCard
@@ -771,31 +762,7 @@ const DashboardView = ({
                   subtitle={item.artist_name}
                   rating={item.rating}
                   count={item.count}
-                  footerLeft={
-                    <Link
-                      href={`/${item.username}`}
-                      className="flex items-center gap-1.5 min-w-0"
-                    >
-                      <div className="w-5 h-5 rounded-full overflow-hidden bg-[#1f2b3a] border border-[#2a3645] flex-shrink-0 flex items-center justify-center">
-                        {item.avatar_url ? (
-                          <Image
-                            src={item.avatar_url}
-                            alt=""
-                            width={20}
-                            height={20}
-                            className="object-cover w-full h-full"
-                          />
-                        ) : (
-                          <span className="text-[9px] font-bold text-[#7cc7e8]">
-                            {(item.username || "?").charAt(0).toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-stone-400 hover:text-white truncate transition-colors">
-                        {item.username}
-                      </span>
-                    </Link>
-                  }
+                  footerLeft={friendFooter(item)}
                 />
               ))}
             </div>
@@ -810,7 +777,6 @@ const DashboardView = ({
         ) : null}
       </section>
 
-      {/* ur recent */}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -822,9 +788,9 @@ const DashboardView = ({
         </div>
         {ownGrouped.length > 0 ? (
           <>
-            <div className="md:hidden -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+            <HScroll resetKey={ownGrouped.map((x) => x.key).join(",")}>
               {ownGrouped.map((entry) => (
-                <div key={entry.key} className={stripCardClass}>
+                <div key={entry.key} className={stripItemClass}>
                   <AlbumGridCard
                     href={`/album/${entry.album.id}`}
                     cover={entry.album.cover}
@@ -835,7 +801,7 @@ const DashboardView = ({
                   />
                 </div>
               ))}
-            </div>
+            </HScroll>
             <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-6 gap-4">
               {ownGrouped.map((entry) => (
                 <AlbumGridCard
@@ -860,7 +826,6 @@ const DashboardView = ({
         ) : null}
       </section>
 
-      {/* reviews/rating*/}
       <section>
         <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
@@ -884,7 +849,6 @@ const DashboardView = ({
   );
 };
 
-// client page
 export default function HomeClient({ initialLoggedIn = false }) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -938,79 +902,79 @@ export default function HomeClient({ initialLoggedIn = false }) {
         } catch {
           uname = user.username || user.user_metadata?.username || null;
         }
+        if (cancelled) return;
+        setUsername(uname);
 
         const now = new Date();
         const year = now.getUTCFullYear();
         const month = now.getUTCMonth() + 1;
 
-        const [
-          feedRes,
-          historyRes,
-          statsRes,
-          friendsReviewsRes,
-          monthlyRes,
-          listsRes,
-        ] = await Promise.all([
+        const core = Promise.all([
           api.getFriendsFeed(user.id).catch(() => []),
-          api.getUserHistory(user.id, 30, 0).catch(() => ({ history: [] })),
+          api.getUserHistory(user.id, 24, 0).catch(() => ({ history: [] })),
           uname
             ? api.getProfileStats(uname).catch(() => null)
             : Promise.resolve(null),
           api.getFriendsReviews(user.id).catch(() => []),
+        ]).then(([feedRes, historyRes, statsRes, friendsReviewsRes]) => {
+          if (cancelled) return;
+          setFeed(Array.isArray(feedRes) ? feedRes : []);
+          setOwnHistory(historyRes?.history || []);
+          setStats(statsRes);
+          setFriendsReviews(
+            Array.isArray(friendsReviewsRes) ? friendsReviewsRes : []
+          );
+          setDataReady(true);
+        });
+
+        const secondary = Promise.all([
           uname
             ? api
                 .getMonthlyTop(uname, { year, month, limit: 5 })
                 .catch(() => null)
             : Promise.resolve(null),
           api.getUserLists(user.id).catch(() => ({ lists: [] })),
-        ]);
+        ]).then(async ([monthlyRes, listsRes]) => {
+          if (cancelled) return;
 
-        if (cancelled) return;
+          const topEntries =
+            monthlyRes?.albums ||
+            monthlyRes?.entries ||
+            monthlyRes?.top ||
+            (Array.isArray(monthlyRes) ? monthlyRes : []);
+          setMonthlyTop(Array.isArray(topEntries) ? topEntries : []);
 
-        setUsername(uname);
-        setFeed(Array.isArray(feedRes) ? feedRes : []);
-        setOwnHistory(historyRes?.history || []);
-        setStats(statsRes);
-        setFriendsReviews(
-          Array.isArray(friendsReviewsRes) ? friendsReviewsRes : []
-        );
+          const lists = Array.isArray(listsRes)
+            ? listsRes
+            : listsRes?.lists || [];
+          const systemList =
+            lists.find(
+              (l) =>
+                l.isSystem === true ||
+                l.is_system === true ||
+                (l.name || "").toLowerCase() === "to listen"
+            ) || null;
 
-        const topEntries =
-          monthlyRes?.albums ||
-          monthlyRes?.entries ||
-          monthlyRes?.top ||
-          (Array.isArray(monthlyRes) ? monthlyRes : []);
-        setMonthlyTop(Array.isArray(topEntries) ? topEntries : []);
+          if (!systemList?.id) {
+            setToListen(null);
+            return;
+          }
 
-        const lists = Array.isArray(listsRes)
-          ? listsRes
-          : listsRes?.lists || [];
-        const systemList =
-          lists.find(
-            (l) =>
-              l.isSystem === true ||
-              l.is_system === true ||
-              (l.name || "").toLowerCase() === "to listen"
-          ) || null;
-
-        let toListenPayload = null;
-        if (systemList) {
-          toListenPayload = {
+          setToListen({
             id: systemList.id,
-            itemCount:
-              systemList.count ??
-              systemList.item_count ??
-              systemList.itemCount ??
-              0,
+            itemCount: systemList.count ?? 0,
             items: [],
-          };
+          });
 
-          if (systemList.id && typeof api.getList === "function") {
-            try {
-              const full = await api.getList(systemList.id);
-              const items =
-                full?.albums || full?.items || full?.list_items || [];
-              toListenPayload.items = (items || [])
+          try {
+            const full = await api.getList(systemList.id);
+            if (cancelled) return;
+            const items = full?.albums || full?.items || [];
+            setToListen({
+              id: systemList.id,
+              itemCount:
+                full?.list?.count ?? systemList.count ?? items.length,
+              items: items
                 .slice(0, 6)
                 .map((it) => {
                   const alb = it.album || it;
@@ -1022,25 +986,15 @@ export default function HomeClient({ initialLoggedIn = false }) {
                     cover: alb.cover || alb.cover_url || it.cover,
                   };
                 })
-                .filter((x) => x.id);
-              if (full?.list?.count != null) {
-                toListenPayload.itemCount = full.list.count;
-              } else if (full?.count != null) {
-                toListenPayload.itemCount = full.count;
-              } else if (items?.length) {
-                toListenPayload.itemCount = Math.max(
-                  toListenPayload.itemCount || 0,
-                  items.length
-                );
-              }
-            } catch {
-            }
+                .filter((x) => x.id),
+            });
+          } catch {
           }
-        }
-        setToListen(toListenPayload);
+        });
+
+        await Promise.all([core, secondary]);
       } catch (err) {
         console.error("Dashboard load error:", err);
-      } finally {
         if (!cancelled) setDataReady(true);
       }
     };
