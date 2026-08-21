@@ -16,13 +16,13 @@ Tornamesa está pensado para quien lleva (o quiere llevar) un registro serio de 
 
 ## Capturas
 
-![Perfil](tornamesa-perfil.png)
+![Perfil](info/img/tornamesa-perfil.png)
 
-![Diary](tornamesa-diary.png)
+![Diary](info/img/tornamesa-diary.png)
 
-![Monthly top](tornamesa-monthlytop.png)
+![Monthly top](info/img/tornamesa-monthlytop.png)
 
-![Página de álbum](tornamesa-albumpage.png)
+![Página de álbum](info/img/tornamesa-albumpage.png)
 
 ---
 
