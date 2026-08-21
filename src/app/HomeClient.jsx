@@ -474,73 +474,207 @@ const DashboardView = ({
   ownHistory,
   stats,
   friendsReviews,
+  monthlyTop,
+  toListen,
   dataReady,
 }) => {
   const ownGrouped = groupOwnHistory(ownHistory);
   const friendsGrouped = groupFriendsFeed(feed);
   const reviewsSix = (friendsReviews || []).slice(0, 6);
+  const topFive = (monthlyTop || []).slice(0, 5);
+  const toListenItems = (toListen?.items || toListen?.albums || []).slice(0, 6);
+
+  const monthLabel = new Date().toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
-    <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 md:px-8 py-8 sm:py-12 space-y-10 sm:space-y-14 overflow-x-hidden">
-      <section className="bg-[#131e2c]/80 border border-[#2a3645] rounded-2xl p-5 sm:p-7">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+    <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-9 sm:space-y-12 overflow-x-hidden">
+      {/* bienvenida */}
+      <section className="bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl p-4 sm:p-6">
+        <div className="flex flex-col gap-4">
           <div className="min-w-0">
-            <p className="text-xs text-stone-500 uppercase tracking-widest font-bold mb-1">
-              Welcome back
+            <p className="text-[10px] sm:text-xs text-stone-500 uppercase tracking-[0.18em] font-bold mb-1">
+              Home
             </p>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">
-              {username ? `@${username}` : "Your home"}
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight truncate">
+              {username ? `@${username}` : "Your diary"}
             </h1>
-            <div className="flex flex-wrap gap-4 sm:gap-6 mt-3 text-sm">
-              <div>
-                <span className="text-white font-semibold">
-                  {stats?.monthlyListens ?? 0}
-                </span>{" "}
-                <span className="text-stone-500 text-xs">albums this month</span>
-              </div>
-              <div>
-                <span className="text-white font-semibold">
-                  {stats?.yearlyListens ?? 0}
-                </span>{" "}
-                <span className="text-stone-500 text-xs">albums this year</span>
-              </div>
-            </div>
           </div>
+
           <div className="flex flex-wrap gap-2">
+            <div className="rounded-xl border border-[#2a3645] bg-[#0a121c]/60 px-3 py-2 min-w-[7.5rem]">
+              <p className="text-lg sm:text-xl font-bold text-white tabular-nums leading-none">
+                {stats?.monthlyListens ?? 0}
+              </p>
+              <p className="text-[10px] text-stone-500 mt-1">albums this month</p>
+            </div>
+            <div className="rounded-xl border border-[#2a3645] bg-[#0a121c]/60 px-3 py-2 min-w-[7.5rem]">
+              <p className="text-lg sm:text-xl font-bold text-white tabular-nums leading-none">
+                {stats?.yearlyListens ?? 0}
+              </p>
+              <p className="text-[10px] text-stone-500 mt-1">albums this year</p>
+            </div>
+            {typeof toListen?.itemCount === "number" && (
+              <div className="rounded-xl border border-[#2a3645] bg-[#0a121c]/60 px-3 py-2 min-w-[7.5rem]">
+                <p className="text-lg sm:text-xl font-bold text-white tabular-nums leading-none">
+                  {toListen.itemCount}
+                </p>
+                <p className="text-[10px] text-stone-500 mt-1">to listen</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 scrollbar-none">
             <Link
               href="/search"
-              className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
+              className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] transition-colors"
             >
-              Search
+              Search albums
             </Link>
             <Link
               href="/diary"
-              className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
+              className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
             >
               Diary
             </Link>
             {username && (
               <Link
-                href={`/${username}`}
-                className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
-              >
-                Profile
-              </Link>
-            )}
-            {username && (
-              <Link
                 href={`/${username}/monthly-top`}
-                className="text-sm font-semibold px-4 py-2 rounded-lg bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
+                className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
               >
                 Monthly top
               </Link>
             )}
+            {username && (
+              <Link
+                href={`/${username}`}
+                className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
+              >
+                Profile
+              </Link>
+            )}
+            <Link
+              href="/discover"
+              className="flex-shrink-0 text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-full bg-[#1f2b3a] border border-[#2a3645] hover:border-[#3d5068] transition-colors"
+            >
+              Discover
+            </Link>
           </div>
         </div>
       </section>
 
+      {/* top mes actual */}
+      {dataReady && topFive.length > 0 && (
+        <section>
+          <div className="flex items-end justify-between gap-3 border-b border-[#2a3645] pb-2 mb-4">
+            <div>
+              <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
+                This month
+              </h2>
+              <p className="text-[11px] text-stone-600 mt-0.5">{monthLabel}</p>
+            </div>
+            {username && (
+              <Link
+                href={`/${username}/monthly-top`}
+                className="text-xs text-[#7cc7e8] hover:underline flex-shrink-0"
+              >
+                Full top
+              </Link>
+            )}
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5 sm:gap-4">
+            {topFive.map((entry, i) => {
+              const id = entry.album_id || entry.albumId || entry.id;
+              const cover =
+                entry.cover || entry.cover_url || entry.album?.cover;
+              const title = entry.title || entry.album?.title || "Album";
+              const count = entry.listen_count ?? entry.count ?? entry.listens;
+              return (
+                <Link
+                  key={id || i}
+                  href={id ? `/album/${id}` : "#"}
+                  className="group min-w-0"
+                >
+                  <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] group-hover:border-[#7cc7e8]/40 transition-colors">
+                    {cover ? (
+                      <Image
+                        src={cover}
+                        alt=""
+                        fill
+                        sizes="(max-width: 640px) 33vw, 20vw"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-[#1f2b3a]" />
+                    )}
+                    <span className="absolute top-1.5 left-1.5 text-[10px] font-bold bg-black/70 text-[#7cc7e8] w-5 h-5 rounded-full flex items-center justify-center">
+                      {i + 1}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-[11px] font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors">
+                    {title}
+                  </p>
+                  {count != null && (
+                    <p className="text-[10px] text-stone-500">{count} plays</p>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* to listen */}
+      {dataReady && toListenItems.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
+            <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
+              To listen
+            </h2>
+            {username && (
+              <Link
+                href={`/${username}?tab=lists`}
+                className="text-xs text-[#7cc7e8] hover:underline"
+              >
+                All lists
+              </Link>
+            )}
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5 sm:gap-4">
+            {toListenItems.map((item, i) => {
+              const id =
+                item.album_id ||
+                item.spotify_id ||
+                item.id ||
+                item.album?.id;
+              const cover =
+                item.cover ||
+                item.cover_url ||
+                item.album?.cover ||
+                item.album?.cover_url;
+              const title =
+                item.title || item.album?.title || "Album";
+              const artist =
+                item.artist || item.album?.artist || "";
+              return (
+                <AlbumGridCard
+                  key={id || i}
+                  href={id ? `/album/${id}` : "#"}
+                  cover={cover}
+                  title={title}
+                  subtitle={artist}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* friends activity */}
       <section>
-        <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
+        <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
             Friends activity
           </h2>
@@ -548,11 +682,11 @@ const DashboardView = ({
             href="/discover"
             className="text-xs text-[#7cc7e8] hover:underline"
           >
-            Discover people
+            Discover
           </Link>
         </div>
         {friendsGrouped.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
             {friendsGrouped.map((item) => (
               <AlbumGridCard
                 key={item.key}
@@ -571,7 +705,7 @@ const DashboardView = ({
                       {item.avatar_url ? (
                         <Image
                           src={item.avatar_url}
-                          alt={item.username}
+                          alt=""
                           width={20}
                           height={20}
                           className="object-cover w-full h-full"
@@ -592,25 +726,26 @@ const DashboardView = ({
           </div>
         ) : dataReady ? (
           <EmptyState
-            title="No recent activity from people you follow"
-            description="Follow users to see what they are listening to."
+            title="No friend activity yet"
+            description="Follow people to see what they log."
             actionLabel="Discover people"
             actionHref="/discover"
           />
         ) : null}
       </section>
 
+      {/* ur recent */}
       <section>
-        <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
+        <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
             Your recent activity
           </h2>
           <Link href="/diary" className="text-xs text-[#7cc7e8] hover:underline">
-            View diary
+            Diary
           </Link>
         </div>
         {ownGrouped.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
             {ownGrouped.map((entry) => (
               <AlbumGridCard
                 key={entry.key}
@@ -620,24 +755,22 @@ const DashboardView = ({
                 subtitle={entry.album.artist}
                 rating={entry.rating}
                 count={entry.count}
-                footerLeft={
-                  <span className="text-[10px] text-stone-500 truncate">You</span>
-                }
               />
             ))}
           </div>
         ) : dataReady ? (
           <EmptyState
             title="No listens yet"
-            description="Log an album to start your diary."
+            description="Search an album and log your first listen."
             actionLabel="Search albums"
             actionHref="/search"
           />
         ) : null}
       </section>
 
+      {/* reviews amigos */}
       <section>
-        <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-5">
+        <div className="flex items-center justify-between border-b border-[#2a3645] pb-2 mb-4">
           <h2 className="text-[11px] sm:text-xs text-stone-400 font-bold uppercase tracking-widest">
             Reviews from friends
           </h2>
@@ -650,8 +783,8 @@ const DashboardView = ({
           </div>
         ) : dataReady ? (
           <EmptyState
-            title="No reviews from people you follow yet"
-            description="When friends rate albums, their reviews will show up here."
+            title="No reviews from friends yet"
+            description="When people you follow rate albums, they show up here."
           />
         ) : null}
       </section>
