@@ -55,31 +55,48 @@
     @apply bg-[#87ceeb] text-[#0a0f16];
   }
 
-  ::-webkit-scrollbar {
-    width: 8px;
+  @media (max-width: 767px) {
+    * {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    *::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
   }
 
-  ::-webkit-scrollbar-track {
-    @apply bg-[#0a0f16];
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-[#1e293b] hover:bg-[#233044];
+  @media (min-width: 768px) {
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #2a3645;
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: #1e293b transparent;
+    }
   }
 }
 
-.scrollbar-none {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
-}
-
+.scrollbar-none,
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+.scrollbar-none::-webkit-scrollbar,
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+  width: 0;
+  height: 0;
 }
