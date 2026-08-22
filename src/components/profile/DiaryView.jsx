@@ -308,6 +308,7 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
                   alt=""
                   width={112}
                   height={112}
+                  sizes="(max-width: 640px) 50vw, 112px"
                   className="object-cover w-full h-full"
                 />
               ) : (
@@ -549,6 +550,7 @@ export default function DiaryView({
                             alt={entry.album.title}
                             width={56}
                             height={56}
+                            sizes="56px"
                             className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (

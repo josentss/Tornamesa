@@ -183,6 +183,7 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
                         alt=""
                         width={48}
                         height={48}
+                        sizes="48px"
                         className="object-cover w-full h-full"
                       />
                     ) : (

@@ -277,6 +277,7 @@ export default function ProfileSettingsPage() {
                   alt="Avatar"
                   width={80}
                   height={80}
+                  sizes="96px"
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -413,6 +414,7 @@ export default function ProfileSettingsPage() {
                       alt={album.title}
                       width={200}
                       height={200}
+                      sizes="80px"
                       className="w-full h-full object-cover"
                     />
                     <button
@@ -484,6 +486,7 @@ export default function ProfileSettingsPage() {
                       alt={item.title}
                       width={40}
                       height={40}
+                      sizes="120px"
                       className="w-10 h-10 object-cover rounded"
                     />
                   )}

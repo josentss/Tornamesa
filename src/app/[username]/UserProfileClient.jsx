@@ -289,6 +289,7 @@ export default function UserProfileClient({ params }) {
                     height={128}
                     className="object-cover w-full h-full"
                     priority
+                    sizes="128px"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-4xl sm:text-5xl font-bold text-stone-400">
@@ -628,10 +629,11 @@ export default function UserProfileClient({ params }) {
                       {fav.coverUrl ? (
                         <Image
                           src={fav.coverUrl}
-                          alt={fav.title}
+                          alt={fav.title || ""}
                           width={160}
                           height={160}
                           className="object-cover w-full h-full"
+                          sizes="(max-width: 640px) 30vw, 160px"
                         />
                       ) : (
                         <div className="w-full h-full bg-[#1f2b3a]" />
@@ -816,6 +818,7 @@ export default function UserProfileClient({ params }) {
                                         width={48}
                                         height={48}
                                         className="object-cover w-full h-full"
+                                        sizes="48px"
                                       />
                                     </div>
                                   ))}

@@ -323,6 +323,7 @@ export default function AlbumPage({ params }) {
                   height={400}
                   className="w-full h-full object-cover"
                   priority
+                  sizes="(max-width: 768px) 280px, 288px"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-stone-600 text-sm">
@@ -557,6 +558,7 @@ export default function AlbumPage({ params }) {
                                 alt={review.user.username || "User"}
                                 width={32}
                                 height={32}
+                                sizes="32px"
                                 className="object-cover w-full h-full"
                               />
                             ) : (

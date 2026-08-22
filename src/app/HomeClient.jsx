@@ -372,7 +372,7 @@ const AlbumGridCard = ({
           fill
           sizes="132px"
           className="object-cover"
-          loading="lazy"
+          loading="lazy"   // ← ya está bien
         />
       ) : (
         <div className="w-full h-full bg-[#1f2b3a]" />
@@ -419,6 +419,7 @@ const FriendReviewCard = ({ review }) => (
             fill
             className="object-cover"
             sizes="64px"
+            loading="lazy"
           />
         )}
       </div>

@@ -235,6 +235,7 @@ export default function ReviewsList({
                         alt={review.album.title || ""}
                         width={56}
                         height={56}
+                        sizes="56"
                         className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (

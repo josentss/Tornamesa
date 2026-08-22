@@ -31,6 +31,7 @@ function SharedTasteBlock({ sharedCount, sharedAlbums }) {
                       alt=""
                       width={36}
                       height={36}
+                      sizes="36px"
                       className="object-cover w-full h-full"
                     />
                   ) : (
@@ -48,7 +49,7 @@ function SharedTasteBlock({ sharedCount, sharedAlbums }) {
         </>
       ) : (
         <p className="text-center text-[10px] sm:text-[11px] text-stone-600 leading-tight pt-2">
-          —
+          Nothing in common
         </p>
       )}
     </div>
@@ -69,6 +70,7 @@ function UserCard({ u, user, actionId, onToggle, showOverlap }) {
               alt=""
               width={64}
               height={64}
+              sizes="64px"
               className="object-cover w-full h-full"
             />
           ) : (

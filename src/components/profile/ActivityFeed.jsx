@@ -46,6 +46,7 @@ export default function ActivityFeed({ activities }) {
                 alt={act.album.title}
                 width={48}
                 height={48}
+                sizes="(max-width: 640px) 20vw, 80px"
                 className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
               />
             )}

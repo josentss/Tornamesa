@@ -34,6 +34,7 @@ export default function MonthlyTopWidget({ albums, username }) {
                 alt={album.title}
                 width={32}
                 height={32}
+                sizes="32"
                 className="object-cover w-full h-full"
               />
             )}

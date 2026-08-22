@@ -17,6 +17,7 @@ function AlbumCard({ album }) {
             alt={album.title}
             width={300}
             height={300}
+            sizes="(max-width: 640px) 50vw, 200px"
             className="w-full h-full object-cover"
           />
         ) : (
