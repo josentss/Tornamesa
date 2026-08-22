@@ -62,9 +62,81 @@ export async function GET(request) {
 
       if (error) throw error;
 
-      const list = (users || [])
-        .filter((u) => u.username)
-        .map((u) => mapUser(u, followingSet, currentUserId));
+      const baseUsers = (users || []).filter((u) => u.username);
+
+      let myAlbumIds = [];
+      if (currentUserId) {
+        const { data: myTens } = await supabase
+          .from('reviews')
+          .select('album_id')
+          .eq('user_id', currentUserId)
+          .eq('rating', 10)
+          .not('album_id', 'is', null)
+          .limit(150);
+        myAlbumIds = [
+          ...new Set((myTens || []).map((r) => r.album_id).filter(Boolean)),
+        ];
+      }
+
+      const sharedByUser = new Map();
+      if (myAlbumIds.length > 0 && baseUsers.length > 0) {
+        const otherIds = baseUsers
+          .map((u) => u.id)
+          .filter((id) => id !== currentUserId);
+        if (otherIds.length > 0) {
+          const { data: sharedRows } = await supabase
+            .from('reviews')
+            .select('user_id, album_id')
+            .in('user_id', otherIds)
+            .in('album_id', myAlbumIds)
+            .eq('rating', 10)
+            .limit(500);
+          (sharedRows || []).forEach((row) => {
+            if (!row.user_id || !row.album_id) return;
+            if (!sharedByUser.has(row.user_id)) {
+              sharedByUser.set(row.user_id, new Set());
+            }
+            sharedByUser.get(row.user_id).add(row.album_id);
+          });
+        }
+      }
+
+      const sampleIds = [
+        ...new Set(
+          [...sharedByUser.values()].flatMap((s) => [...s].slice(0, 3))
+        ),
+      ].slice(0, 40);
+
+      const albumMap = new Map();
+      if (sampleIds.length > 0) {
+        const { data: albumRows } = await supabase
+          .from('albums')
+          .select('spotify_id, title, artist, cover_url')
+          .in('spotify_id', sampleIds);
+        (albumRows || []).forEach((a) => albumMap.set(a.spotify_id, a));
+      }
+
+      const list = baseUsers.map((u) => {
+        const set = sharedByUser.get(u.id);
+        const albumIds = set ? [...set] : [];
+        const sharedAlbums = albumIds
+          .slice(0, 3)
+          .map((aid) => {
+            const a = albumMap.get(aid);
+            if (!a) return null;
+            return {
+              id: a.spotify_id,
+              title: a.title,
+              artist: a.artist,
+              cover: a.cover_url,
+            };
+          })
+          .filter(Boolean);
+        return mapUser(u, followingSet, currentUserId, {
+          sharedCount: albumIds.length || null,
+          sharedAlbums,
+        });
+      });
 
       return NextResponse.json(
         { mode: 'search', query: q, similar: [], users: list },

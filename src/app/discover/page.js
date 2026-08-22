@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -13,31 +13,33 @@ function SharedTasteBlock({ sharedCount, sharedAlbums }) {
   const covers = (sharedAlbums || []).slice(0, 3);
 
   return (
-    <div className="mt-3 w-full">
-      <div className="flex items-center justify-center -space-x-2.5 mb-2 min-h-[40px]">
-        {covers.map((a, i) => (
-          <div
-            key={a.id || i}
-            className="relative w-10 h-10 rounded-md overflow-hidden border-2 border-[#131e2c] bg-[#0a121c] shadow-md"
-            style={{ zIndex: 3 - i }}
-            title={a.title ? `${a.title} — ${a.artist}` : undefined}
-          >
-            {a.cover ? (
-              <Image
-                src={a.cover}
-                alt=""
-                width={40}
-                height={40}
-                className="object-cover w-full h-full"
-              />
-            ) : (
-              <div className="w-full h-full bg-[#1a2433]" />
-            )}
-          </div>
-        ))}
-      </div>
+    <div className="mt-2.5 w-full">
+      {covers.length > 0 && (
+        <div className="flex items-center justify-center -space-x-2 mb-1.5 min-h-[32px]">
+          {covers.map((a, i) => (
+            <div
+              key={a.id || i}
+              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-md overflow-hidden border-2 border-[#131e2c] bg-[#0a121c] shadow-md"
+              style={{ zIndex: 3 - i }}
+              title={a.title ? `${a.title} — ${a.artist}` : undefined}
+            >
+              {a.cover ? (
+                <Image
+                  src={a.cover}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="object-cover w-full h-full"
+                />
+              ) : (
+                <div className="w-full h-full bg-[#1a2433]" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {sharedCount > 0 && (
-        <p className="text-center text-[11px] font-medium text-[#7cc7e8]/95 leading-tight">
+        <p className="text-center text-[10px] sm:text-[11px] font-medium text-[#7cc7e8]/95 leading-tight">
           {sharedCount} in common
         </p>
       )}
@@ -47,31 +49,31 @@ function SharedTasteBlock({ sharedCount, sharedAlbums }) {
 
 function UserCard({ u, user, actionId, onToggle, showOverlap }) {
   return (
-    <li className="flex flex-col items-center bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl px-3 pt-4 pb-3.5 sm:pt-5 sm:pb-4 hover:border-[#3d5068] transition-colors h-full w-[148px] sm:w-auto flex-shrink-0">
+    <li className="flex flex-col items-center bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl px-3 pt-4 pb-3.5 hover:border-[#3d5068] transition-colors h-full w-[140px] sm:w-full sm:max-w-[180px] sm:mx-auto flex-shrink-0">
       <Link
         href={`/${u.username}`}
         className="flex flex-col items-center w-full min-w-0 group"
       >
-        <div className="relative w-14 h-14 sm:w-[72px] sm:h-[72px] rounded-full overflow-hidden bg-[#0a121c] border border-[#2a3645] shrink-0 ring-2 ring-transparent group-hover:ring-[#7cc7e8]/30 transition">
+        <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-[#0a121c] border border-[#2a3645] shrink-0 ring-2 ring-transparent group-hover:ring-[#7cc7e8]/30 transition">
           {u.avatar_url ? (
             <Image
               src={u.avatar_url}
               alt=""
-              width={72}
-              height={72}
+              width={64}
+              height={64}
               className="object-cover w-full h-full"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-lg font-bold text-stone-500">
+            <div className="w-full h-full flex items-center justify-center text-base sm:text-lg font-bold text-stone-500">
               {u.username?.charAt(0).toUpperCase()}
             </div>
           )}
         </div>
 
-        <p className="mt-3 text-sm font-semibold text-white text-center truncate w-full px-1">
+        <p className="mt-2.5 text-sm font-semibold text-white text-center truncate w-full px-0.5">
           {u.full_name || u.username}
         </p>
-        <p className="text-xs text-stone-500 text-center truncate w-full px-1">
+        <p className="text-[11px] sm:text-xs text-stone-500 text-center truncate w-full px-0.5">
           @{u.username}
           {u.is_private ? " · Private" : ""}
         </p>
@@ -89,7 +91,7 @@ function UserCard({ u, user, actionId, onToggle, showOverlap }) {
           type="button"
           onClick={() => onToggle(u)}
           disabled={actionId === u.id}
-          className={`mt-4 w-full max-w-[140px] text-xs font-semibold px-3 py-2 rounded-lg border transition-all ${
+          className={`mt-3 w-full max-w-[130px] text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
             u.isFollowing
               ? "bg-transparent border-[#2a3645] text-stone-300 hover:border-stone-400"
               : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-[#a5d8f0]"
@@ -109,6 +111,33 @@ function UserCard({ u, user, actionId, onToggle, showOverlap }) {
 }
 
 function UserGrid({ users, user, actionId, onToggle, showOverlap }) {
+  const scrollerRef = useRef(null);
+  const [showFade, setShowFade] = useState(false);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) {
+      setShowFade(false);
+      return;
+    }
+
+    const update = () => {
+      const canScroll = el.scrollWidth > el.clientWidth + 8;
+      const notAtEnd = el.scrollLeft + el.clientWidth < el.scrollWidth - 8;
+      setShowFade(canScroll && notAtEnd);
+    };
+
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    const t = setTimeout(update, 120);
+    return () => {
+      el.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      clearTimeout(t);
+    };
+  }, [users]);
+
   if (!users.length) return null;
 
   const renderCards = () =>
@@ -128,14 +157,19 @@ function UserGrid({ users, user, actionId, onToggle, showOverlap }) {
       <div className="sm:hidden relative max-w-full">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-10 z-10 bg-gradient-to-l from-[#0a0f16] to-transparent"
+          className={`pointer-events-none absolute inset-y-0 right-0 w-10 z-10 bg-gradient-to-l from-[#0a0f16] to-transparent transition-opacity duration-200 ${
+            showFade ? "opacity-100" : "opacity-0"
+          }`}
         />
-        <div className="overflow-x-auto overscroll-x-contain scrollbar-none pb-1">
+        <div
+          ref={scrollerRef}
+          className="overflow-x-auto overscroll-x-contain scrollbar-none pb-1"
+        >
           <ul className="flex gap-3 w-max">{renderCards()}</ul>
         </div>
       </div>
 
-      <ul className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      <ul className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {renderCards()}
       </ul>
     </>
@@ -146,13 +180,27 @@ function Section({ title, subtitle, children }) {
   return (
     <section className="mb-10">
       <h2 className="text-sm font-semibold text-white tracking-wide">{title}</h2>
-      {subtitle && (
+      {subtitle ? (
         <p className="text-xs text-stone-600 mb-4 mt-1">{subtitle}</p>
+      ) : (
+        <div className="mb-4" />
       )}
-      {!subtitle && <div className="mb-4" />}
       {children}
     </section>
   );
+}
+
+async function resolveUserId(user) {
+  if (user?.id) return user.id;
+  try {
+    const { createClient } = await import("@/lib/supabase/client");
+    const {
+      data: { session },
+    } = await createClient().auth.getSession();
+    return session?.user?.id || null;
+  } catch {
+    return null;
+  }
 }
 
 export default function DiscoverPage() {
@@ -195,12 +243,18 @@ export default function DiscoverPage() {
   }, [load]);
 
   const handleFollowToggle = async (target) => {
-    if (!user) return router.push("/auth/login");
     if (target.isSelf) return;
+
+    const uid = await resolveUserId(user);
+    if (!uid) {
+      router.push("/auth/login");
+      return;
+    }
+
     setActionId(target.id);
     try {
       if (target.isFollowing) {
-        await api.unfollowUser(user.id, target.id);
+        await api.unfollowUser(uid, target.id);
         setSimilar((prev) =>
           prev.map((u) =>
             u.id === target.id ? { ...u, isFollowing: false } : u
@@ -212,7 +266,7 @@ export default function DiscoverPage() {
           )
         );
       } else {
-        await api.followUser(user.id, target.id);
+        await api.followUser(uid, target.id);
         setSimilar((prev) => prev.filter((u) => u.id !== target.id));
         setSearchUsers((prev) =>
           prev.map((u) =>
@@ -222,6 +276,7 @@ export default function DiscoverPage() {
       }
     } catch (err) {
       console.error(err);
+      setError(err.message || "Could not update follow");
     } finally {
       setActionId(null);
     }
@@ -234,16 +289,16 @@ export default function DiscoverPage() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="w-[148px] h-48 flex-shrink-0 rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
+              className="w-[140px] h-44 flex-shrink-0 rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
             />
           ))}
         </div>
       </div>
-      <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
+      <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
           <div
             key={i}
-            className="h-52 rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
+            className="h-44 max-w-[180px] mx-auto w-full rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
           />
         ))}
       </div>
@@ -294,6 +349,7 @@ export default function DiscoverPage() {
                 user={user}
                 actionId={actionId}
                 onToggle={handleFollowToggle}
+                showOverlap={!!user}
               />
             )}
           </Section>
