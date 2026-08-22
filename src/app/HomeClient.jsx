@@ -468,19 +468,52 @@ const FriendReviewCard = ({ review }) => (
 
 function HScroll({ children, resetKey = "" }) {
   const ref = useRef(null);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(true);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.scrollLeft = 0;
+
+    const update = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      setShowLeft(scrollLeft > 4);
+      setShowRight(scrollLeft + clientWidth < scrollWidth - 4);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      el.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
   }, [resetKey]);
 
   return (
-    <div
-      ref={ref}
-      className="md:hidden max-w-full overflow-x-auto overscroll-x-contain pb-1 scrollbar-none"
-      style={{ WebkitOverflowScrolling: "touch" }}
-    >
-      <div className="flex gap-3 w-max">{children}</div>
+    <div className="md:hidden relative max-w-full">
+      {/* fade left degradado pa más*/}
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute inset-y-0 left-0 w-8 z-10 bg-gradient-to-r from-[#0a0f16] to-transparent transition-opacity duration-200 ${
+          showLeft ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      {/* fade right degradado pa mostrar más */}
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute inset-y-0 right-0 w-10 z-10 bg-gradient-to-l from-[#0a0f16] to-transparent transition-opacity duration-200 ${
+          showRight ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      <div
+        ref={ref}
+        className="overflow-x-auto overscroll-x-contain pb-1 scrollbar-none"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <div className="flex gap-3 w-max pr-2">{children}</div>
+      </div>
     </div>
   );
 }
@@ -834,11 +867,60 @@ const DashboardView = ({
           </h2>
         </div>
         {reviewsSix.length > 0 ? (
-          <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:gap-3">
-            {reviewsSix.map((review) => (
-              <FriendReviewCard key={review.id} review={review} />
-            ))}
-          </div>
+          <>
+            {/* compactadas en lista (celular) */}
+            <div className="md:hidden flex flex-col gap-2.5">
+              {reviewsSix.map((review) => (
+                <Link
+                  key={review.id}
+                  href={`/album/${review.album.id}?from=${encodeURIComponent(review.username || "")}&review=${review.id}#review-${review.id}`}
+                  className="flex gap-3 p-2.5 rounded-xl border border-[#2a3645] bg-[#131e2c]/50 active:bg-[#131e2c] transition-colors"
+                >
+                  <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-[#1f2b3a]">
+                    {review.album.cover && (
+                      <Image
+                        src={review.album.cover}
+                        alt=""
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {review.album.title}
+                        </p>
+                        <p className="text-[11px] text-stone-500 truncate">
+                          {review.album.artist}
+                        </p>
+                      </div>
+                      <span className="text-yellow-400 text-xs font-semibold flex-shrink-0">
+                        ★ {review.rating}
+                      </span>
+                    </div>
+                    {review.reviewText && (
+                      <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-snug">
+                        {review.reviewText}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-stone-500 mt-1.5 truncate">
+                      @{review.username}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* pc: todas las cards */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {reviewsSix.map((review) => (
+                <FriendReviewCard key={review.id} review={review} />
+              ))}
+            </div>
+          </>
         ) : dataReady ? (
           <EmptyState
             title="No reviews from friends yet"
