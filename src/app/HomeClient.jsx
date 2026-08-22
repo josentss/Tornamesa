@@ -480,7 +480,7 @@ function HScroll({ children, resetKey = "" }) {
       className="md:hidden overflow-x-auto overscroll-x-contain pb-1 scrollbar-none"
       style={{ WebkitOverflowScrolling: "touch" }}
     >
-      <div className="flex gap-3 w-max">{children}</div>
+      <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">{children}</div>
     </div>
   );
 }

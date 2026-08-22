@@ -62,8 +62,8 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body className="bg-[#0a0f16] text-[#f0f9ff] min-h-screen flex flex-col antialiased">
+    <html lang="en" className="overflow-x-hidden">
+      <body className="bg-[#0a0f16] text-[#f0f9ff] min-h-screen flex flex-col antialiased overflow-x-hidden">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
