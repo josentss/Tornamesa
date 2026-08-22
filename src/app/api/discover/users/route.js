@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -39,7 +40,10 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
   const limit = Math.min(parseInt(searchParams.get('limit') || '12', 10), 30);
-  const currentUserId = searchParams.get('currentUserId') || null;
+
+  const authUser = await getRequestUser(request);
+  const currentUserId =
+    authUser?.id || searchParams.get('currentUserId') || null;
 
   const supabase = createSupabaseServer();
 

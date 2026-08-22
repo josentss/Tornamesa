@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,7 +16,9 @@ export async function GET(request, { params }) {
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 100);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
-  const currentUserId = searchParams.get('currentUserId');
+  const authUser = await getRequestUser(request);
+  const currentUserId =
+    authUser?.id || searchParams.get('currentUserId') || null;
 
   const supabase = createSupabaseServer();
 
@@ -52,9 +55,7 @@ export async function GET(request, { params }) {
 
     if (error) throw error;
 
-    const users = (rows || [])
-      .map((r) => r.profiles)
-      .filter(Boolean);
+    const users = (rows || []).map((r) => r.profiles).filter(Boolean);
 
     let followingSet = new Set();
     if (currentUserId && users.length > 0) {
