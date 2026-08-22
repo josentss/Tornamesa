@@ -47,12 +47,12 @@ function SharedTasteBlock({ sharedCount, sharedAlbums }) {
 
 function UserCard({ u, user, actionId, onToggle, showOverlap }) {
   return (
-    <li className="flex flex-col items-center bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl px-3 pt-5 pb-4 hover:border-[#3d5068] transition-colors h-full">
+    <li className="flex flex-col items-center bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl px-3 pt-4 pb-3.5 sm:pt-5 sm:pb-4 hover:border-[#3d5068] transition-colors h-full w-[148px] sm:w-auto flex-shrink-0">
       <Link
         href={`/${u.username}`}
         className="flex flex-col items-center w-full min-w-0 group"
       >
-        <div className="relative w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-full overflow-hidden bg-[#0a121c] border border-[#2a3645] shrink-0 ring-2 ring-transparent group-hover:ring-[#7cc7e8]/30 transition">
+        <div className="relative w-14 h-14 sm:w-[72px] sm:h-[72px] rounded-full overflow-hidden bg-[#0a121c] border border-[#2a3645] shrink-0 ring-2 ring-transparent group-hover:ring-[#7cc7e8]/30 transition">
           {u.avatar_url ? (
             <Image
               src={u.avatar_url}
@@ -110,31 +110,46 @@ function UserCard({ u, user, actionId, onToggle, showOverlap }) {
 
 function UserGrid({ users, user, actionId, onToggle, showOverlap }) {
   if (!users.length) return null;
+
+  const renderCards = () =>
+    users.map((u) => (
+      <UserCard
+        key={u.id}
+        u={u}
+        user={user}
+        actionId={actionId}
+        onToggle={onToggle}
+        showOverlap={showOverlap}
+      />
+    ));
+
   return (
-    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-      {users.map((u) => (
-        <UserCard
-          key={u.id}
-          u={u}
-          user={user}
-          actionId={actionId}
-          onToggle={onToggle}
-          showOverlap={showOverlap}
+    <>
+      <div className="sm:hidden relative max-w-full">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 w-10 z-10 bg-gradient-to-l from-[#0a0f16] to-transparent"
         />
-      ))}
-    </ul>
+        <div className="overflow-x-auto overscroll-x-contain scrollbar-none pb-1">
+          <ul className="flex gap-3 w-max">{renderCards()}</ul>
+        </div>
+      </div>
+
+      <ul className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {renderCards()}
+      </ul>
+    </>
   );
 }
 
 function Section({ title, subtitle, children }) {
   return (
     <section className="mb-10">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-stone-400 mb-1">
-        {title}
-      </h2>
+      <h2 className="text-sm font-semibold text-white tracking-wide">{title}</h2>
       {subtitle && (
-        <p className="text-xs text-stone-600 mb-4">{subtitle}</p>
+        <p className="text-xs text-stone-600 mb-4 mt-1">{subtitle}</p>
       )}
+      {!subtitle && <div className="mb-4" />}
       {children}
     </section>
   );
@@ -213,21 +228,33 @@ export default function DiscoverPage() {
   };
 
   const skeleton = (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <div
-          key={i}
-          className="h-52 rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
-        />
-      ))}
-    </div>
+    <>
+      <div className="sm:hidden overflow-x-auto scrollbar-none pb-1">
+        <div className="flex gap-3 w-max">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="w-[148px] h-48 flex-shrink-0 rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
+            />
+          ))}
+        </div>
+      </div>
+      <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div
+            key={i}
+            className="h-52 rounded-2xl bg-[#131e2c] border border-[#2a3645] animate-pulse"
+          />
+        ))}
+      </div>
+    </>
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
+    <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff] overflow-x-hidden">
       <Header user={user} />
 
-      <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           Discover people
         </h1>
