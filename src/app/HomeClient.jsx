@@ -332,7 +332,8 @@ function groupFriendsFeed(feed) {
   const map = {};
   (feed || []).forEach((item) => {
     if (!item.album_id) return;
-    const key = `${item.username || "user"}_${item.album_id}`;
+    const day = (item.listened_at || "").split("T")[0] || "Unknown";
+    const key = `${day}_${item.username || "user"}_${item.album_id}`;
     if (!map[key]) {
       map[key] = { ...item, key, count: 0 };
     }
@@ -362,7 +363,7 @@ const AlbumGridCard = ({
   <div className="group flex flex-col w-full min-w-0">
     <Link
       href={href}
-      className="relative aspect-square w-full bg-[#131e2c] rounded-xl border border-[#2a3645] overflow-hidden transition-all duration-300 group-hover:border-[#7cc7e8]/40 shadow-sm"
+      className="relative aspect-square w-full bg-[#131e2c] rounded-xl border border-[#2a3645] overflow-hidden shadow-sm transition-all duration-300 ease-out group-hover:border-[#7cc7e8]/50 group-hover:shadow-md group-hover:shadow-black/25"
     >
       {cover ? (
         <Image
@@ -370,7 +371,7 @@ const AlbumGridCard = ({
           alt={title}
           fill
           sizes="132px"
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
+          className="object-cover"
           loading="lazy"
         />
       ) : (
@@ -521,8 +522,8 @@ const DashboardView = ({
         <div
           className={
             fixed
-              ? "relative w-[132px] h-[132px] rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c]"
-              : "relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] group-hover:border-[#7cc7e8]/40 transition-colors"
+              ? "relative w-[132px] h-[132px] rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] shadow-sm transition-all duration-300 ease-out group-hover:border-[#7cc7e8]/50 group-hover:shadow-md group-hover:shadow-black/25"
+              : "relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] shadow-sm transition-all duration-300 ease-out group-hover:border-[#7cc7e8]/50 group-hover:shadow-md group-hover:shadow-black/25"
           }
         >
           {cover ? (

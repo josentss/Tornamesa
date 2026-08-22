@@ -27,14 +27,14 @@ export default function MonthlyTopWidget({ albums, username }) {
           className="flex items-center gap-3 hover:bg-white/5 rounded p-1 -mx-1 transition-colors group"
         >
           <span className="text-sm font-bold text-[#7cc7e8] w-4">{i + 1}</span>
-          <div className="w-8 h-8 rounded overflow-hidden bg-[#1f2b3a] flex-shrink-0">
+          <div className="w-8 h-8 rounded overflow-hidden bg-[#1f2b3a] flex-shrink-0 border border-transparent transition-all duration-300 ease-out group-hover:border-[#7cc7e8]/40 group-hover:shadow-sm group-hover:shadow-black/20">
             {album.cover && (
               <Image
                 src={album.cover}
                 alt={album.title}
                 width={32}
                 height={32}
-                className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+                className="object-cover w-full h-full"
               />
             )}
           </div>

@@ -10,14 +10,14 @@ import { Header, Footer } from "@/components/shared";
 function AlbumCard({ album }) {
   return (
     <Link href={`/album/${album.id}`} className="group block">
-      <div className="aspect-square bg-[#131b26] border border-[#1e293b] rounded-lg overflow-hidden mb-2 group-hover:border-[#87ceeb]/70 transition-colors duration-200">
+      <div className="aspect-square bg-[#131b26] border border-[#1e293b] rounded-lg overflow-hidden mb-2 shadow-sm transition-all duration-300 ease-out group-hover:border-[#87ceeb]/50 group-hover:shadow-md group-hover:shadow-black/25">
         {album.coverUrl ? (
           <Image
             src={album.coverUrl}
             alt={album.title}
             width={300}
             height={300}
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300 ease-out"
+            className="w-full h-full object-cover"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-stone-600 text-xs">

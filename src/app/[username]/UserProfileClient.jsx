@@ -624,14 +624,14 @@ export default function UserProfileClient({ params }) {
                     href={`/album/${fav.id}`}
                     className="block group"
                   >
-                    <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] group-hover:border-[#7cc7e8]/50">
+                    <div className="aspect-square rounded-lg sm:rounded-xl overflow-hidden mb-2 border border-[#2a3645] shadow-sm transition-all duration-300 ease-out group-hover:border-[#7cc7e8]/50 group-hover:shadow-md group-hover:shadow-black/25">
                       {fav.coverUrl ? (
                         <Image
                           src={fav.coverUrl}
                           alt={fav.title}
                           width={160}
                           height={160}
-                          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
+                          className="object-cover w-full h-full"
                         />
                       ) : (
                         <div className="w-full h-full bg-[#1f2b3a]" />
