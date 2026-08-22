@@ -9,38 +9,46 @@ import { api } from "@/lib/api";
 import { Header, Footer, ErrorMessage } from "@/components/shared";
 
 function SharedTasteBlock({ sharedCount, sharedAlbums }) {
-  if (!sharedCount && !sharedAlbums?.length) return null;
   const covers = (sharedAlbums || []).slice(0, 3);
+  const hasData = sharedCount > 0 || covers.length > 0;
 
   return (
-    <div className="mt-2.5 w-full">
-      {covers.length > 0 && (
-        <div className="flex items-center justify-center -space-x-2 mb-1.5 min-h-[32px]">
-          {covers.map((a, i) => (
-            <div
-              key={a.id || i}
-              className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-md overflow-hidden border-2 border-[#131e2c] bg-[#0a121c] shadow-md"
-              style={{ zIndex: 3 - i }}
-              title={a.title ? `${a.title} — ${a.artist}` : undefined}
-            >
-              {a.cover ? (
-                <Image
-                  src={a.cover}
-                  alt=""
-                  width={36}
-                  height={36}
-                  className="object-cover w-full h-full"
-                />
-              ) : (
-                <div className="w-full h-full bg-[#1a2433]" />
-              )}
+    <div className="mt-2.5 w-full min-h-[52px] flex flex-col items-center justify-start">
+      {hasData ? (
+        <>
+          {covers.length > 0 && (
+            <div className="flex items-center justify-center -space-x-2 mb-1.5">
+              {covers.map((a, i) => (
+                <div
+                  key={a.id || i}
+                  className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-md overflow-hidden border-2 border-[#131e2c] bg-[#0a121c] shadow-md"
+                  style={{ zIndex: 3 - i }}
+                  title={a.title ? `${a.title} — ${a.artist}` : undefined}
+                >
+                  {a.cover ? (
+                    <Image
+                      src={a.cover}
+                      alt=""
+                      width={36}
+                      height={36}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#1a2433]" />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-      {sharedCount > 0 && (
-        <p className="text-center text-[10px] sm:text-[11px] font-medium text-[#7cc7e8]/95 leading-tight">
-          {sharedCount} in common
+          )}
+          {sharedCount > 0 && (
+            <p className="text-center text-[10px] sm:text-[11px] font-medium text-[#7cc7e8]/95 leading-tight">
+              {sharedCount} in common
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="text-center text-[10px] sm:text-[11px] text-stone-600 leading-tight pt-2">
+          —
         </p>
       )}
     </div>
@@ -49,10 +57,10 @@ function SharedTasteBlock({ sharedCount, sharedAlbums }) {
 
 function UserCard({ u, user, actionId, onToggle, showOverlap }) {
   return (
-    <li className="flex flex-col items-center bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl px-3 pt-4 pb-3.5 hover:border-[#3d5068] transition-colors h-full w-[140px] sm:w-full sm:max-w-[180px] sm:mx-auto flex-shrink-0">
+    <li className="flex flex-col items-center bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl px-3 pt-4 pb-3.5 hover:border-[#3d5068] transition-colors w-[140px] sm:w-full sm:max-w-[180px] sm:mx-auto flex-shrink-0 min-h-[248px] sm:min-h-[260px]">
       <Link
         href={`/${u.username}`}
-        className="flex flex-col items-center w-full min-w-0 group"
+        className="flex flex-col items-center w-full min-w-0 flex-1 group"
       >
         <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-[#0a121c] border border-[#2a3645] shrink-0 ring-2 ring-transparent group-hover:ring-[#7cc7e8]/30 transition">
           {u.avatar_url ? (
@@ -78,11 +86,13 @@ function UserCard({ u, user, actionId, onToggle, showOverlap }) {
           {u.is_private ? " · Private" : ""}
         </p>
 
-        {showOverlap && (
+        {showOverlap ? (
           <SharedTasteBlock
             sharedCount={u.sharedCount}
             sharedAlbums={u.sharedAlbums}
           />
+        ) : (
+          <div className="mt-2.5 min-h-[52px]" aria-hidden />
         )}
       </Link>
 
@@ -91,7 +101,7 @@ function UserCard({ u, user, actionId, onToggle, showOverlap }) {
           type="button"
           onClick={() => onToggle(u)}
           disabled={actionId === u.id}
-          className={`mt-3 w-full max-w-[130px] text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+          className={`mt-auto w-full max-w-[130px] text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all ${
             u.isFollowing
               ? "bg-transparent border-[#2a3645] text-stone-300 hover:border-stone-400"
               : "bg-[#7cc7e8] text-[#0a121c] border-transparent hover:bg-[#a5d8f0]"
