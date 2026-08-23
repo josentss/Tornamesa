@@ -39,6 +39,9 @@ export default function ProfileSettingsPage() {
   const [pronouns, setPronouns] = useState("");
   const [website, setWebsite] = useState("");
   const [bio, setBio] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [twitter, setTwitter] = useState("");
+  const [rym, setRym] = useState("");
   const [favoriteAlbums, setFavoriteAlbums] = useState([null, null, null]);
 
   const [activeSlot, setActiveSlot] = useState(null);
@@ -52,7 +55,6 @@ export default function ProfileSettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Load from API by id only — never seed stale context username
   useEffect(() => {
     if (!user?.id) return;
 
@@ -71,6 +73,9 @@ export default function ProfileSettingsPage() {
         setPronouns(data.pronouns || "");
         setWebsite(data.website || "");
         setBio(data.bio || "");
+        setInstagram(data.instagram || "");
+        setTwitter(data.twitter || "");
+        setRym(data.rym || "");
 
         const slots = [null, null, null];
         if (Array.isArray(data.favorite_albums)) {
@@ -91,6 +96,20 @@ export default function ProfileSettingsPage() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (typeof window === "undefined") return;
+    if (window.location.hash === "#social") {
+      const el = document.getElementById("social");
+      if (el) {
+        setTimeout(
+          () => el.scrollIntoView({ behavior: "smooth", block: "start" }),
+          80
+        );
+      }
+    }
+  }, [loading]);
 
   const handleImageFile = async (e) => {
     const file = e.target.files?.[0];
@@ -186,6 +205,9 @@ export default function ProfileSettingsPage() {
         pronouns,
         website,
         bio,
+        instagram,
+        twitter,
+        rym,
         favorite_albums: favoriteAlbums.filter(Boolean),
       });
 
@@ -196,13 +218,14 @@ export default function ProfileSettingsPage() {
         pronouns,
         website,
         bio,
+        instagram,
+        twitter,
+        rym,
         favorite_albums: favoriteAlbums.filter(Boolean),
       };
 
-      // 1) Update context immediately (Header + dashboard) — does NOT depend on GET cache
       applyProfile(saved);
 
-      // 2) Sync JWT user_metadata so future enrich doesn't fall back to old name
       try {
         await createClient().auth.updateUser({
           data: { username: saved.username || cleanUser },
@@ -211,7 +234,6 @@ export default function ProfileSettingsPage() {
         /* non-fatal */
       }
 
-      // 3) Optional re-read (safe: USER_UPDATED no longer overwrites avatar/bio)
       try {
         await refreshUser();
       } catch {
@@ -224,6 +246,9 @@ export default function ProfileSettingsPage() {
       setPronouns(saved.pronouns || "");
       setWebsite(saved.website || "");
       setBio(saved.bio || "");
+      setInstagram(saved.instagram || "");
+      setTwitter(saved.twitter || "");
+      setRym(saved.rym || "");
 
       setSuccess("Profile updated successfully.");
       setSaving(false);
@@ -278,22 +303,29 @@ export default function ProfileSettingsPage() {
                   width={80}
                   height={80}
                   sizes="96px"
-                  className="w-full h-full object-cover"
+                  className="object-cover w-full h-full"
                 />
               ) : (
-                (username || "U").substring(0, 2).toUpperCase()
+                <span className="text-stone-500">
+                  {(username || "?").charAt(0).toUpperCase()}
+                </span>
               )}
             </div>
             <div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageFile}
-                disabled={saving || uploadingImage}
-                className="text-xs text-stone-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#1f2b3a] file:text-[#7cc7e8] hover:file:bg-[#2a3645] cursor-pointer"
-              />
+              <label className="cursor-pointer inline-block">
+                <span className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] hover:bg-[#2a3645] text-white transition-colors">
+                  {uploadingImage ? "Uploading..." : "Change photo"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleImageFile}
+                  disabled={saving || uploadingImage}
+                />
+              </label>
               <p className="text-[10px] text-stone-500 mt-1.5">
-                {uploadingImage ? "Uploading..." : "JPG or PNG. Max 2MB."}
+                JPG or PNG. Max 2MB.
               </p>
             </div>
           </div>
@@ -301,50 +333,37 @@ export default function ProfileSettingsPage() {
 
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Identity</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className={labelClass + " mb-0"}>Username</label>
-                <button
-                  type="button"
-                  onClick={() => setIsEditingUsername((v) => !v)}
-                  className="text-[11px] text-[#7cc7e8] hover:underline"
-                >
-                  {isEditingUsername ? "Lock" : "Edit"}
-                </button>
-              </div>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-sm">
-                  @
-                </span>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) =>
-                    setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))
-                  }
-                  disabled={!isEditingUsername || saving || uploadingImage}
-                  className={inputClass + " pl-7"}
-                  placeholder="username"
-                />
-              </div>
-              {isEditingUsername && (
-                <p className="text-[10px] text-amber-500/90 mt-1">
-                  Changing your username changes your profile URL.
-                </p>
-              )}
-            </div>
-            <div>
-              <label className={labelClass}>Display name</label>
+          <div>
+            <label className={labelClass}>Username</label>
+            <div className="flex gap-2">
               <input
                 type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                disabled={saving || uploadingImage}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={!isEditingUsername || saving || uploadingImage}
                 className={inputClass}
-                placeholder="How you want to be shown"
+                autoComplete="off"
               />
+              <button
+                type="button"
+                onClick={() => setIsEditingUsername((v) => !v)}
+                disabled={saving || uploadingImage}
+                className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white shrink-0"
+              >
+                {isEditingUsername ? "Lock" : "Edit"}
+              </button>
             </div>
+          </div>
+          <div>
+            <label className={labelClass}>Display name</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={saving || uploadingImage}
+              className={inputClass}
+              placeholder="Your name"
+            />
           </div>
           <div>
             <label className={labelClass}>Pronouns</label>
@@ -354,7 +373,7 @@ export default function ProfileSettingsPage() {
               disabled={saving || uploadingImage}
               className={inputClass}
             >
-              <option value="">Prefer not to say</option>
+              <option value="">—</option>
               {PRONOUNS.map((p) => (
                 <option key={p} value={p}>
                   {p}
@@ -393,6 +412,49 @@ export default function ProfileSettingsPage() {
           </div>
         </section>
 
+        <section id="social" className={sectionClass}>
+          <h2 className="text-sm font-semibold text-white">Social links</h2>
+          <p className="text-xs text-stone-500 -mt-2">
+            Usernames or full profile URLs. Shown on your public profile.
+          </p>
+          <div>
+            <label className={labelClass}>Instagram</label>
+            <input
+              type="text"
+              value={instagram}
+              onChange={(e) => setInstagram(e.target.value)}
+              disabled={saving || uploadingImage}
+              className={inputClass}
+              placeholder="username or instagram.com/..."
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>X (Twitter)</label>
+            <input
+              type="text"
+              value={twitter}
+              onChange={(e) => setTwitter(e.target.value)}
+              disabled={saving || uploadingImage}
+              className={inputClass}
+              placeholder="username or x.com/..."
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Rate Your Music</label>
+            <input
+              type="text"
+              value={rym}
+              onChange={(e) => setRym(e.target.value)}
+              disabled={saving || uploadingImage}
+              className={inputClass}
+              placeholder="username or rateyourmusic.com/~..."
+              autoComplete="off"
+            />
+          </div>
+        </section>
+
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Favorite albums</h2>
           <p className="text-xs text-stone-500">Up to 3 on your profile</p>
@@ -420,24 +482,24 @@ export default function ProfileSettingsPage() {
                     <button
                       type="button"
                       onClick={(e) => removeFavoriteAlbum(e, idx)}
-                      className="absolute top-1.5 right-1.5 bg-black/70 text-white rounded-full w-6 h-6 text-xs opacity-0 group-hover:opacity-100"
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      ✕
+                      ×
                     </button>
                   </>
                 ) : (
-                  <span className="text-stone-500 text-xs">+ Add</span>
+                  <span className="text-2xl text-stone-600">+</span>
                 )}
               </div>
             ))}
           </div>
         </section>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-3 pt-1">
           <button
             type="submit"
             disabled={saving || uploadingImage}
-            className="bg-[#7cc7e8] text-[#0a121c] px-6 py-2.5 text-sm font-semibold rounded-lg hover:bg-[#a5d8f0] disabled:opacity-50"
+            className="bg-[#7cc7e8] text-[#0a121c] font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[#a5d8f0] transition-colors disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save changes"}
           </button>
@@ -445,7 +507,7 @@ export default function ProfileSettingsPage() {
             type="button"
             onClick={() => router.back()}
             disabled={saving || uploadingImage}
-            className="border border-[#2a3645] text-stone-400 px-6 py-2.5 text-sm rounded-lg hover:text-white"
+            className="text-stone-500 hover:text-white px-3 py-2.5 text-sm rounded-lg"
           >
             Cancel
           </button>
@@ -486,7 +548,7 @@ export default function ProfileSettingsPage() {
                       alt={item.title}
                       width={40}
                       height={40}
-                      sizes="120px"
+                      sizes="40px"
                       className="w-10 h-10 object-cover rounded"
                     />
                   )}

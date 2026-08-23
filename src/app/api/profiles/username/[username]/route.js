@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { getLastFmNowPlaying, getLastFmUsername } from '@/lib/lastfm';
 import { getRequestUser } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +23,7 @@ export async function GET(request, { params }) {
     const { data: base, error: baseError } = await supabase
       .from('profiles')
       .select(
-        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at'
+        'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, created_at, instagram, twitter, rym'
       )
       .ilike('username', username)
       .maybeSingle();
@@ -77,6 +76,7 @@ export async function GET(request, { params }) {
       if (followCheck) isFollowing = true;
     }
 
+    // Private profile for non-owners: limited data, no socials
     if (is_private && !isOwner) {
       return NextResponse.json(
         {
@@ -91,11 +91,13 @@ export async function GET(request, { params }) {
             followers: followers || 0,
             following: following || 0,
             isFollowing,
-            nowPlaying: null,
             favorite_albums: [],
             bio: null,
             website: null,
             pronouns: null,
+            instagram: null,
+            twitter: null,
+            rym: null,
           },
           listens: [],
           restricted: true,
@@ -133,16 +135,6 @@ export async function GET(request, { params }) {
       album_cover: item.albums?.cover_url || null,
     }));
 
-    let nowPlaying = null;
-    try {
-      const lastfmUser = await getLastFmUsername(base.id);
-      if (lastfmUser) {
-        nowPlaying = await getLastFmNowPlaying(lastfmUser);
-      }
-    } catch (err) {
-      console.error('Error Now Playing Last.fm:', err.message);
-    }
-
     return NextResponse.json(
       {
         profile: {
@@ -153,7 +145,6 @@ export async function GET(request, { params }) {
           followers: followers || 0,
           following: following || 0,
           isFollowing,
-          nowPlaying,
         },
         listens,
         restricted: false,

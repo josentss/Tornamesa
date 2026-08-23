@@ -12,6 +12,55 @@ import RatingChart from "@/components/profile/RatingChart";
 import ReviewsList from "@/components/profile/ReviewsList";
 import Toast from "@/components/Toast";
 
+function socialHref(kind, handle) {
+  if (!handle) return null;
+  const h = String(handle).replace(/^@/, "").trim();
+  if (!h) return null;
+  if (kind === "instagram") return `https://instagram.com/${h}`;
+  if (kind === "twitter") return `https://x.com/${h}`;
+  if (kind === "rym") return `https://rateyourmusic.com/~${h}`;
+  return null;
+}
+
+function ProfileSocialLinks({ profile }) {
+  if (!profile) return null;
+  const items = [
+    profile.instagram && {
+      key: "instagram",
+      href: socialHref("instagram", profile.instagram),
+      label: "Instagram",
+    },
+    profile.twitter && {
+      key: "twitter",
+      href: socialHref("twitter", profile.twitter),
+      label: "X",
+    },
+    profile.rym && {
+      key: "rym",
+      href: socialHref("rym", profile.rym),
+      label: "RYM",
+    },
+  ].filter(Boolean);
+
+  if (!items.length) return null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+      {items.map((item) => (
+        <a
+          key={item.key}
+          href={item.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] font-medium text-stone-400 hover:text-[#7cc7e8] bg-[#0a121c] px-2.5 py-1 rounded-full border border-[#2a3645] transition-colors"
+        >
+          {item.label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export default function UserProfileClient({ params }) {
   const username = typeof params?.then === "function" ? null : params?.username;
   const [resolvedUsername, setResolvedUsername] = useState(username);
@@ -410,6 +459,7 @@ export default function UserProfileClient({ params }) {
                   {profileData.website.replace(/^https?:\/\//, "")}
                 </a>
               )}
+              {!isPrivateLocked && <ProfileSocialLinks profile={profileData} />}
             </div>
 
             {/* action btns - centrados vertical bien */}

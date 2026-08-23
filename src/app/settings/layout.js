@@ -24,7 +24,7 @@ export default function SettingsLayout({ children }) {
   const tabs = [
     { href: "/settings/profile", label: "Profile" },
     { href: "/settings/account", label: "Account" },
-    { href: "/settings/connections", label: "Connections" },
+    { href: "/settings/profile#social", label: "Social" },
   ];
 
   return (

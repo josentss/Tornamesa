@@ -7,12 +7,35 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const PROFILE_COLS =
-  'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, onboarding_completed, is_private, diary_public, show_activity';
+  'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, onboarding_completed, is_private, diary_public, show_activity, instagram, twitter, rym';
 
 const noStoreHeaders = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
   Pragma: 'no-cache',
 };
+
+function sanitizeHandle(value, kind) {
+  if (value == null || value === '') return null;
+  let s = String(value).trim();
+  s = s.replace(/^@/, '');
+  if (kind === 'instagram') {
+    s = s
+      .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+      .split(/[/?#]/)[0];
+  } else if (kind === 'twitter') {
+    s = s
+      .replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//i, '')
+      .split(/[/?#]/)[0];
+  } else if (kind === 'rym') {
+    s = s
+      .replace(/^https?:\/\/(www\.)?rateyourmusic\.com\/~/i, '')
+      .replace(/^https?:\/\/(www\.)?rateyourmusic\.com\//i, '')
+      .split(/[/?#]/)[0]
+      .replace(/^~/, '');
+  }
+  s = s.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64);
+  return s || null;
+}
 
 async function getRequestUser(request) {
   const authHeader = request.headers.get('authorization');
@@ -60,6 +83,9 @@ function normalizeProfile(data, userId) {
       is_private: false,
       diary_public: true,
       show_activity: true,
+      instagram: '',
+      twitter: '',
+      rym: '',
     };
   }
   return {
@@ -78,6 +104,9 @@ function normalizeProfile(data, userId) {
     is_private: data.is_private === true,
     diary_public: data.diary_public !== false,
     show_activity: data.show_activity !== false,
+    instagram: data.instagram || '',
+    twitter: data.twitter || '',
+    rym: data.rym || '',
   };
 }
 
@@ -125,6 +154,9 @@ export async function PUT(request, { params }) {
       is_private,
       diary_public,
       show_activity,
+      instagram,
+      twitter,
+      rym,
     } = body;
 
     const cleanUsername = username
@@ -169,6 +201,11 @@ export async function PUT(request, { params }) {
     if (website !== undefined)
       fields.website = sanitizeString(website) || null;
     if (bio !== undefined) fields.bio = sanitizeString(bio) || null;
+    if (instagram !== undefined)
+      fields.instagram = sanitizeHandle(instagram, 'instagram');
+    if (twitter !== undefined)
+      fields.twitter = sanitizeHandle(twitter, 'twitter');
+    if (rym !== undefined) fields.rym = sanitizeHandle(rym, 'rym');
     if (favorite_albums !== undefined) {
       fields.favorite_albums = Array.isArray(favorite_albums)
         ? favorite_albums
