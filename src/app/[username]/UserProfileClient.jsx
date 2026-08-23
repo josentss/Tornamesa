@@ -11,50 +11,52 @@ import MonthlyTopWidget from "@/components/profile/MonthlyTopWidget";
 import RatingChart from "@/components/profile/RatingChart";
 import ReviewsList from "@/components/profile/ReviewsList";
 import Toast from "@/components/Toast";
-
-function socialHref(kind, handle) {
-  if (!handle) return null;
-  const h = String(handle).replace(/^@/, "").trim();
-  if (!h) return null;
-  if (kind === "instagram") return `https://instagram.com/${h}`;
-  if (kind === "twitter") return `https://x.com/${h}`;
-  if (kind === "rym") return `https://rateyourmusic.com/~${h}`;
-  return null;
-}
+import {
+  IconInstagram,
+  IconX,
+  IconRym,
+  socialHref,
+} from "@/components/icons/SocialIcons";
 
 function ProfileSocialLinks({ profile }) {
   if (!profile) return null;
+
   const items = [
     profile.instagram && {
       key: "instagram",
       href: socialHref("instagram", profile.instagram),
       label: "Instagram",
+      Icon: IconInstagram,
     },
     profile.twitter && {
       key: "twitter",
       href: socialHref("twitter", profile.twitter),
       label: "X",
+      Icon: IconX,
     },
     profile.rym && {
       key: "rym",
       href: socialHref("rym", profile.rym),
-      label: "RYM",
+      label: "Rate Your Music",
+      Icon: IconRym,
     },
   ].filter(Boolean);
 
   if (!items.length) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
-      {items.map((item) => (
+    <div className="flex items-center justify-center gap-2 mt-3">
+      {items.map(({ key, href, label, Icon }) => (
         <a
-          key={item.key}
-          href={item.href}
+          key={key}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-[11px] font-medium text-stone-400 hover:text-[#7cc7e8] bg-[#0a121c] px-2.5 py-1 rounded-full border border-[#2a3645] transition-colors"
+          title={label}
+          aria-label={label}
+          className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-[#2a3645] bg-[#0a121c] text-stone-400 hover:text-[#7cc7e8] hover:border-[#7cc7e8]/50 transition-colors"
         >
-          {item.label}
+          <Icon className="w-4 h-4" />
         </a>
       ))}
     </div>
