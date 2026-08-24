@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ErrorMessage, SuccessMessage } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
+import { IconInstagram, IconX, IconRym } from "@/components/icons/SocialIcons";
 
 const PRONOUNS = [
   "He/him",
@@ -231,13 +232,11 @@ export default function ProfileSettingsPage() {
           data: { username: saved.username || cleanUser },
         });
       } catch {
-        /* non-fatal */
       }
 
       try {
         await refreshUser();
       } catch {
-        /* ignore */
       }
 
       setUsername(saved.username || cleanUser);
@@ -291,29 +290,31 @@ export default function ProfileSettingsPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5 pb-24 sm:pb-0">
+        {/* profile picture */}
         <section className={sectionClass}>
-          <h2 className="text-sm font-semibold text-white">Profile photo</h2>
-          <div className="flex items-center gap-5">
-            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#2a3645] bg-[#1f2b3a] flex items-center justify-center font-bold text-lg shrink-0 relative">
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt="Avatar"
-                  width={80}
-                  height={80}
-                  sizes="96px"
-                  className="object-cover w-full h-full"
-                />
-              ) : (
-                <span className="text-stone-500">
-                  {(username || "?").charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div>
-              <label className="cursor-pointer inline-block">
-                <span className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] hover:bg-[#2a3645] text-white transition-colors">
+          <h2 className="text-sm font-semibold text-white">Profile</h2>
+
+          <div className="flex flex-col sm:flex-row sm:items-start gap-5">
+            <div className="flex items-center gap-4 sm:flex-col sm:items-center sm:w-[7.5rem] shrink-0">
+              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-[#2a3645] bg-[#1f2b3a] flex items-center justify-center font-bold text-lg relative">
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="Avatar"
+                    width={80}
+                    height={80}
+                    sizes="96px"
+                    className="object-cover w-full h-full"
+                  />
+                ) : (
+                  <span className="text-stone-500">
+                    {(username || "?").charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <label className="cursor-pointer">
+                <span className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] hover:bg-[#2a3645] text-white transition-colors inline-block">
                   {uploadingImage ? "Uploading..." : "Change photo"}
                 </span>
                 <input
@@ -324,65 +325,62 @@ export default function ProfileSettingsPage() {
                   disabled={saving || uploadingImage}
                 />
               </label>
-              <p className="text-[10px] text-stone-500 mt-1.5">
-                JPG or PNG. Max 2MB.
-              </p>
+            </div>
+
+            <div className="flex-1 space-y-4 min-w-0">
+              <div>
+                <label className={labelClass}>Username</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    disabled={!isEditingUsername || saving || uploadingImage}
+                    className={inputClass}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingUsername((v) => !v)}
+                    disabled={saving || uploadingImage}
+                    className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white shrink-0"
+                  >
+                    {isEditingUsername ? "Lock" : "Edit"}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Display name</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  disabled={saving || uploadingImage}
+                  className={inputClass}
+                  placeholder="Your name"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Pronouns</label>
+                <select
+                  value={pronouns}
+                  onChange={(e) => setPronouns(e.target.value)}
+                  disabled={saving || uploadingImage}
+                  className={inputClass}
+                >
+                  <option value="">—</option>
+                  {PRONOUNS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className={sectionClass}>
-          <h2 className="text-sm font-semibold text-white">Identity</h2>
-          <div>
-            <label className={labelClass}>Username</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={!isEditingUsername || saving || uploadingImage}
-                className={inputClass}
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                onClick={() => setIsEditingUsername((v) => !v)}
-                disabled={saving || uploadingImage}
-                className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white shrink-0"
-              >
-                {isEditingUsername ? "Lock" : "Edit"}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>Display name</label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              disabled={saving || uploadingImage}
-              className={inputClass}
-              placeholder="Your name"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Pronouns</label>
-            <select
-              value={pronouns}
-              onChange={(e) => setPronouns(e.target.value)}
-              disabled={saving || uploadingImage}
-              className={inputClass}
-            >
-              <option value="">—</option>
-              {PRONOUNS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
+        {/* info */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">About</h2>
           <div>
@@ -412,105 +410,86 @@ export default function ProfileSettingsPage() {
           </div>
         </section>
 
-        <section id="social" className={sectionClass}>
+        {/* redes sociales */}
+        <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Social links</h2>
           <p className="text-xs text-stone-500 -mt-2">
-            Usernames or full profile URLs. Shown on your public profile.
+            Shown as icons on your public profile. Username or full URL.
           </p>
-          <div>
-            <label className={labelClass}>Instagram</label>
-            <input
-              type="text"
-              value={instagram}
-              onChange={(e) => setInstagram(e.target.value)}
-              disabled={saving || uploadingImage}
-              className={inputClass}
-              placeholder="username or instagram.com/..."
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>X (Twitter)</label>
-            <input
-              type="text"
-              value={twitter}
-              onChange={(e) => setTwitter(e.target.value)}
-              disabled={saving || uploadingImage}
-              className={inputClass}
-              placeholder="username or x.com/..."
-              autoComplete="off"
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Rate Your Music</label>
-            <input
-              type="text"
-              value={rym}
-              onChange={(e) => setRym(e.target.value)}
-              disabled={saving || uploadingImage}
-              className={inputClass}
-              placeholder="username or rateyourmusic.com/~..."
-              autoComplete="off"
-            />
+
+          <div className="space-y-3">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
+                <IconInstagram className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={instagram}
+                onChange={(e) => setInstagram(e.target.value)}
+                disabled={saving || uploadingImage}
+                className={inputClass + " pl-10"}
+                placeholder="Instagram"
+                autoComplete="off"
+              />
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
+                <IconX className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={twitter}
+                onChange={(e) => setTwitter(e.target.value)}
+                disabled={saving || uploadingImage}
+                className={inputClass + " pl-10"}
+                placeholder="X (Twitter)"
+                autoComplete="off"
+              />
+            </div>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
+                <IconRym className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                value={rym}
+                onChange={(e) => setRym(e.target.value)}
+                disabled={saving || uploadingImage}
+                className={inputClass + " pl-10"}
+                placeholder="Rate Your Music"
+                autoComplete="off"
+              />
+            </div>
           </div>
         </section>
 
+        {/* discos favoritos */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Favorite albums</h2>
-          <p className="text-xs text-stone-500">Up to 3 on your profile</p>
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            {favoriteAlbums.map((album, idx) => (
-              <div
-                key={idx}
-                onClick={() =>
-                  !album && !saving && !uploadingImage && setActiveSlot(idx)
-                }
-                className={`relative group aspect-square bg-[#0a121c] border border-[#2a3645] rounded-xl flex items-center justify-center overflow-hidden ${
-                  !album ? "cursor-pointer hover:border-[#7cc7e8]/50" : ""
-                }`}
-              >
-                {album ? (
-                  <>
-                    <Image
-                      src={album.coverUrl}
-                      alt={album.title}
-                      width={200}
-                      height={200}
-                      sizes="80px"
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => removeFavoriteAlbum(e, idx)}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      ×
-                    </button>
-                  </>
-                ) : (
-                  <span className="text-2xl text-stone-600">+</span>
-                )}
-              </div>
-            ))}
+          <p className="text-xs text-stone-500 -mt-2">Up to 3 on your profile</p>
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-sm">
           </div>
         </section>
 
-        <div className="flex items-center gap-3 pt-1">
-          <button
-            type="submit"
-            disabled={saving || uploadingImage}
-            className="bg-[#7cc7e8] text-[#0a121c] font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[#a5d8f0] transition-colors disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save changes"}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            disabled={saving || uploadingImage}
-            className="text-stone-500 hover:text-white px-3 py-2.5 text-sm rounded-lg"
-          >
-            Cancel
-          </button>
+        {/* save */}
+        <div className="fixed bottom-0 inset-x-0 sm:static z-20 border-t border-[#2a3645] sm:border-0 bg-[#0a0f16]/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none px-4 py-3 sm:px-0 sm:pt-1">
+          <div className="max-w-2xl mx-auto flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={saving || uploadingImage}
+              className="bg-[#7cc7e8] text-[#0a121c] font-semibold text-sm px-5 py-2.5 rounded-lg hover:bg-[#a5d8f0] transition-colors disabled:opacity-50 flex-1 sm:flex-none"
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              disabled={saving || uploadingImage}
+              className="text-stone-500 hover:text-white px-3 py-2.5 text-sm rounded-lg"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </form>
 
