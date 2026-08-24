@@ -42,7 +42,8 @@ export default function SettingsLayout({ children }) {
 
         <nav className="flex gap-6 mb-8 border-b border-[#2a3645]">
           {tabs.map((tab) => {
-            const active = pathname === tab.match || pathname.startsWith(tab.match + "/");
+            const active =
+              pathname === tab.match || pathname.startsWith(tab.match + "/");
             return (
               <Link
                 key={tab.href}

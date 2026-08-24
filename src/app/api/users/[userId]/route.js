@@ -7,12 +7,14 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const PROFILE_COLS =
-  'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, onboarding_completed, is_private, diary_public, show_activity, instagram, twitter, rym';
+  'id, username, full_name, avatar_url, pronouns, country, website, bio, favorite_albums, onboarding_completed, is_private, diary_public, show_activity, instagram, twitter, rym, username_changed_at';
 
 const noStoreHeaders = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
   Pragma: 'no-cache',
 };
+
+const USERNAME_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 function sanitizeHandle(value, kind) {
   if (value == null || value === '') return null;
@@ -86,6 +88,7 @@ function normalizeProfile(data, userId) {
       instagram: '',
       twitter: '',
       rym: '',
+      username_changed_at: null,
     };
   }
   return {
@@ -107,6 +110,7 @@ function normalizeProfile(data, userId) {
     instagram: data.instagram || '',
     twitter: data.twitter || '',
     rym: data.rym || '',
+    username_changed_at: data.username_changed_at || null,
   };
 }
 
@@ -174,22 +178,7 @@ export async function PUT(request, { params }) {
     }
 
     const supabase = createSupabaseServer();
-
-    if (cleanUsername) {
-      const { data: taken } = await supabase
-        .from('profiles')
-        .select('id')
-        .ilike('username', cleanUsername)
-        .neq('id', userId)
-        .maybeSingle();
-
-      if (taken) {
-        return NextResponse.json(
-          { error: 'This username is already taken' },
-          { status: 409, headers: noStoreHeaders }
-        );
-      }
-    }
+    const existing = await fetchProfileByUserId(supabase, userId);
 
     const fields = {};
     if (full_name !== undefined)
@@ -218,10 +207,49 @@ export async function PUT(request, { params }) {
     if (typeof diary_public === 'boolean') fields.diary_public = diary_public;
     if (typeof show_activity === 'boolean')
       fields.show_activity = show_activity;
-    if (cleanUsername) fields.username = cleanUsername;
+
+    if (cleanUsername) {
+      const current = (existing?.username || '').toLowerCase();
+
+      if (cleanUsername !== current) {
+        const last = existing?.username_changed_at
+          ? new Date(existing.username_changed_at)
+          : null;
+
+        if (last && Date.now() - last.getTime() < USERNAME_COOLDOWN_MS) {
+          const next = new Date(last.getTime() + USERNAME_COOLDOWN_MS);
+          return NextResponse.json(
+            {
+              error: `You can change your username again on ${next.toLocaleDateString(
+                'en-US',
+                { year: 'numeric', month: 'short', day: 'numeric' }
+              )}.`,
+              nextChangeAt: next.toISOString(),
+            },
+            { status: 429, headers: noStoreHeaders }
+          );
+        }
+
+        const { data: taken } = await supabase
+          .from('profiles')
+          .select('id')
+          .ilike('username', cleanUsername)
+          .neq('id', userId)
+          .maybeSingle();
+
+        if (taken) {
+          return NextResponse.json(
+            { error: 'This username is already taken' },
+            { status: 409, headers: noStoreHeaders }
+          );
+        }
+
+        fields.username = cleanUsername;
+        fields.username_changed_at = new Date().toISOString();
+      }
+    }
 
     if (Object.keys(fields).length === 0) {
-      const existing = await fetchProfileByUserId(supabase, userId);
       return NextResponse.json(
         {
           success: true,
@@ -231,8 +259,6 @@ export async function PUT(request, { params }) {
         { headers: noStoreHeaders }
       );
     }
-
-    const existing = await fetchProfileByUserId(supabase, userId);
 
     let data;
     let error;
@@ -262,6 +288,7 @@ export async function PUT(request, { params }) {
           is_private: false,
           diary_public: true,
           show_activity: true,
+          username_changed_at: new Date().toISOString(),
           ...fields,
         })
         .select(PROFILE_COLS)
@@ -345,7 +372,6 @@ export async function DELETE(request, { params }) {
     try {
       await supabase.from('user_connections').delete().eq('user_id', userId);
     } catch {
-      /* tabla opcional */
     }
 
     await supabase.from('profiles').delete().eq('id', userId);

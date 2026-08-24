@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { ErrorMessage, SuccessMessage } from "@/components/shared";
 import { createClient } from "@/lib/supabase/client";
-import { IconInstagram, IconX, IconRym } from "@/components/icons/SocialIcons";
+import {
+  IconInstagram,
+  IconX,
+  IconRym,
+} from "@/components/icons/SocialIcons";
 
 const PRONOUNS = [
   "He/him",
@@ -21,6 +25,8 @@ const PRONOUNS = [
   "Any pronouns",
   "Prefer not to say",
 ];
+
+const USERNAME_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
 
 const inputClass =
   "w-full bg-[#0a121c] border border-[#2a3645] rounded-lg p-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8] transition-colors disabled:opacity-50";
@@ -44,6 +50,8 @@ export default function ProfileSettingsPage() {
   const [twitter, setTwitter] = useState("");
   const [rym, setRym] = useState("");
   const [favoriteAlbums, setFavoriteAlbums] = useState([null, null, null]);
+  const [usernameChangedAt, setUsernameChangedAt] = useState(null);
+  const [dragFrom, setDragFrom] = useState(null);
 
   const [activeSlot, setActiveSlot] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,6 +63,20 @@ export default function ProfileSettingsPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const canChangeUsername = useMemo(() => {
+    if (!usernameChangedAt) return true;
+    return (
+      Date.now() - new Date(usernameChangedAt).getTime() >= USERNAME_COOLDOWN_MS
+    );
+  }, [usernameChangedAt]);
+
+  const nextUsernameDate = useMemo(() => {
+    if (!usernameChangedAt) return null;
+    return new Date(
+      new Date(usernameChangedAt).getTime() + USERNAME_COOLDOWN_MS
+    );
+  }, [usernameChangedAt]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -77,6 +99,7 @@ export default function ProfileSettingsPage() {
         setInstagram(data.instagram || "");
         setTwitter(data.twitter || "");
         setRym(data.rym || "");
+        setUsernameChangedAt(data.username_changed_at || null);
 
         const slots = [null, null, null];
         if (Array.isArray(data.favorite_albums)) {
@@ -97,20 +120,6 @@ export default function ProfileSettingsPage() {
       cancelled = true;
     };
   }, [user?.id]);
-
-  useEffect(() => {
-    if (loading) return;
-    if (typeof window === "undefined") return;
-    if (window.location.hash === "#social") {
-      const el = document.getElementById("social");
-      if (el) {
-        setTimeout(
-          () => el.scrollIntoView({ behavior: "smooth", block: "start" }),
-          80
-        );
-      }
-    }
-  }, [loading]);
 
   const handleImageFile = async (e) => {
     const file = e.target.files?.[0];
@@ -180,6 +189,38 @@ export default function ProfileSettingsPage() {
     setFavoriteAlbums(updated);
   };
 
+  const onDragStart = (index) => (e) => {
+    if (!favoriteAlbums[index]) {
+      e.preventDefault();
+      return;
+    }
+    setDragFrom(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+  };
+
+  const onDragOver = () => (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const onDrop = (toIndex) => (e) => {
+    e.preventDefault();
+    const from = dragFrom ?? Number(e.dataTransfer.getData("text/plain"));
+    setDragFrom(null);
+    if (Number.isNaN(from) || from === toIndex) return;
+
+    setFavoriteAlbums((prev) => {
+      const next = [...prev];
+      const tmp = next[from];
+      next[from] = next[toIndex];
+      next[toIndex] = tmp;
+      return next;
+    });
+  };
+
+  const onDragEnd = () => setDragFrom(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -223,6 +264,7 @@ export default function ProfileSettingsPage() {
         twitter,
         rym,
         favorite_albums: favoriteAlbums.filter(Boolean),
+        username_changed_at: usernameChangedAt,
       };
 
       applyProfile(saved);
@@ -248,6 +290,16 @@ export default function ProfileSettingsPage() {
       setInstagram(saved.instagram || "");
       setTwitter(saved.twitter || "");
       setRym(saved.rym || "");
+      setUsernameChangedAt(saved.username_changed_at || null);
+
+      const slots = [null, null, null];
+      if (Array.isArray(saved.favorite_albums)) {
+        saved.favorite_albums.slice(0, 3).forEach((item, i) => {
+          slots[i] = item;
+        });
+      }
+      setFavoriteAlbums(slots);
+      setIsEditingUsername(false);
 
       setSuccess("Profile updated successfully.");
       setSaving(false);
@@ -291,7 +343,7 @@ export default function ProfileSettingsPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5 pb-24 sm:pb-0">
-        {/* profile picture */}
+        {/* profile - foto y datos */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Profile</h2>
 
@@ -325,6 +377,9 @@ export default function ProfileSettingsPage() {
                   disabled={saving || uploadingImage}
                 />
               </label>
+              <p className="text-[10px] text-stone-500 sm:text-center">
+                JPG/PNG · Max 2MB
+              </p>
             </div>
 
             <div className="flex-1 space-y-4 min-w-0">
@@ -335,19 +390,43 @@ export default function ProfileSettingsPage() {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    disabled={!isEditingUsername || saving || uploadingImage}
+                    disabled={
+                      !isEditingUsername ||
+                      saving ||
+                      uploadingImage ||
+                      !canChangeUsername
+                    }
                     className={inputClass}
                     autoComplete="off"
                   />
                   <button
                     type="button"
-                    onClick={() => setIsEditingUsername((v) => !v)}
-                    disabled={saving || uploadingImage}
-                    className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white shrink-0"
+                    onClick={() => {
+                      if (canChangeUsername)
+                        setIsEditingUsername((v) => !v);
+                    }}
+                    disabled={saving || uploadingImage || !canChangeUsername}
+                    className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] text-stone-300 hover:text-white shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={
+                      !canChangeUsername && nextUsernameDate
+                        ? `Available ${nextUsernameDate.toLocaleDateString()}`
+                        : undefined
+                    }
                   >
                     {isEditingUsername ? "Lock" : "Edit"}
                   </button>
                 </div>
+                {!canChangeUsername && nextUsernameDate && (
+                  <p className="text-[10px] text-stone-500 mt-1.5">
+                    Username can be changed again on{" "}
+                    {nextUsernameDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                    .
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Display name</label>
@@ -380,7 +459,7 @@ export default function ProfileSettingsPage() {
           </div>
         </section>
 
-        {/* info */}
+        {/* info about */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">About</h2>
           <div>
@@ -414,9 +493,8 @@ export default function ProfileSettingsPage() {
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Social links</h2>
           <p className="text-xs text-stone-500 -mt-2">
-            Shown as icons on your public profile. Username or full URL.
+            Shown as icons on your profile. Username or full URL.
           </p>
-
           <div className="space-y-3">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 pointer-events-none">
@@ -463,11 +541,62 @@ export default function ProfileSettingsPage() {
           </div>
         </section>
 
-        {/* discos favoritos */}
+        {/* favorite albums */}
         <section className={sectionClass}>
           <h2 className="text-sm font-semibold text-white">Favorite albums</h2>
-          <p className="text-xs text-stone-500 -mt-2">Up to 3 on your profile</p>
+          <p className="text-xs text-stone-500 -mt-2">
+            Up to 3 · Tap empty slot to add · Drag to reorder
+          </p>
           <div className="grid grid-cols-3 gap-3 sm:gap-4 max-w-sm">
+            {favoriteAlbums.map((album, idx) => (
+              <div
+                key={album?.id ? `${album.id}-${idx}` : `empty-${idx}`}
+                draggable={!!album}
+                onDragStart={onDragStart(idx)}
+                onDragOver={onDragOver(idx)}
+                onDrop={onDrop(idx)}
+                onDragEnd={onDragEnd}
+                onClick={() =>
+                  !album && !saving && !uploadingImage && setActiveSlot(idx)
+                }
+                className={`relative group aspect-square bg-[#0a121c] border border-[#2a3645] rounded-xl flex items-center justify-center overflow-hidden ${
+                  !album
+                    ? "cursor-pointer hover:border-[#7cc7e8]/50"
+                    : "cursor-grab active:cursor-grabbing"
+                } ${
+                  dragFrom === idx
+                    ? "opacity-50 ring-2 ring-[#7cc7e8]/40"
+                    : ""
+                }`}
+              >
+                {album ? (
+                  <>
+                    <Image
+                      src={album.coverUrl}
+                      alt={album.title || ""}
+                      width={200}
+                      height={200}
+                      sizes="80px"
+                      className="w-full h-full object-cover pointer-events-none"
+                      draggable={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => removeFavoriteAlbum(e, idx)}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white text-xs flex items-center justify-center sm:opacity-0 sm:group-hover:opacity-100"
+                      aria-label="Remove"
+                    >
+                      ×
+                    </button>
+                    <span className="absolute bottom-1 left-1 text-[9px] font-bold text-white/80 bg-black/50 px-1.5 py-0.5 rounded">
+                      {idx + 1}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-2xl text-stone-600">+</span>
+                )}
+              </div>
+            ))}
           </div>
         </section>
 
