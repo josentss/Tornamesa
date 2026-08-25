@@ -40,17 +40,35 @@ export async function GET(request) {
       return NextResponse.json(album ? [album] : []);
     }
 
-    let local = [];
-    try {
-      local = await searchLocalAlbums(trimmed, RESULT_LIMIT);
-    } catch (e) {
-      console.warn('local search:', e.message);
+    const [localOutcome, remoteOutcome] = await Promise.allSettled([
+      searchLocalAlbums(trimmed, RESULT_LIMIT),
+      searchSpotifyAlbums(trimmed, RESULT_LIMIT),
+    ]);
+
+    const local =
+      localOutcome.status === 'fulfilled' && Array.isArray(localOutcome.value)
+        ? localOutcome.value
+        : [];
+    if (localOutcome.status === 'rejected') {
+      console.warn('local search:', localOutcome.reason?.message);
+    }
+
+    let remote = [];
+    let rateLimited = false;
+    if (remoteOutcome.status === 'fulfilled') {
+      remote = Array.isArray(remoteOutcome.value) ? remoteOutcome.value : [];
+    } else {
+      const err = remoteOutcome.reason;
+      console.error('Spotify search:', err?.message, err?.status);
+      if (err?.status === 429) rateLimited = true;
     }
 
     const extras = [];
     try {
       for (const id of matchCatalogExtras(trimmed)) {
-        if (local.some((a) => a.id === id)) continue;
+        if (local.some((a) => a.id === id) || remote.some((a) => a.id === id)) {
+          continue;
+        }
         const album = await getAlbumByIdResolved(id);
         if (album) extras.push(album);
       }
@@ -58,36 +76,20 @@ export async function GET(request) {
       console.warn('catalog extras:', e.message);
     }
 
-    let remote = [];
-    let rateLimited = false;
-
-    try {
-      remote = await searchSpotifyAlbums(trimmed, RESULT_LIMIT);
-    } catch (e) {
-      console.error('Spotify search:', e.message);
-      if (e.status === 429) {
-        rateLimited = true;
-        if (local.length === 0 && extras.length === 0) {
-          return NextResponse.json(
-            {
-              error:
-                'Spotify search is rate-limited. Try an album link/id, or search something already in the catalog.',
-            },
-            { status: 429 }
-          );
-        }
-      } else if (local.length === 0 && extras.length === 0) {
-        return NextResponse.json(
-          { error: 'Search temporarily unavailable' },
-          { status: 503 }
-        );
-      }
-    }
-
     const merged = dedupeAlbums([...remote, ...extras, ...local]);
     const clean = merged
       .map(({ _score, ...rest }) => rest)
       .slice(0, RESULT_LIMIT);
+
+    if (clean.length === 0 && rateLimited) {
+      return NextResponse.json(
+        {
+          error:
+            'Spotify search is rate-limited. Try an album link/id, or search something already in the catalog.',
+        },
+        { status: 429 }
+      );
+    }
 
     const res = NextResponse.json(clean);
     if (rateLimited) res.headers.set('X-Search-Source', 'local-fallback');
