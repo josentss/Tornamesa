@@ -296,19 +296,12 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
 }
 
 // spotify search
-export async function searchSpotifyAlbums(query, limit = 15) {
+export async function searchSpotifyAlbums(query, _limit = 15) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
 
-  let n = parseInt(String(limit), 10);
-  if (!Number.isFinite(n) || n < 1) n = 15;
-  if (n > 50) n = 50;
-
   const url =
-    `https://api.spotify.com/v1/search` +
-    `?q=${encodeURIComponent(q)}` +
-    `&type=album` +
-    `&limit=${n}`;
+    `https://api.spotify.com/v1/search?type=album&q=${encodeURIComponent(q)}`;
 
   const res = await spotifyFetch(url);
 
@@ -321,7 +314,7 @@ export async function searchSpotifyAlbums(query, limit = 15) {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     const err = new Error(
-      `Spotify search ${res.status}: ${text.slice(0, 400)}`
+      `Spotify search ${res.status}: ${text.slice(0, 300)} | url=${url}`
     );
     err.status = res.status;
     throw err;
@@ -329,10 +322,7 @@ export async function searchSpotifyAlbums(query, limit = 15) {
 
   const data = await res.json();
   const rawItems = data?.albums?.items;
-  if (!Array.isArray(rawItems)) {
-    console.warn('Spotify search: unexpected body');
-    return [];
-  }
+  if (!Array.isArray(rawItems)) return [];
 
   let items = rawItems.filter((a) => a && a.id);
   items = items.filter((a) => {
@@ -343,5 +333,5 @@ export async function searchSpotifyAlbums(query, limit = 15) {
 
   const mapped = items.map((album) => mapSpotifyAlbum(album)).filter(Boolean);
   void Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
-  return mapped;
+  return mapped.slice(0, 15);
 }
