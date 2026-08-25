@@ -224,7 +224,7 @@ export async function searchLocalAlbums(query, limit = 15) {
       return [];
     }
 
-    const minScore = q.length <= 3 ? 8 : 10;
+    const minScore = q.length <= 3 ? 5 : 8;
 
     return (data || [])
       .map((row) => ({
@@ -326,14 +326,23 @@ export async function searchSpotifyAlbums(query, limit = 15) {
   const rawItems = data?.albums?.items;
   if (!Array.isArray(rawItems)) return [];
 
-  let items = rawItems.filter((a) => a && a.id);
-  items = items.filter((a) => {
-    const name = a.name || '';
-    const artists = (a.artists || []).map((ar) => ar.name || '').join(' ');
-    return !NOISE_RE.test(name) && !NOISE_RE.test(artists);
-  });
+  const items = rawItems.filter((a) => a && a.id);
 
-  const mapped = items.map((album) => mapSpotifyAlbum(album)).filter(Boolean);
-  void Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
-  return mapped.slice(0, take);
+  const mapped = items
+    .map((album) => {
+      const m = mapSpotifyAlbum(album);
+      if (!m) return null;
+      const blob = `${m.title} ${m.artist}`;
+      return { ...m, _noise: NOISE_RE.test(blob) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(a._noise) - Number(b._noise));
+
+  void Promise.allSettled(
+    mapped.map(({ _noise, ...m }) => upsertAlbumMapped(m))
+  );
+
+  return mapped
+    .map(({ _noise, ...rest }) => rest)
+    .slice(0, take);
 }

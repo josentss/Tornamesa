@@ -43,8 +43,8 @@ export async function GET(request) {
     }
 
     const [localOutcome, remoteOutcome] = await Promise.allSettled([
-      searchLocalAlbums(trimmed, TOTAL),
-      searchSpotifyAlbums(trimmed, TOTAL),
+      searchLocalAlbums(trimmed, 40),
+      searchSpotifyAlbums(trimmed, 20),
     ]);
 
     const local =
@@ -85,7 +85,7 @@ export async function GET(request) {
     }
 
     const strip = (list) =>
-      (list || []).map(({ _score, ...rest }) => rest);
+      (list || []).map(({ _score, _noise, ...rest }) => rest);
 
     const remoteClean = strip(remote);
     const localClean = strip(local);
@@ -96,13 +96,13 @@ export async function GET(request) {
 
     const take = (list, max) => {
       if (max <= 0) return;
-      let added = 0;
+      let n = 0;
       for (const a of list) {
         if (!a?.id || used.has(a.id)) continue;
         used.add(a.id);
         out.push(a);
-        added += 1;
-        if (added >= max) break;
+        n += 1;
+        if (n >= max) break;
       }
     };
 
@@ -115,10 +115,9 @@ export async function GET(request) {
       take(remoteClean, SPOTIFY_SLOTS);
       take(extrasClean, LOCAL_SLOTS);
       take(localClean, TOTAL - out.length);
-
-      if (out.length < TOTAL) take(remoteClean, TOTAL - out.length);
-      if (out.length < TOTAL) take(localClean, TOTAL - out.length);
-      if (out.length < TOTAL) take(extrasClean, TOTAL - out.length);
+      take(remoteClean, TOTAL - out.length);
+      take(localClean, TOTAL - out.length);
+      take(extrasClean, TOTAL - out.length);
     }
 
     const clean = dedupeAlbums(out).slice(0, TOTAL);
@@ -136,9 +135,13 @@ export async function GET(request) {
     const res = NextResponse.json(clean);
 
     if (rateLimited) res.headers.set('X-Search-Source', 'local-fallback');
-    else if (remoteClean.length > 0 && (localClean.length > 0 || extrasClean.length > 0))
+    else if (
+      remoteClean.length > 0 &&
+      (localClean.length > 0 || extrasClean.length > 0)
+    )
       res.headers.set('X-Search-Source', 'spotify+local');
-    else if (remoteClean.length > 0) res.headers.set('X-Search-Source', 'spotify');
+    else if (remoteClean.length > 0)
+      res.headers.set('X-Search-Source', 'spotify');
     else res.headers.set('X-Search-Source', 'local');
 
     if (spotifyErrMsg) {
