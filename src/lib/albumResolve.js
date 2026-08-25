@@ -252,7 +252,7 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
   return [];
 }
 
-export async function searchSpotifyAlbums(query, limit = 20) {
+export async function searchSpotifyAlbums(query, limit = 10) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
 
@@ -307,7 +307,7 @@ export async function searchSpotifyAlbums(query, limit = 20) {
     })
     .filter(Boolean);
 
-  await Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
+  void Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
 
   return mapped;
 }
