@@ -45,7 +45,7 @@ function ProfileSocialLinks({ profile }) {
   if (!items.length) return null;
 
   return (
-    <div className="flex items-center justify-center gap-2 mt-3">
+    <div className="flex items-center justify-center gap-3 mt-2.5">
       {items.map(({ key, href, label, Icon }) => (
         <a
           key={key}
@@ -54,9 +54,9 @@ function ProfileSocialLinks({ profile }) {
           rel="noopener noreferrer"
           title={label}
           aria-label={label}
-          className="inline-flex items-center justify-center w-9 h-9 rounded-full border border-[#2a3645] bg-[#0a121c] text-stone-400 hover:text-[#7cc7e8] hover:border-[#7cc7e8]/50 transition-colors"
+          className="text-stone-500 hover:text-[#7cc7e8] transition-colors p-1"
         >
-          <Icon className="w-4 h-4" />
+          <Icon className="w-3.5 h-3.5" />
         </a>
       ))}
     </div>
@@ -570,6 +570,7 @@ export default function UserProfileClient({ params }) {
                 {profileData.website.replace(/^https?:\/\//, "")}
               </a>
             )}
+            {!isPrivateLocked && <ProfileSocialLinks profile={profileData} />}
           </div>
 
           {/* action btns en celular */}
