@@ -1,6 +1,7 @@
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 
+// text helpers
 export function normalizeText(s) {
   return String(s || '')
     .toLowerCase()
@@ -25,6 +26,24 @@ export function extractSpotifyAlbumId(q) {
 const NOISE_RE =
   /\b(tribute|karaoke|performs|string quartet|piano tribute|lullaby|cover version|music box|8.?bit|vs\.?|vitamin string|molotov cocktail|done again|the karaoke channel|complete on ukulele)\b/i;
 
+function sanitizeIlike(s) {
+  return String(s || '')
+    .replace(/%/g, '')
+    .replace(/,/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+}
+
+function clampSearchLimit(limit, fallback = 15) {
+  const n = Math.floor(Number(limit));
+  if (!Number.isFinite(n)) return fallback;
+  if (n < 1) return 1;
+  if (n > 50) return 50;
+  return n;
+}
+
+// mappers
 function mapSpotifyAlbum(album) {
   if (!album?.id) return null;
   return {
@@ -52,15 +71,7 @@ function mapDbRow(row) {
   };
 }
 
-function sanitizeIlike(s) {
-  return String(s || '')
-    .replace(/%/g, '')
-    .replace(/,/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 80);
-}
-
+// scoring - no dupe
 export function scoreLocalMatch(query, row) {
   const q = normalizeText(query);
   const title = normalizeText(row.title);
@@ -111,6 +122,7 @@ export function dedupeAlbums(list) {
   return out;
 }
 
+// upserts
 export async function upsertAlbumFromSpotify(albumData) {
   if (!albumData?.id) return;
   try {
@@ -119,7 +131,6 @@ export async function upsertAlbumFromSpotify(albumData) {
       (acc, t) => acc + (t.duration_ms || 0),
       0
     );
-
     const { error } = await supabase.from('albums').upsert(
       {
         spotify_id: albumData.id,
@@ -130,7 +141,6 @@ export async function upsertAlbumFromSpotify(albumData) {
       },
       { onConflict: 'spotify_id' }
     );
-
     if (error) console.warn('upsertAlbumFromSpotify:', error.message);
   } catch (e) {
     console.warn('upsertAlbumFromSpotify:', e.message);
@@ -157,9 +167,12 @@ export async function upsertAlbumMapped(mapped) {
   }
 }
 
+// resolve por id
 export async function fetchSpotifyAlbumById(id) {
   try {
-    const res = await spotifyFetch(`https://api.spotify.com/v1/albums/${id}`);
+    const res = await spotifyFetch(
+      `https://api.spotify.com/v1/albums/${encodeURIComponent(id)}`
+    );
     if (!res.ok) return null;
     return res.json();
   } catch (e) {
@@ -172,7 +185,6 @@ export async function getAlbumByIdResolved(id) {
   if (!id) return null;
   try {
     const supabase = createSupabaseServer();
-
     const { data: existing } = await supabase
       .from('albums')
       .select('spotify_id, title, artist, cover_url, duration_ms')
@@ -192,9 +204,12 @@ export async function getAlbumByIdResolved(id) {
   }
 }
 
+// local search
 export async function searchLocalAlbums(query, limit = 15) {
   const q = sanitizeIlike(query);
   if (q.length < 2) return [];
+
+  const take = clampSearchLimit(limit, 15);
 
   try {
     const supabase = createSupabaseServer();
@@ -202,7 +217,7 @@ export async function searchLocalAlbums(query, limit = 15) {
       .from('albums')
       .select('spotify_id, title, artist, cover_url')
       .or(`title.ilike.%${q}%,artist.ilike.%${q}%`)
-      .limit(Math.max(limit * 4, 40));
+      .limit(Math.max(take * 4, 40));
 
     if (error) {
       console.warn('searchLocalAlbums:', error.message);
@@ -218,7 +233,7 @@ export async function searchLocalAlbums(query, limit = 15) {
       }))
       .filter((x) => x.album && x.score >= minScore)
       .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
+      .slice(0, take)
       .map((x) => ({ ...x.album, _score: x.score }));
   } catch (e) {
     console.warn('searchLocalAlbums:', e.message);
@@ -231,6 +246,8 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
   const a = sanitizeIlike(artist);
   if (t.length < 1 && a.length < 1) return [];
 
+  const take = clampSearchLimit(limit, 15);
+
   try {
     const supabase = createSupabaseServer();
 
@@ -240,7 +257,7 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
         .select('spotify_id, title, artist, cover_url')
         .ilike('title', `%${t}%`)
         .ilike('artist', `%${a}%`)
-        .limit(limit);
+        .limit(take);
 
       if (!error && data?.length) {
         return data.map(mapDbRow).filter(Boolean);
@@ -252,7 +269,7 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
         .from('albums')
         .select('spotify_id, title, artist, cover_url')
         .ilike('title', `%${t}%`)
-        .limit(limit);
+        .limit(take);
 
       if (!error && data?.length) {
         return data.map(mapDbRow).filter(Boolean);
@@ -264,7 +281,7 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
         .from('albums')
         .select('spotify_id, title, artist, cover_url')
         .ilike('artist', `%${a}%`)
-        .limit(limit);
+        .limit(take);
 
       if (!error && data?.length) {
         return data.map(mapDbRow).filter(Boolean);
@@ -278,18 +295,22 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
   }
 }
 
+// spotify search
 export async function searchSpotifyAlbums(query, limit = 15) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
 
-  const safeLimit = Math.min(Math.max(Number(limit) || 15, 1), 50);
+  const safeLimit = clampSearchLimit(limit, 15);
 
-  const params = new URLSearchParams({
-    q,
-    type: 'album',
-    limit: String(safeLimit),
-    market: process.env.SPOTIFY_MARKET || 'US',
-  });
+  const params = new URLSearchParams();
+  params.set('q', q);
+  params.set('type', 'album');
+  params.set('limit', String(safeLimit));
+
+  const market = process.env.SPOTIFY_MARKET;
+  if (market && /^[A-Za-z]{2}$/.test(market)) {
+    params.set('market', market.toUpperCase());
+  }
 
   const url = `https://api.spotify.com/v1/search?${params.toString()}`;
   const res = await spotifyFetch(url);
@@ -310,12 +331,12 @@ export async function searchSpotifyAlbums(query, limit = 15) {
   }
 
   const data = await res.json();
-
   const rawItems = data?.albums?.items;
+
   if (!Array.isArray(rawItems)) {
     console.warn(
       'Spotify search: unexpected body',
-      JSON.stringify(data)?.slice(0, 300)
+      JSON.stringify(data)?.slice(0, 200)
     );
     return [];
   }
