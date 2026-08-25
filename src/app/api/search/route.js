@@ -55,18 +55,24 @@ export async function GET(request) {
 
     let remote = [];
     let rateLimited = false;
+    let spotifyErrMsg = null;
+
     if (remoteOutcome.status === 'fulfilled') {
       remote = Array.isArray(remoteOutcome.value) ? remoteOutcome.value : [];
     } else {
       const err = remoteOutcome.reason;
-      console.error('Spotify search:', err?.message, err?.status);
+      spotifyErrMsg = String(err?.message || err || 'unknown').slice(0, 180);
+      console.error('Spotify search:', spotifyErrMsg, err?.status);
       if (err?.status === 429) rateLimited = true;
     }
 
     const extras = [];
     try {
       for (const id of matchCatalogExtras(trimmed)) {
-        if (local.some((a) => a.id === id) || remote.some((a) => a.id === id)) {
+        if (
+          local.some((a) => a.id === id) ||
+          remote.some((a) => a.id === id)
+        ) {
           continue;
         }
         const album = await getAlbumByIdResolved(id);
@@ -92,10 +98,18 @@ export async function GET(request) {
     }
 
     const res = NextResponse.json(clean);
+
     if (rateLimited) res.headers.set('X-Search-Source', 'local-fallback');
     else if (remote.length > 0)
       res.headers.set('X-Search-Source', 'spotify+local');
     else res.headers.set('X-Search-Source', 'local');
+
+    if (spotifyErrMsg) {
+      res.headers.set('X-Search-Spotify-Error', spotifyErrMsg);
+    }
+    res.headers.set('X-Search-Remote-Count', String(remote.length));
+    res.headers.set('X-Search-Local-Count', String(local.length));
+
     return res;
   } catch (error) {
     console.error('Search error:', error.message);

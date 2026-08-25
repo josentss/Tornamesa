@@ -288,6 +288,7 @@ export async function searchSpotifyAlbums(query, limit = 15) {
     q,
     type: 'album',
     limit: String(safeLimit),
+    market: process.env.SPOTIFY_MARKET || 'US',
   });
 
   const url = `https://api.spotify.com/v1/search?${params.toString()}`;
@@ -302,14 +303,24 @@ export async function searchSpotifyAlbums(query, limit = 15) {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     const err = new Error(
-      `Spotify search ${res.status}: ${text.slice(0, 300)}`
+      `Spotify search ${res.status}: ${text.slice(0, 400)}`
     );
     err.status = res.status;
     throw err;
   }
 
   const data = await res.json();
-  let items = (data.albums?.items || []).filter((a) => a?.id);
+
+  const rawItems = data?.albums?.items;
+  if (!Array.isArray(rawItems)) {
+    console.warn(
+      'Spotify search: unexpected body',
+      JSON.stringify(data)?.slice(0, 300)
+    );
+    return [];
+  }
+
+  let items = rawItems.filter((a) => a && a.id);
 
   items = items.filter((a) => {
     const name = a.name || '';
@@ -317,9 +328,7 @@ export async function searchSpotifyAlbums(query, limit = 15) {
     return !NOISE_RE.test(name) && !NOISE_RE.test(artists);
   });
 
-  const mapped = items
-    .map((album) => mapSpotifyAlbum(album))
-    .filter(Boolean);
+  const mapped = items.map((album) => mapSpotifyAlbum(album)).filter(Boolean);
 
   void Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
 
