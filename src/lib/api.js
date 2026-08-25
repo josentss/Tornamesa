@@ -50,7 +50,8 @@ async function authHeadersOptional() {
 export const api = {
   searchAlbums: (query, type = 'album') =>
     fetchApi(
-      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}`
+      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}`,
+      { cache: 'no-store' }
     ),
 
   getAlbumDetails: (id) => fetchApi(`/api/albums/${id}`),

@@ -11,6 +11,8 @@ import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
+const RESULT_LIMIT = 15;
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
@@ -40,7 +42,7 @@ export async function GET(request) {
 
     let local = [];
     try {
-      local = await searchLocalAlbums(trimmed, 12);
+      local = await searchLocalAlbums(trimmed, RESULT_LIMIT);
     } catch (e) {
       console.warn('local search:', e.message);
     }
@@ -60,8 +62,7 @@ export async function GET(request) {
     let rateLimited = false;
 
     try {
-      // sin 2º argumento → default del lib (antes 10 / el que tengas en albumResolve)
-      remote = await searchSpotifyAlbums(trimmed);
+      remote = await searchSpotifyAlbums(trimmed, RESULT_LIMIT);
     } catch (e) {
       console.error('Spotify search:', e.message);
       if (e.status === 429) {
@@ -71,7 +72,6 @@ export async function GET(request) {
             {
               error:
                 'Spotify search is rate-limited. Try an album link/id, or search something already in the catalog.',
-              results: [],
             },
             { status: 429 }
           );
@@ -82,13 +82,12 @@ export async function GET(request) {
           { status: 503 }
         );
       }
-      // si hay local/extras, seguimos con ellos
     }
 
     const merged = dedupeAlbums([...remote, ...extras, ...local]);
     const clean = merged
       .map(({ _score, ...rest }) => rest)
-      .slice(0, 15);
+      .slice(0, RESULT_LIMIT);
 
     const res = NextResponse.json(clean);
     if (rateLimited) res.headers.set('X-Search-Source', 'local-fallback');

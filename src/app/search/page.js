@@ -125,7 +125,7 @@ export default function SearchPage() {
           <>
             <p className="text-[11px] text-stone-500 mb-4 text-center sm:text-left">
               {results.length} result{results.length === 1 ? "" : "s"}
-              {results.length >= 20 ? " · refine your search for more" : ""}
+              {results.length >= 15 ? " · refine your search for more" : ""}
             </p>
             <div className={GRID}>
               {results.map((album) => (
