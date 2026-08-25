@@ -296,9 +296,11 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
 }
 
 // spotify search
-export async function searchSpotifyAlbums(query, _limit = 15) {
+export async function searchSpotifyAlbums(query, limit = 15) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
+
+  const take = clampSearchLimit(limit, 15);
 
   const url =
     `https://api.spotify.com/v1/search?type=album&q=${encodeURIComponent(q)}`;
@@ -333,5 +335,5 @@ export async function searchSpotifyAlbums(query, _limit = 15) {
 
   const mapped = items.map((album) => mapSpotifyAlbum(album)).filter(Boolean);
   void Promise.allSettled(mapped.map((m) => upsertAlbumMapped(m)));
-  return mapped.slice(0, 15);
+  return mapped.slice(0, take);
 }

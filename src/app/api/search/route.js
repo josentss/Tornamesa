@@ -11,7 +11,9 @@ import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
-const RESULT_LIMIT = 15;
+const TOTAL = 15;
+const SPOTIFY_SLOTS = 7;
+const LOCAL_SLOTS = 8;
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -41,8 +43,8 @@ export async function GET(request) {
     }
 
     const [localOutcome, remoteOutcome] = await Promise.allSettled([
-      searchLocalAlbums(trimmed, RESULT_LIMIT),
-      searchSpotifyAlbums(trimmed, RESULT_LIMIT),
+      searchLocalAlbums(trimmed, TOTAL),
+      searchSpotifyAlbums(trimmed, TOTAL),
     ]);
 
     const local =
@@ -82,10 +84,44 @@ export async function GET(request) {
       console.warn('catalog extras:', e.message);
     }
 
-    const merged = dedupeAlbums([...remote, ...extras, ...local]);
-    const clean = merged
-      .map(({ _score, ...rest }) => rest)
-      .slice(0, RESULT_LIMIT);
+    const strip = (list) =>
+      (list || []).map(({ _score, ...rest }) => rest);
+
+    const remoteClean = strip(remote);
+    const localClean = strip(local);
+    const extrasClean = strip(extras);
+
+    const used = new Set();
+    const out = [];
+
+    const take = (list, max) => {
+      if (max <= 0) return;
+      let added = 0;
+      for (const a of list) {
+        if (!a?.id || used.has(a.id)) continue;
+        used.add(a.id);
+        out.push(a);
+        added += 1;
+        if (added >= max) break;
+      }
+    };
+
+    if (localClean.length === 0 && extrasClean.length === 0) {
+      take(remoteClean, TOTAL);
+    } else if (remoteClean.length === 0) {
+      take(extrasClean, TOTAL);
+      take(localClean, TOTAL - out.length);
+    } else {
+      take(remoteClean, SPOTIFY_SLOTS);
+      take(extrasClean, LOCAL_SLOTS);
+      take(localClean, TOTAL - out.length);
+
+      if (out.length < TOTAL) take(remoteClean, TOTAL - out.length);
+      if (out.length < TOTAL) take(localClean, TOTAL - out.length);
+      if (out.length < TOTAL) take(extrasClean, TOTAL - out.length);
+    }
+
+    const clean = dedupeAlbums(out).slice(0, TOTAL);
 
     if (clean.length === 0 && rateLimited) {
       return NextResponse.json(
@@ -100,15 +136,17 @@ export async function GET(request) {
     const res = NextResponse.json(clean);
 
     if (rateLimited) res.headers.set('X-Search-Source', 'local-fallback');
-    else if (remote.length > 0)
+    else if (remoteClean.length > 0 && (localClean.length > 0 || extrasClean.length > 0))
       res.headers.set('X-Search-Source', 'spotify+local');
+    else if (remoteClean.length > 0) res.headers.set('X-Search-Source', 'spotify');
     else res.headers.set('X-Search-Source', 'local');
 
     if (spotifyErrMsg) {
       res.headers.set('X-Search-Spotify-Error', spotifyErrMsg);
     }
-    res.headers.set('X-Search-Remote-Count', String(remote.length));
-    res.headers.set('X-Search-Local-Count', String(local.length));
+    res.headers.set('X-Search-Remote-Count', String(remoteClean.length));
+    res.headers.set('X-Search-Local-Count', String(localClean.length));
+    res.headers.set('X-Search-Result-Count', String(clean.length));
 
     return res;
   } catch (error) {
