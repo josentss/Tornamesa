@@ -252,16 +252,14 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
   return [];
 }
 
-export async function searchSpotifyAlbums(query) {
+export async function searchSpotifyAlbums(query, limit = 20) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
-
-  const limit = 10;
 
   const params = new URLSearchParams({
     q,
     type: 'album',
-    limit: String(limit),
+    limit: String(Math.min(Math.max(limit, 1), 50)),
   });
 
   const url = `https://api.spotify.com/v1/search?${params.toString()}`;

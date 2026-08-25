@@ -10,14 +10,18 @@ import { Header, Footer } from "@/components/shared";
 function AlbumCard({ album }) {
   return (
     <Link href={`/album/${album.id}`} className="group block">
-      <div className="aspect-square bg-[#131b26] border border-[#1e293b] rounded-lg overflow-hidden mb-2 shadow-sm transition-all duration-300 ease-out group-hover:border-[#87ceeb]/50 group-hover:shadow-md group-hover:shadow-black/25">
+      <div
+        className="aspect-square bg-[#131b26] border border-[#1e293b] rounded-lg overflow-hidden mb-2 shadow-sm
+          transition-all duration-300 ease-out
+          group-hover:border-[#87ceeb]/50 group-hover:-translate-y-0.5 group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+      >
         {album.coverUrl ? (
           <Image
             src={album.coverUrl}
-            alt={album.title}
+            alt={album.title || "Album"}
             width={300}
             height={300}
-            sizes="(max-width: 640px) 50vw, 200px"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -26,15 +30,18 @@ function AlbumCard({ album }) {
           </div>
         )}
       </div>
-      <h3 className="text-xs sm:text-sm font-medium text-[#f0f9ff] truncate group-hover:text-[#87ceeb] transition-colors">
+      <p className="text-xs sm:text-sm font-medium text-[#f0f9ff] line-clamp-2 leading-snug group-hover:text-[#87ceeb] transition-colors">
         {album.title}
-      </h3>
-      <p className="text-[10px] sm:text-xs text-stone-400 truncate">
+      </p>
+      <p className="text-[11px] sm:text-xs text-stone-500 mt-0.5 line-clamp-1">
         {album.artist}
       </p>
     </Link>
   );
 }
+
+const GRID =
+  "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4";
 
 export default function SearchPage() {
   const { user } = useAuth();
@@ -56,11 +63,9 @@ export default function SearchPage() {
     setSearched(true);
 
     try {
-      // Always albums only
       const data = await api.searchAlbums(trimmed, "album");
       const list = Array.isArray(data) ? data : [];
       setResults(list);
-      if (list.length === 0) setError(null);
     } catch (err) {
       console.error("Search error:", err);
       setError(err.message || "Search failed");
@@ -80,7 +85,6 @@ export default function SearchPage() {
       <Header user={user} />
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-        {/* Title + input */}
         <div className="max-w-lg mx-auto mb-10 sm:mb-12 text-center">
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#f0f9ff] mb-5">
             Search albums
@@ -105,10 +109,9 @@ export default function SearchPage() {
           )}
         </div>
 
-        {/* Loading */}
         {loading && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {Array.from({ length: 10 }).map((_, i) => (
+          <div className={GRID}>
+            {Array.from({ length: 20 }).map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="aspect-square rounded-lg bg-[#131b26] border border-[#1e293b]" />
                 <div className="h-3 w-3/4 bg-[#1a2433] rounded mt-2" />
@@ -118,13 +121,18 @@ export default function SearchPage() {
           </div>
         )}
 
-        {/* Results */}
         {!loading && searched && results.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 animate-in fade-in duration-300">
-            {results.map((album) => (
-              <AlbumCard key={album.id} album={album} />
-            ))}
-          </div>
+          <>
+            <p className="text-[11px] text-stone-500 mb-4 text-center sm:text-left">
+              {results.length} result{results.length === 1 ? "" : "s"}
+              {results.length >= 20 ? " · refine your search for more" : ""}
+            </p>
+            <div className={GRID}>
+              {results.map((album) => (
+                <AlbumCard key={album.id} album={album} />
+              ))}
+            </div>
+          </>
         )}
 
         {!loading && searched && results.length === 0 && !error && (
