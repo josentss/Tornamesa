@@ -76,8 +76,20 @@ export const api = {
       headers: await authHeaders(),
     }),
 
-  getUserHistory: (userId, limit = 50, offset = 0) =>
-    fetchApi(`/api/users/${userId}/history?limit=${limit}&offset=${offset}`),
+  getUserHistory: async (userId, limit = 50, offset = 0) =>
+      fetchApi(
+        `/api/users/${userId}/history?limit=${limit}&offset=${offset}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: await authHeaders(),
+        }
+      ),
+
+    getFriendsFeed: async (userId) =>
+      fetchApi(`/api/users/${userId}/feed?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: await authHeaders(),
+      }),
 
   getUserProfile: (userId) =>
     fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {

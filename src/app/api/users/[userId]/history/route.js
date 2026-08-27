@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -7,8 +8,15 @@ export const revalidate = 0;
 export async function GET(request, { params }) {
   const { userId } = params;
   const { searchParams } = new URL(request.url);
-  const limit = parseInt(searchParams.get('limit') || '50', 10);
-  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const limit = Math.min(
+    100,
+    Math.max(1, parseInt(searchParams.get('limit') || '50', 10) || 50)
+  );
+  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10) || 0);
+
+  const authUser = await getRequestUser(request);
+  if (!authUser) return unauthorized();
+  if (authUser.id !== userId) return forbidden();
 
   const supabase = createSupabaseServer();
 
