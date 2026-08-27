@@ -3,10 +3,6 @@
 import Image from "next/image";
 import ProfileSocialLinks from "@/components/profile/ProfileSocialLinks";
 
-/**
- * Profile header card (desktop + mobile).
- * Props are controlled by UserProfileClient.
- */
 export default function ProfileHeaderCard({
   profileData,
   profileStats,
