@@ -57,11 +57,21 @@ export default function HomeClient({ initialLoggedIn = false }) {
           api.getFriendsReviews(user.id).catch(() => []),
         ]).then(([history, friendsFeed, userStats, reviews]) => {
           if (cancelled) return;
-          setOwnHistory(Array.isArray(history) ? history : history?.listens || []);
-          setFeed(Array.isArray(friendsFeed) ? friendsFeed : friendsFeed?.feed || []);
+          setOwnHistory(
+            Array.isArray(history)
+              ? history
+              : history?.history || history?.listens || []
+          );
+          setFeed(
+            Array.isArray(friendsFeed)
+              ? friendsFeed
+              : friendsFeed?.feed || []
+          );
           setStats(userStats);
           setFriendsReviews(
-            Array.isArray(reviews) ? reviews : reviews?.reviews || []
+            Array.isArray(reviews)
+              ? reviews
+              : reviews?.reviews || []
           );
           setUsername(user.username || null);
           setDataReady(true);
