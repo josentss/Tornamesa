@@ -1,22 +1,40 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request, { params }) {
   const { userId } = params;
-  const { year, month } = await request.json();
-
-  if (!year || !month || month < 1 || month > 12) {
-    return NextResponse.json(
-      { error: 'year y month (1-12) son obligatorios' },
-      { status: 400 }
-    );
-  }
-
-  const supabase = createSupabaseServer();
 
   try {
-    const startDate = new Date(year, month - 1, 1).toISOString();
-    const endDate = new Date(year, month, 1).toISOString();
+    const authUser = await getRequestUser(request);
+    if (!authUser) return unauthorized();
+    if (authUser.id !== userId) return forbidden();
+
+    const rl = await rateLimit(clientKey(request, 'summary-gen', authUser.id), {
+      limit: 10,
+      windowMs: 60_000,
+      name: 'summary-gen',
+    });
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
+
+    const body = await request.json().catch(() => ({}));
+    const year = Number(body.year);
+    const month = Number(body.month);
+
+    if (!year || !month || month < 1 || month > 12) {
+      return NextResponse.json(
+        { error: 'year and month (1-12) are required' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createSupabaseServer();
+
+    const startDate = new Date(Date.UTC(year, month - 1, 1)).toISOString();
+    const endDate = new Date(Date.UTC(year, month, 1)).toISOString();
 
     const { data: listens, error } = await supabase
       .from('listens')
@@ -28,7 +46,10 @@ export async function POST(request, { params }) {
     if (error) throw error;
 
     if (!listens || listens.length === 0) {
-      return NextResponse.json({ message: 'No hay escuchas para este mes' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'No listens for this month' },
+        { status: 404 }
+      );
     }
 
     let totalMs = 0;
@@ -71,11 +92,14 @@ export async function POST(request, { params }) {
 
     return NextResponse.json({
       success: true,
-      message: `Resumen generado para ${month}/${year}`,
-      summary: summary[0],
+      message: `Summary generated for ${month}/${year}`,
+      summary: summary?.[0] || null,
     });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('generate summary:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to generate summary' },
+      { status: 500 }
+    );
   }
 }

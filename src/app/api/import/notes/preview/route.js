@@ -15,6 +15,7 @@ import {
   searchLocalByTitleArtist,
   searchSpotifyAlbums,
 } from '@/lib/albumResolve';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -297,6 +298,13 @@ export async function POST(request) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const rl = await rateLimit(clientKey(request, 'import-preview', user.id), {
+      limit: 20,
+      windowMs: 60_000,
+      name: 'import-preview',
+    });
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const body = await request.json();
     const files = body.files;

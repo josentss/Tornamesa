@@ -1,84 +1,95 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser, unauthorized } from '@/lib/apiAuth';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-export async function GET(request, { params }) {
+export async function POST(request, { params }) {
   const { id: albumId } = params;
-  const supabase = createSupabaseServer();
 
   try {
-    // 1. Obtener reseñas
-    const { data: reviewsData, error: reviewsError } = await supabase
-      .from('reviews')
-      .select('*')
-      .eq('album_id', albumId)
-      .order('created_at', { ascending: false });
+    const user = await getRequestUser(request);
+    if (!user) return unauthorized();
 
-    if (reviewsError) throw reviewsError;
+    const rl = await rateLimit(clientKey(request, 'review', user.id), {
+      limit: 30,
+      windowMs: 60_000,
+      name: 'review',
+    });
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
-    if (!reviewsData || reviewsData.length === 0) {
+    const { rating, review_text } = await request.json();
+    const numericRating = Number(rating);
+    if (!rating || numericRating < 1 || numericRating > 10) {
       return NextResponse.json(
-        { reviews: [] },
-        {
-          headers: {
-            'Cache-Control': 'no-store, max-age=0, must-revalidate',
-          },
-        }
+        { error: 'Invalid rating (1-10)' },
+        { status: 400 }
       );
     }
 
-    // 2. Obtener los IDs únicos de usuarios
-    const userIds = [...new Set(reviewsData.map((r) => r.user_id))];
+    const supabaseAdmin = createSupabaseServer();
 
-    // 3. Obtener perfiles uno por uno para evitar problemas con la consulta in
-    const profiles = [];
-    for (const userId of userIds) {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url')
-        .eq('id', userId)
+    const { data: existing } = await supabaseAdmin
+      .from('reviews')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('album_id', albumId)
+      .maybeSingle();
+
+    let review;
+
+    if (existing) {
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from('reviews')
+        .update({
+          rating: numericRating,
+          review_text: review_text || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+        .select()
         .single();
 
-      if (!profileError && profile) {
-        profiles.push(profile);
-      }
+      if (updateError) throw updateError;
+      review = updated;
+    } else {
+      const { data: inserted, error: insertError } = await supabaseAdmin
+        .from('reviews')
+        .insert({
+          user_id: user.id,
+          album_id: albumId,
+          rating: numericRating,
+          review_text: review_text || null,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      review = inserted;
     }
 
-    // 4. Crear mapa de perfiles
-    const profileMap = {};
-    profiles.forEach((p) => {
-      profileMap[p.id] = {
-        username: p.username || 'unknown',
-        avatarUrl: p.avatar_url || null,
-      };
-    });
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('id', user.id)
+      .single();
 
-    // 5. Armar la respuesta final
-    const reviews = reviewsData.map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      reviewText: r.review_text,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-      user: {
-        id: r.user_id,
-        username: profileMap[r.user_id]?.username || 'unknown',
-        avatarUrl: profileMap[r.user_id]?.avatarUrl || null,
-      },
-    }));
-
-    return NextResponse.json(
-      { reviews },
-      {
-        headers: {
-          'Cache-Control': 'no-store, max-age=0, must-revalidate',
+    return NextResponse.json({
+      success: true,
+      review: {
+        id: review.id,
+        rating: review.rating,
+        reviewText: review.review_text,
+        createdAt: review.created_at,
+        updatedAt: review.updated_at,
+        user: {
+          id: user.id,
+          username: profile?.username ?? 'unknown',
+          avatarUrl: profile?.avatar_url ?? null,
         },
-      }
-    );
+      },
+    });
   } catch (err) {
-    console.error('GET reviews error:', err);
+    console.error('POST review error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

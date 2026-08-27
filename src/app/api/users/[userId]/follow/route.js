@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export async function POST(request, { params }) {
   const { userId } = params;
@@ -9,6 +10,13 @@ export async function POST(request, { params }) {
     const authUser = await getRequestUser(request);
     if (!authUser) return unauthorized();
     if (authUser.id !== userId) return forbidden();
+
+    const rl = await rateLimit(clientKey(request, 'follow', authUser.id), {
+      limit: 30,
+      windowMs: 60_000,
+      name: 'follow',
+    });
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const { targetId } = await request.json();
     if (!targetId) {

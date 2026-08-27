@@ -258,9 +258,10 @@ export const api = {
       { cache: 'no-store' }
     ),
 
-  generateMonthlySummary: (userId, year, month) =>
+  generateMonthlySummary: async (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {
       method: 'POST',
+      headers: await authHeaders(),
       body: JSON.stringify({ year, month }),
     }),
 
