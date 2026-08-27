@@ -211,8 +211,26 @@ export const api = {
       cache: 'no-store',
     }),
 
-  getList: (listId) =>
-    fetchApi(`/api/lists/${listId}?_t=${Date.now()}`, { cache: 'no-store' }),
+  getList: async (listId) =>
+    fetchApi(`/api/lists/${listId}?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: await authHeadersOptional(),
+    }),
+
+  getUserLists: async (userId) =>
+    fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: await authHeadersOptional(),
+    }),
+
+  getUserListsForAlbum: async (userId, albumId) =>
+    fetchApi(
+      `/api/users/${userId}/lists?albumId=${encodeURIComponent(albumId)}&_t=${Date.now()}`,
+      {
+        cache: 'no-store',
+        headers: await authHeadersOptional(),
+      }
+    ),
 
   addToList: async (listId, albumId, userId) =>
     fetchApi(`/api/lists/${listId}/items`, {
@@ -225,11 +243,6 @@ export const api = {
     fetchApi(`/api/lists/${listId}/items/${albumId}`, {
       method: 'DELETE',
       headers: await authHeaders(),
-    }),
-
-  getUserLists: (userId) =>
-    fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, {
-      cache: 'no-store',
     }),
 
   createList: async (userId, name, description = null) =>
@@ -251,12 +264,6 @@ export const api = {
       method: 'DELETE',
       headers: await authHeaders(),
     }),
-
-  getUserListsForAlbum: (userId, albumId) =>
-    fetchApi(
-      `/api/users/${userId}/lists?albumId=${encodeURIComponent(albumId)}&_t=${Date.now()}`,
-      { cache: 'no-store' }
-    ),
 
   generateMonthlySummary: async (userId, year, month) =>
     fetchApi(`/api/users/${userId}/summaries/generate`, {
