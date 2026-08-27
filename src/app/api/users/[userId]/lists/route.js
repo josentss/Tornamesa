@@ -12,10 +12,31 @@ export async function GET(request, { params }) {
   const albumId = searchParams.get('albumId');
 
   try {
+    const supabase = createSupabaseServer();
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_private')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const authUser = await getRequestUser(request);
+    const isOwner = authUser?.id === userId;
+    const isPrivate = profile?.is_private === true;
+
+    if (albumId) {
+      if (!authUser) return unauthorized();
+      if (!isOwner) return forbidden();
+    } else if (isPrivate && !isOwner) {
+      return NextResponse.json(
+        { error: 'This profile is private', lists: [] },
+        { status: 403 }
+      );
+    }
+
     const lists = await getListsWithCounts(userId);
 
     if (albumId) {
-      const supabase = createSupabaseServer();
       const listIds = lists.map((l) => l.id);
 
       if (listIds.length === 0) {

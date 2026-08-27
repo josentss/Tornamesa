@@ -62,9 +62,20 @@ export async function GET(request, { params }) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('username')
+      .select('username, is_private')
       .eq('id', list.user_id)
-      .single();
+      .maybeSingle();
+
+    const authUser = await getRequestUser(request);
+    const isOwner = authUser?.id === list.user_id;
+    const isPrivate = profile?.is_private === true;
+
+    if (isPrivate && !isOwner) {
+      return NextResponse.json(
+        { error: 'This list is private' },
+        { status: 403 }
+      );
+    }
 
     const { data: items, error: itemsError } = await supabase
       .from('list_items')
