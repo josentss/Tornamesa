@@ -1,35 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { sanitizeString } from '@/lib/validators';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
+import { getRequestUser, unauthorized } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
-
-async function getRequestUser(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  const token = authHeader.slice(7);
-  const client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-  const {
-    data: { user },
-    error,
-  } = await client.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
-}
 
 export async function POST(request) {
   try {
     const authUser = await getRequestUser(request);
-    if (!authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!authUser) return unauthorized();
 
     const rl = await rateLimit(clientKey(request, 'listen', authUser.id), {
       limit: 40,

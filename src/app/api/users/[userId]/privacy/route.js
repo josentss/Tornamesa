@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -9,25 +9,6 @@ const noStoreHeaders = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
   Pragma: 'no-cache',
 };
-
-async function getRequestUser(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-
-  const token = authHeader.slice(7);
-  const client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-
-  const {
-    data: { user },
-    error,
-  } = await client.auth.getUser(token);
-
-  if (error || !user) return null;
-  return user;
-}
 
 export async function PATCH(request, { params }) {
   const { userId } = params;
@@ -41,10 +22,16 @@ export async function PATCH(request, { params }) {
     }
 
     const authUser = await getRequestUser(request);
-    if (!authUser || authUser.id !== userId) {
+    if (!authUser) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401, headers: noStoreHeaders }
+      );
+    }
+    if (authUser.id !== userId) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403, headers: noStoreHeaders }
       );
     }
 
@@ -66,7 +53,6 @@ export async function PATCH(request, { params }) {
 
     const supabase = createSupabaseServer();
 
-    // 1) Confirm profile exists
     const { data: before, error: beforeErr } = await supabase
       .from('profiles')
       .select('id, username, is_private, diary_public, show_activity')
@@ -86,7 +72,6 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 2) Update
     const { error: updateErr } = await supabase
       .from('profiles')
       .update(fields)
@@ -100,7 +85,6 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    // 3) Re-read (independent query)
     const { data: after, error: afterErr } = await supabase
       .from('profiles')
       .select('id, username, is_private, diary_public, show_activity')
