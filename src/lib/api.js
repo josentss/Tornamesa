@@ -212,25 +212,25 @@ export const api = {
     }),
 
   getList: async (listId) =>
-    fetchApi(`/api/lists/${listId}?_t=${Date.now()}`, {
-      cache: 'no-store',
-      headers: await authHeadersOptional(),
-    }),
-
-  getUserLists: async (userId) =>
-    fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, {
-      cache: 'no-store',
-      headers: await authHeadersOptional(),
-    }),
-
-  getUserListsForAlbum: async (userId, albumId) =>
-    fetchApi(
-      `/api/users/${userId}/lists?albumId=${encodeURIComponent(albumId)}&_t=${Date.now()}`,
-      {
+      fetchApi(`/api/lists/${listId}?_t=${Date.now()}`, {
         cache: 'no-store',
         headers: await authHeadersOptional(),
-      }
-    ),
+      }),
+
+    getUserLists: async (userId) =>
+      fetchApi(`/api/users/${userId}/lists?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: await authHeadersOptional(),
+      }),
+
+    getUserListsForAlbum: async (userId, albumId) =>
+      fetchApi(
+        `/api/users/${userId}/lists?albumId=${encodeURIComponent(albumId)}&_t=${Date.now()}`,
+        {
+          cache: 'no-store',
+          headers: await authHeaders(),
+        }
+      ),
 
   addToList: async (listId, albumId, userId) =>
     fetchApi(`/api/lists/${listId}/items`, {
