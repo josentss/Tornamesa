@@ -32,6 +32,16 @@ Si alguna vez guardaste discos en notas del celular, en una hoja o en la cabeza 
 ## Capturas
 
 <p align="center">
+  <img src="info/img/tornamesa-landing.png" alt="Landing page Tornamesa" width="720" />
+</p>
+<p align="center"><em>Página principal</em></p>
+
+<p align="center">
+  <img src="info/img/tornamesa-dashboard.png" alt="Dashboard en Tornamesa" width="720" />
+</p>
+<p align="center"><em>Dashboard con usuario iniciado</em></p>
+
+<p align="center">
   <img src="info/img/tornamesa-perfil.png" alt="Perfil en Tornamesa" width="720" />
 </p>
 <p align="center"><em>Perfil — stats, actividad, listas y tops</em></p>
