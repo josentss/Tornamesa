@@ -1,72 +1,100 @@
 # Tornamesa
 
-Lleva un diario de los **discos** que escuchas. Puntúalos, escribe reseñas, arma tu top del mes y compártelo si quieres.
+Tornamesa es una app para llevar un **diario de álbumes**: lo que escuchas, cómo lo puntúas y cómo se ve tu mes en música.
 
-**App:** [https://tornamesa-nu.vercel.app](https://tornamesa-nu.vercel.app)
+No reemplaza a Spotify ni a un reproductor. Es el lugar donde **registras el disco**, no la canción suelta, con esto construyes un historial que después puedes revisar, comparar y compartir.
 
-> Early access / versión estable temprana. Puede haber detalles por pulir. El feedback ayudaría mucho.
+**Ingresa:** [https://tornamesa-nu.vercel.app](https://tornamesa-nu.vercel.app)
+
+> Versión estable temprana. Puede haber detalles por pulir; el feedback sería la mejor ayuda para que cada vez sea más robusta.
 
 ---
 
-## ¿Qué es?
+## Para quién es
 
-Tornamesa está pensado para quien lleva (o quiere llevar) un registro serio de **álbumes**, no solo de canciones sueltas como lo hacen las plataformas convencionales: logs, ratings del 1 al 10, reseñas, diary, listas y un monthly top con un resumen para compartir.
+Si alguna vez guardaste discos en notas del celular, en una hoja o en la cabeza (“este mes escuché mucho X álbum”), Tornamesa se hizo para eso, pero con perfiles, diary, tops y un poco de elementos sociales.
+
+---
+
+## Qué puedes hacer
+
+- **Registrar escuchas** de un álbum (log)
+- **Puntuar del 1 al 10** y, si quieres, dejar una reseña
+- Ver tu **diary** (historial editable: fecha, rating, texto)
+- Revisar el **monthly top** del mes (y semanas) y generar un **resumen** para guardar o compartir
+- Armar **listas** (incluida “To listen”)
+- **Seguir** a otros usuarios, ver actividad reciente y descubrir perfiles por gustos parecidos
+- Ajustar **privacidad**: perfil privado, diary público/privado, ocultar actividad
+- **Importar** meses viejos desde notas en `.txt` con un formato específico
 
 ---
 
 ## Capturas
 
-![Perfil](info/img/tornamesa-perfil.png)
+<p align="center">
+  <img src="info/img/tornamesa-perfil.png" alt="Perfil en Tornamesa" width="720" />
+</p>
+<p align="center"><em>Perfil — stats, actividad, listas y tops</em></p>
 
-![Diary](info/img/tornamesa-diary.png)
+<p align="center">
+  <img src="info/img/tornamesa-diary.png" alt="Diary en Tornamesa" width="720" />
+</p>
+<p align="center"><em>Diary — historial de escuchas</em></p>
 
-![Monthly top](info/img/tornamesa-monthlytop.png)
+<p align="center">
+  <img src="info/img/tornamesa-monthlytop.png" alt="Monthly top en Tornamesa" width="720" />
+</p>
+<p align="center"><em>Monthly top — el mes en discos</em></p>
 
-![Página de álbum](info/img/tornamesa-albumpage.png)
+<p align="center">
+  <img src="info/img/tornamesa-albumpage.png" alt="Página de álbum en Tornamesa" width="720" />
+</p>
+<p align="center"><em>Álbum — log, rating y reseñas</em></p>
 
 ---
 
-## Funciones
+## Cómo empezar
 
-- **Log de escuchas** — registra un disco cuando lo escuchas  
-- **Rating y reseñas** — del 1 al 10, reseña textual si lo deseas 
-- **Diary** — historial con edición de fecha, rating y reseña  
-- **Monthly top** — ranking del mes (y semanas) + **resumen** descargable  
-- **Listas** — “To listen” y listas propias  
-- **Perfiles y social** — seguidores, actividad de amigos, descubrir por gustos (10★)  
-- **Privacidad** — perfil privado, diario público/privado, ocultar actividad  
-- **Importación** — migrar logs desde notas `.txt` (formato mes a mes)
+1. Ingresa en [tornamesa-nu.vercel.app](https://tornamesa-nu.vercel.app)  
+2. Crea tu cuenta (personalizando tu perfil si es de tu gusto)
+3. Busca un disco y registra la primera escucha  
+
+No hace falta instalar nada ni levantar el proyecto en tu máquina: la app está pensada para usarse *online* y así poder manejar de mejor manera su punto social.
 
 ---
 
 ## Stack
 
-- [Next.js](https://nextjs.org/) 14 (App Router)  
-- [Supabase](https://supabase.com/) (auth + base de datos)  
-- Metadatos de catálogo vía [Spotify Web API](https://developer.spotify.com/)  
-- Rate limiting con [Upstash Redis](https://upstash.com/)  
-- Deploy en [Vercel](https://vercel.com/)
+Para quien mira el repo y tiene curiosidad técnica.
 
-Tornamesa **no tiene nada que ver** con Spotify.
+| Tech | Usado para |
+|--------|-----|
+| [Next.js](https://nextjs.org/) 14 | App web |
+| [Supabase](https://supabase.com/) | Auth y base de datos |
+| [Spotify Web API](https://developer.spotify.com/) | Metadatos de álbumes (portada, título, artista) |
+| [Upstash](https://upstash.com/) Redis | Rate limiting |
+| [Vercel](https://vercel.com/) | Hosting |
+
+Tornamesa **no es** un cliente de Spotify ni reproduce música: solo consulta datos de catálogo.
 
 ---
 
-## Self-hosting
+## Info del repositorio
 
-No he realizado una guía completa. De igual manera necesitarías:
+El código es público bajo MIT por transparencia y por si a alguien le sirve de referencia.
 
-- Proyecto Supabase (auth + tablas)  
-- Credenciales de Spotify (Client ID / Secret)  
-- Opcional: Upstash Redis y Cloudflare Turnstile  
+**No hay una guía para “correr local en usuarios finales”.**  
+Montar una copia propia implica cuenta Supabase, claves de Spotify, variables en el host, etc. No he creado una guía completa para esto.
+Dicho anteriormente, **Tornamesa** está pensada para su uso *online*, con ello tendría un mejor sentido social.
 
 ---
 
 ## Feedback
 
-Issues y sugerencias son bienvenidas. Si usas la app en el día a día y algo falla, puedes comentarme cualquier tema a mi Discord (josents)
+Si algo falla, se traba o se siente raro en el día a día, puedes abrir un **issue** en este repo o escribirme por **Discord**: *josents*
 
 ---
 
 ## Licencia
 
-[MIT](./LICENSE) © 2026 josentss
+[MIT](./LICENSE) © 2026 [josentss](https://github.com/josentss)
