@@ -1,6 +1,6 @@
 # Tornamesa
 
-Tornamesa es una app para llevar un **diario de álbumes**: lo que escuchas, cómo lo puntúas y cómo se ve tu mes en música.
+Tornamesa es una app para llevar un **diario de álbumes**: lo que escuchas, cómo lo puntúas y cómo se ve tu mes en música. Su principal ayuda es en el registro del álbum completo, ya que las plataformas de streaming registran escuchas por canciones detalladas del álbum y no por su estructura de principio a fin.
 
 No reemplaza a Spotify ni a un reproductor. Es el lugar donde **registras el disco**, no la canción suelta, con esto construyes un historial que después puedes revisar, comparar y compartir.
 
