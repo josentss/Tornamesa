@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import ProfileSocialLinks from "@/components/profile/ProfileSocialLinks";
 
 export default function ProfileHeaderCard({
@@ -15,6 +16,7 @@ export default function ProfileHeaderCard({
   onFollowToggle,
   onEditProfile,
 }) {
+  const router = useRouter();
   if (!profileData) return null;
 
   return (
@@ -174,7 +176,7 @@ export default function ProfileHeaderCard({
                   {isOwner ? (
                     <button
                       type="button"
-                      onClick={() => router.push("/settings")}
+                      onClick={onEditProfile}
                       className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] hover:bg-[#2a3645] text-white text-center"
                     >
                       Edit Profile
@@ -283,7 +285,7 @@ export default function ProfileHeaderCard({
                 {isOwner ? (
                   <button
                     type="button"
-                    onClick={() => router.push("/settings")}
+                    onClick={onEditProfile}
                     className="bg-[#1f2b3a] hover:bg-[#2a3645] text-sm font-semibold px-6 py-2.5 rounded-lg border border-[#2a3645]"
                   >
                     Edit Profile
