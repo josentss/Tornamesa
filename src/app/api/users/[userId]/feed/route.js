@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request, { params }) {
   const { userId } = params;
+
+  const authUser = await getRequestUser(request);
+  if (!authUser) return unauthorized();
+  if (authUser.id !== userId) return forbidden();
+
   const supabase = createSupabaseServer();
 
   try {
@@ -24,7 +30,8 @@ export async function GET(request, { params }) {
 
     const { data: feedData, error } = await supabase
       .from('listens')
-      .select(`
+      .select(
+        `
         id,
         rating,
         review,
@@ -34,7 +41,8 @@ export async function GET(request, { params }) {
         user_id,
         profiles ( username, avatar_url ),
         albums ( spotify_id, title, artist, cover_url )
-      `)
+      `
+      )
       .in('user_id', followingIds)
       .order('listened_at', { ascending: false, nullsFirst: false })
       .limit(24);
