@@ -21,7 +21,7 @@ Si alguna vez guardaste discos en notas del celular, en una hoja o en la cabeza 
 - **Registrar escuchas** de un álbum (log)
 - **Puntuar del 1 al 10** y, si quieres, dejar una reseña
 - Ver tu **diary** (historial editable: fecha, rating, texto)
-- Revisar el **monthly top** del mes (y semanas) y generar un **resumen** para guardar o compartir
+- Revisar el **monthly top** (y semanas) y generar un **resumen** para guardar o compartir
 - Armar **listas** (incluida “To listen”)
 - **Seguir** a otros usuarios, ver actividad reciente y descubrir perfiles por gustos parecidos
 - Ajustar **privacidad**: perfil privado, diary público/privado, ocultar actividad
