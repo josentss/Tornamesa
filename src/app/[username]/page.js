@@ -1,19 +1,17 @@
 import UserProfileClient from "./UserProfileClient";
 
 export async function generateMetadata({ params }) {
-  const username = params.username;
+  const username = params?.username || "User";
 
   return {
-    title: `${username} • Tornamesa`,
+    title: username,
     description: `Check out ${username}'s music profile and listening activity on Tornamesa.`,
     openGraph: {
       title: `${username} on Tornamesa`,
       description: `Music profile of ${username}`,
-      type: "profile",
       siteName: "Tornamesa",
     },
     twitter: {
-      card: "summary",
       title: `${username} on Tornamesa`,
       description: `Music profile of ${username}`,
     },
