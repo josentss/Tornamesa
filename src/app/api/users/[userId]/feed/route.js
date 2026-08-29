@@ -44,24 +44,67 @@ export async function GET(request, { params }) {
       `
       )
       .in('user_id', followingIds)
-      .order('listened_at', { ascending: false, nullsFirst: false })
-      .limit(24);
+      .order('created_at', { ascending: false, nullsFirst: false })
+      .limit(40);
 
     if (error) throw error;
 
-    const formattedFeed = (feedData || [])
+    const rows = feedData || [];
+
+    const pairKeys = rows
+      .map((item) => {
+        const aid = item.albums?.spotify_id || item.album_id;
+        if (!aid || !item.user_id) return null;
+        return { user_id: item.user_id, album_id: aid };
+      })
+      .filter(Boolean);
+
+    const reviewMap = {};
+    if (pairKeys.length > 0) {
+      const userIds = [...new Set(pairKeys.map((p) => p.user_id))];
+      const albumIds = [...new Set(pairKeys.map((p) => p.album_id))];
+
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select('user_id, album_id, rating')
+        .in('user_id', userIds)
+        .in('album_id', albumIds);
+
+      (reviews || []).forEach((r) => {
+        if (r.rating != null) {
+          reviewMap[`${r.user_id}:${r.album_id}`] = r.rating;
+        }
+      });
+    }
+
+    const formattedFeed = rows
       .filter((item) => item.albums?.spotify_id || item.album_id)
-      .map((item) => ({
-        id: item.id,
-        username: item.profiles?.username || 'user',
-        avatar_url: item.profiles?.avatar_url || null,
-        album_id: item.albums?.spotify_id || item.album_id,
-        album_title: item.albums?.title || 'Unknown album',
-        artist_name: item.albums?.artist || '',
-        album_cover: item.albums?.cover_url || null,
-        rating: item.rating,
-        listened_at: item.listened_at || item.created_at,
-      }));
+      .map((item) => {
+        const albumId = item.albums?.spotify_id || item.album_id;
+        const fromReview = reviewMap[`${item.user_id}:${albumId}`];
+        const created = item.created_at || null;
+        const listened = item.listened_at || null;
+        const activityAt = created || listened;
+
+        return {
+          id: item.id,
+          username: item.profiles?.username || 'user',
+          avatar_url: item.profiles?.avatar_url || null,
+          album_id: albumId,
+          album_title: item.albums?.title || 'Unknown album',
+          artist_name: item.albums?.artist || '',
+          album_cover: item.albums?.cover_url || null,
+          rating: fromReview ?? item.rating ?? null,
+          listened_at: listened || created,
+          created_at: created,
+          activity_at: activityAt,
+        };
+      })
+      .sort((a, b) => {
+        const tb = new Date(b.activity_at || 0).getTime();
+        const ta = new Date(a.activity_at || 0).getTime();
+        return tb - ta;
+      });
 
     return NextResponse.json(formattedFeed, {
       headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' },
