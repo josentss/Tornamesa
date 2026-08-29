@@ -1,95 +1,79 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { getRequestUser, unauthorized } from '@/lib/apiAuth';
-import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
-export async function POST(request, { params }) {
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function GET(request, { params }) {
   const { id: albumId } = params;
 
+  if (!albumId) {
+    return NextResponse.json({ error: 'Album ID is required' }, { status: 400 });
+  }
+
+  const supabase = createSupabaseServer();
+
   try {
-    const user = await getRequestUser(request);
-    if (!user) return unauthorized();
-
-    const rl = await rateLimit(clientKey(request, 'review', user.id), {
-      limit: 30,
-      windowMs: 60_000,
-      name: 'review',
-    });
-    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
-
-    const { rating, review_text } = await request.json();
-    const numericRating = Number(rating);
-    if (!rating || numericRating < 1 || numericRating > 10) {
-      return NextResponse.json(
-        { error: 'Invalid rating (1-10)' },
-        { status: 400 }
-      );
-    }
-
-    const supabaseAdmin = createSupabaseServer();
-
-    const { data: existing } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('reviews')
-      .select('id')
-      .eq('user_id', user.id)
+      .select(
+        `
+        id,
+        rating,
+        review_text,
+        created_at,
+        updated_at,
+        user_id,
+        profiles (
+          id,
+          username,
+          avatar_url
+        )
+      `
+      )
       .eq('album_id', albumId)
-      .maybeSingle();
+      .order('created_at', { ascending: false });
 
-    let review;
+    if (error) throw error;
 
-    if (existing) {
-      const { data: updated, error: updateError } = await supabaseAdmin
-        .from('reviews')
-        .update({
-          rating: numericRating,
-          review_text: review_text || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existing.id)
-        .select()
-        .single();
+    let rows = data || [];
 
-      if (updateError) throw updateError;
-      review = updated;
-    } else {
-      const { data: inserted, error: insertError } = await supabaseAdmin
-        .from('reviews')
-        .insert({
-          user_id: user.id,
-          album_id: albumId,
-          rating: numericRating,
-          review_text: review_text || null,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-      review = inserted;
+    const missing = rows.filter((r) => !r.profiles?.username).map((r) => r.user_id);
+    if (missing.length > 0) {
+      const ids = [...new Set(missing.filter(Boolean))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', ids);
+      const map = {};
+      (profiles || []).forEach((p) => {
+        map[p.id] = p;
+      });
+      rows = rows.map((r) => ({
+        ...r,
+        profiles: r.profiles?.username ? r.profiles : map[r.user_id] || null,
+      }));
     }
 
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('username, avatar_url')
-      .eq('id', user.id)
-      .single();
-
-    return NextResponse.json({
-      success: true,
-      review: {
-        id: review.id,
-        rating: review.rating,
-        reviewText: review.review_text,
-        createdAt: review.created_at,
-        updatedAt: review.updated_at,
-        user: {
-          id: user.id,
-          username: profile?.username ?? 'unknown',
-          avatarUrl: profile?.avatar_url ?? null,
-        },
+    const reviews = rows.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      reviewText: r.review_text || null,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      user: {
+        id: r.profiles?.id || r.user_id,
+        username: r.profiles?.username || 'unknown',
+        avatarUrl: r.profiles?.avatar_url || null,
       },
-    });
+    }));
+
+    return NextResponse.json(
+      { reviews },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (err) {
-    console.error('POST review error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error('GET album reviews:', err);
+    return NextResponse.json({ error: err.message || 'Failed to load reviews' }, { status: 500 });
   }
 }

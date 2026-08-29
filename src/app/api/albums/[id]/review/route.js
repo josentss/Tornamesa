@@ -1,42 +1,42 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { createClient } from '@supabase/supabase-js';
+import { getRequestUser, unauthorized } from '@/lib/apiAuth';
+import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
-const supabaseAnon = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+export const dynamic = 'force-dynamic';
 
 export async function POST(request, { params }) {
   const { id: albumId } = params;
 
+  if (!albumId) {
+    return NextResponse.json({ error: 'Album ID is required' }, { status: 400 });
+  }
+
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-    const token = authHeader.split(' ')[1];
+    const user = await getRequestUser(request);
+    if (!user) return unauthorized();
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAnon.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
-    }
+    const rl = await rateLimit(clientKey(request, 'review', user.id), {
+      limit: 30,
+      windowMs: 60_000,
+      name: 'review',
+    });
+    if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
-    const { rating, review_text } = await request.json();
+    const body = await request.json();
+    const { rating, review_text } = body;
     const numericRating = Number(rating);
-    if (!rating || numericRating < 1 || numericRating > 10) {
+
+    if (!rating || Number.isNaN(numericRating) || numericRating < 1 || numericRating > 10) {
       return NextResponse.json(
-        { error: 'Rating inválido (1-10)' },
+        { error: 'Invalid rating (1-10)' },
         { status: 400 }
       );
     }
 
-    const supabaseAdmin = createSupabaseServer();
+    const supabase = createSupabaseServer();
 
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await supabase
       .from('reviews')
       .select('id')
       .eq('user_id', user.id)
@@ -46,7 +46,7 @@ export async function POST(request, { params }) {
     let review;
 
     if (existing) {
-      const { data: updated, error: updateError } = await supabaseAdmin
+      const { data: updated, error: updateError } = await supabase
         .from('reviews')
         .update({
           rating: numericRating,
@@ -60,7 +60,7 @@ export async function POST(request, { params }) {
       if (updateError) throw updateError;
       review = updated;
     } else {
-      const { data: inserted, error: insertError } = await supabaseAdmin
+      const { data: inserted, error: insertError } = await supabase
         .from('reviews')
         .insert({
           user_id: user.id,
@@ -75,13 +75,11 @@ export async function POST(request, { params }) {
       review = inserted;
     }
 
-    // no insert into listens... only log listen does that
-
-    const { data: profile } = await supabaseAdmin
+    const { data: profile } = await supabase
       .from('profiles')
       .select('username, avatar_url')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     return NextResponse.json({
       success: true,
@@ -100,6 +98,9 @@ export async function POST(request, { params }) {
     });
   } catch (err) {
     console.error('POST review error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || 'Could not save review' },
+      { status: 500 }
+    );
   }
 }
