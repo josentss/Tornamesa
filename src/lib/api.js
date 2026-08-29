@@ -216,9 +216,10 @@ export const api = {
     );
   },
 
-  getFriendsReviews: (userId) =>
+  getFriendsReviews: async (userId) =>
     fetchApi(`/api/users/${userId}/friends-reviews?_t=${Date.now()}`, {
       cache: 'no-store',
+      headers: await authHeaders(),
     }),
 
   getList: async (listId) =>

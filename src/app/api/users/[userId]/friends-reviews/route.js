@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
+import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -10,12 +11,14 @@ async function ensureAlbum(supabase, albumId) {
     .from('albums')
     .select('spotify_id, title, artist, cover_url')
     .eq('spotify_id', albumId)
-    .single();
+    .maybeSingle();
 
   if (existing) return existing;
 
   try {
-    const res = await spotifyFetch(`https://api.spotify.com/v1/albums/${albumId}`);
+    const res = await spotifyFetch(
+      `https://api.spotify.com/v1/albums/${albumId}`
+    );
     if (!res.ok) return null;
 
     const albumData = await res.json();
@@ -48,6 +51,11 @@ async function ensureAlbum(supabase, albumId) {
 
 export async function GET(request, { params }) {
   const { userId } = params;
+
+  const authUser = await getRequestUser(request);
+  if (!authUser) return unauthorized();
+  if (authUser.id !== userId) return forbidden();
+
   const supabase = createSupabaseServer();
 
   try {
@@ -57,7 +65,9 @@ export async function GET(request, { params }) {
       .eq('follower_id', userId);
 
     if (!following?.length) {
-      return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.json([], {
+        headers: { 'Cache-Control': 'no-store' },
+      });
     }
 
     const followingIds = following.map((f) => f.following_id);
@@ -71,14 +81,19 @@ export async function GET(request, { params }) {
 
     if (error) throw error;
     if (!reviewsData?.length) {
-      return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.json([], {
+        headers: { 'Cache-Control': 'no-store' },
+      });
     }
 
     const userIds = [...new Set(reviewsData.map((r) => r.user_id))];
     const albumIds = [...new Set(reviewsData.map((r) => r.album_id))];
 
     const [{ data: profiles }, { data: albums }] = await Promise.all([
-      supabase.from('profiles').select('id, username, avatar_url').in('id', userIds),
+      supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', userIds),
       supabase
         .from('albums')
         .select('spotify_id, title, artist, cover_url')
@@ -95,7 +110,6 @@ export async function GET(request, { params }) {
       albumMap[a.spotify_id] = a;
     });
 
-    // Rellenar álbumes faltantes desde Spotify
     for (const id of albumIds) {
       if (!albumMap[id]) {
         const fetched = await ensureAlbum(supabase, id);
