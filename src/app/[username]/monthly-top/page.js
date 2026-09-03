@@ -243,7 +243,7 @@ async function generateWrappedPng({
   ctx.fillStyle = textMuted;
   ctx.font = "600 16px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("tornamesa-nu.vercel.app", W / 2, H - 28);
+  ctx.fillText("tornamesa.app", W / 2, H - 28);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");

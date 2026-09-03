@@ -4,7 +4,7 @@ Tornamesa es una app para llevar un **diario de álbumes**: lo que escuchas, có
 
 No reemplaza a Spotify ni a un reproductor. Es el lugar donde **registras el disco**, no la canción suelta, con esto construyes un historial que después puedes revisar, comparar y compartir.
 
-**Ingresa:** [https://tornamesa-nu.vercel.app](https://tornamesa-nu.vercel.app)
+**Ingresa:** [https://tornamesa.app](https://tornamesa.app)
 
 > Versión estable temprana. Puede haber detalles por pulir; el feedback sería la mejor ayuda para que cada vez sea más robusta.
 
@@ -65,7 +65,7 @@ Si alguna vez guardaste discos en notas del celular, en una hoja o en la cabeza 
 
 ## Cómo empezar
 
-1. Ingresa en [tornamesa-nu.vercel.app](https://tornamesa-nu.vercel.app)  
+1. Ingresa en [tornamesa.app](https://tornamesa.app)  
 2. Crea tu cuenta (personalizando tu perfil si es de tu gusto)
 3. Busca un disco y registra la primera escucha  
 
