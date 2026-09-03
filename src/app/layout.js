@@ -1,7 +1,7 @@
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 
-const siteUrl = 'https://tornamesa-nu.vercel.app';
+const siteUrl = 'https://tornamesa.app';
 const title = 'Tornamesa';
 const description =
   'Track the albums you listen to. Rate, review, keep a diary, and share your monthly top.';
