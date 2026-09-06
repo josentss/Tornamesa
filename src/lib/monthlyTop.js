@@ -1,24 +1,23 @@
 import { createSupabaseServer } from '@/lib/supabase-server';
+import {
+  normalizeTimeZone,
+  zonedMonthRange,
+  weekOfMonthInZone,
+  monthsFromIsoInZone,
+  localDateKey,
+} from '@/lib/timezone';
 
 const TOP_MONTH_LIMIT = 500;
 const TOP_WEEK_LIMIT = 100;
 
-function monthRange(year, month) {
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0));
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
-export function weekOfMonth(isoDate) {
-  const day = new Date(isoDate).getUTCDate();
-  return Math.ceil(day / 7);
-}
-
-export function monthsFromIso(iso) {
-  if (!iso) return [];
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return [];
-  return [{ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 }];
+async function resolveUserTimeZone(supabase, userId, timeZone = null) {
+  if (timeZone) return normalizeTimeZone(timeZone);
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('timezone')
+    .eq('id', userId)
+    .maybeSingle();
+  return normalizeTimeZone(prof?.timezone || 'UTC');
 }
 
 function rankAlbums(listens, limit) {
@@ -72,9 +71,15 @@ function rankAlbums(listens, limit) {
     }));
 }
 
-export async function recomputeMonthlyTop(userId, year, month) {
+export async function recomputeMonthlyTop(
+  userId,
+  year,
+  month,
+  timeZone = null
+) {
   const supabase = createSupabaseServer();
-  const { start, end } = monthRange(year, month);
+  const tz = await resolveUserTimeZone(supabase, userId, timeZone);
+  const { start, end } = zonedMonthRange(year, month, tz);
 
   const { data: listens, error: listenErr } = await supabase
     .from('listens')
@@ -86,7 +91,9 @@ export async function recomputeMonthlyTop(userId, year, month) {
   if (listenErr) throw listenErr;
 
   const all = listens || [];
-  const uniqueAlbums = new Set(all.map((l) => l.album_id).filter(Boolean)).size;
+  const uniqueAlbums = new Set(
+    all.map((l) => l.album_id).filter(Boolean)
+  ).size;
 
   const { data: summary, error: sumErr } = await supabase
     .from('monthly_summaries')
@@ -127,7 +134,9 @@ export async function recomputeMonthlyTop(userId, year, month) {
   });
 
   for (let w = 1; w <= 6; w++) {
-    const weekListens = all.filter((l) => weekOfMonth(l.listened_at) === w);
+    const weekListens = all.filter(
+      (l) => weekOfMonthInZone(l.listened_at, tz) === w
+    );
     if (weekListens.length === 0) continue;
     rankAlbums(weekListens, TOP_WEEK_LIMIT).forEach((e) => {
       rows.push({
@@ -152,16 +161,19 @@ export async function recomputeMonthlyTop(userId, year, month) {
 }
 
 export async function recomputeMonthsForDates(userId, isoDates = []) {
+  const supabase = createSupabaseServer();
+  const tz = await resolveUserTimeZone(supabase, userId, null);
+
   const keys = new Set();
   for (const iso of isoDates) {
-    for (const { year, month } of monthsFromIso(iso)) {
+    for (const { year, month } of monthsFromIsoInZone(iso, tz)) {
       keys.add(`${year}-${month}`);
     }
   }
   for (const key of keys) {
     const [y, m] = key.split('-').map(Number);
     try {
-      await recomputeMonthlyTop(userId, y, m);
+      await recomputeMonthlyTop(userId, y, m, tz);
     } catch (e) {
       console.warn('recomputeMonthsForDates:', key, e.message);
     }
@@ -170,12 +182,14 @@ export async function recomputeMonthsForDates(userId, isoDates = []) {
 
 export async function ensureMonthlyTop(userId, year, month, force = false) {
   const supabase = createSupabaseServer();
-  const now = new Date();
-  const isCurrent =
-    year === now.getUTCFullYear() && month === now.getUTCMonth() + 1;
+  const tz = await resolveUserTimeZone(supabase, userId, null);
+
+  const todayKey = localDateKey(new Date(), tz);
+  const [cy, cm] = (todayKey || '1970-01-01').split('-').map(Number);
+  const isCurrent = year === cy && month === cm;
 
   if (force || isCurrent) {
-    return recomputeMonthlyTop(userId, year, month);
+    return recomputeMonthlyTop(userId, year, month, tz);
   }
 
   const { data: existing } = await supabase
@@ -187,10 +201,10 @@ export async function ensureMonthlyTop(userId, year, month, force = false) {
     .maybeSingle();
 
   if (!existing) {
-    return recomputeMonthlyTop(userId, year, month);
+    return recomputeMonthlyTop(userId, year, month, tz);
   }
 
-  const { start, end } = monthRange(year, month);
+  const { start, end } = zonedMonthRange(year, month, tz);
   const { count, error: countErr } = await supabase
     .from('listens')
     .select('*', { count: 'exact', head: true })
@@ -199,7 +213,7 @@ export async function ensureMonthlyTop(userId, year, month, force = false) {
     .lt('listened_at', end);
 
   if (!countErr && count != null && count !== existing.total_listens) {
-    return recomputeMonthlyTop(userId, year, month);
+    return recomputeMonthlyTop(userId, year, month, tz);
   }
 
   return existing;
@@ -286,8 +300,18 @@ export async function getMonthlyTopPayload(
   });
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
 
   return {
@@ -316,6 +340,8 @@ export async function listMonthsWithActivity(userId) {
 
   if (summaries?.length) return summaries;
 
+  const tz = await resolveUserTimeZone(supabase, userId, null);
+
   const { data: listens } = await supabase
     .from('listens')
     .select('listened_at')
@@ -326,11 +352,12 @@ export async function listMonthsWithActivity(userId) {
   const set = new Map();
   (listens || []).forEach((l) => {
     if (!l.listened_at) return;
-    const d = new Date(l.listened_at);
-    const y = d.getUTCFullYear();
-    const m = d.getUTCMonth() + 1;
-    const key = `${y}-${m}`;
-    if (!set.has(key)) set.set(key, { year: y, month: m });
+    const parts = monthsFromIsoInZone(l.listened_at, tz)[0];
+    if (!parts) return;
+    const key = `${parts.year}-${parts.month}`;
+    if (!set.has(key)) {
+      set.set(key, { year: parts.year, month: parts.month });
+    }
   });
 
   return [...set.values()].sort((a, b) =>

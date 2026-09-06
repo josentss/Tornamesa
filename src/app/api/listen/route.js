@@ -5,6 +5,10 @@ import { sanitizeString } from '@/lib/validators';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 import { getRequestUser, unauthorized } from '@/lib/apiAuth';
+import {
+  normalizeTimeZone,
+  monthsFromIsoInZone,
+} from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +25,7 @@ export async function POST(request) {
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const body = await request.json();
-    const { albumId, rating, review } = body;
+    const { albumId, rating, review, timezone } = body;
     const userId = authUser.id;
 
     if (!albumId) {
@@ -78,6 +82,7 @@ export async function POST(request) {
         ? Number(rating)
         : null;
 
+    const tz = normalizeTimeZone(timezone);
     const listenedAt = new Date().toISOString();
 
     const { data: newListen, error: listenError } = await supabase
@@ -96,12 +101,18 @@ export async function POST(request) {
     if (listenError) throw listenError;
 
     try {
-      const d = new Date(listenedAt);
-      await recomputeMonthlyTop(
-        userId,
-        d.getUTCFullYear(),
-        d.getUTCMonth() + 1
-      );
+      await supabase
+        .from('profiles')
+        .update({ timezone: tz })
+        .eq('id', userId);
+    } catch (tzErr) {
+      console.warn('save timezone failed:', tzErr);
+    }
+
+    try {
+      for (const { year, month } of monthsFromIsoInZone(listenedAt, tz)) {
+        await recomputeMonthlyTop(userId, year, month, tz);
+      }
     } catch (recomputeErr) {
       console.warn('monthly top recompute failed:', recomputeErr);
     }

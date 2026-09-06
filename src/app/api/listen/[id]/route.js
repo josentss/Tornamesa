@@ -4,12 +4,26 @@ import { sanitizeString } from '@/lib/validators';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
+import {
+  normalizeTimeZone,
+  monthsFromIsoInZone,
+  zonedLocalToUtc,
+} from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
 const noStoreHeaders = {
   'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
 };
+
+async function userTimeZone(supabase, userId) {
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('timezone')
+    .eq('id', userId)
+    .maybeSingle();
+  return normalizeTimeZone(prof?.timezone || 'UTC');
+}
 
 export async function PATCH(request, { params }) {
   const { id } = params;
@@ -32,6 +46,7 @@ export async function PATCH(request, { params }) {
 
     const body = await request.json();
     const supabase = createSupabaseServer();
+    const tz = await userTimeZone(supabase, authUser.id);
 
     const { data: existing, error: fetchErr } = await supabase
       .from('listens')
@@ -54,32 +69,29 @@ export async function PATCH(request, { params }) {
     }
 
     const fields = {};
-    const oldDate = existing.listened_at
-      ? new Date(existing.listened_at)
-      : null;
+    const oldIso = existing.listened_at || null;
 
     if (body.listened_at != null && body.listened_at !== '') {
       let iso = String(body.listened_at).trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
-        iso = `${iso}T12:00:00.000Z`;
+        const [y, m, d] = iso.split('-').map(Number);
+        iso = zonedLocalToUtc(y, m, d, 12, 0, 0, tz).toISOString();
+      } else {
+        const parsed = new Date(iso);
+        if (Number.isNaN(parsed.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid listened_at' },
+            { status: 400, headers: noStoreHeaders }
+          );
+        }
+        iso = parsed.toISOString();
       }
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) {
-        return NextResponse.json(
-          { error: 'Invalid date' },
-          { status: 400, headers: noStoreHeaders }
-        );
-      }
-      fields.listened_at = d.toISOString();
+      fields.listened_at = iso;
     }
 
-    let ratingTouched = false;
-    let ratingValue = undefined;
     if (body.rating !== undefined) {
-      ratingTouched = true;
       if (body.rating === null || body.rating === '') {
         fields.rating = null;
-        ratingValue = null;
       } else {
         const num = Number(body.rating);
         if (Number.isNaN(num) || num < 1 || num > 10) {
@@ -89,19 +101,14 @@ export async function PATCH(request, { params }) {
           );
         }
         fields.rating = num;
-        ratingValue = num;
       }
     }
 
-    let reviewTouched = false;
-    let reviewValue = undefined;
     if (body.review !== undefined) {
-      reviewTouched = true;
-      reviewValue =
-        body.review && String(body.review).trim()
-          ? sanitizeString(String(body.review).trim())
-          : null;
-      fields.review = reviewValue;
+      fields.review =
+        body.review === null || body.review === ''
+          ? null
+          : sanitizeString(body.review);
     }
 
     if (Object.keys(fields).length === 0) {
@@ -115,69 +122,27 @@ export async function PATCH(request, { params }) {
       .from('listens')
       .update(fields)
       .eq('id', id)
-      .select(
-        `
-        id,
-        listened_at,
-        rating,
-        review,
-        album_id,
-        albums ( spotify_id, title, artist, cover_url )
-      `
-      )
+      .select()
       .single();
 
     if (updateErr) throw updateErr;
 
-    const albumId = existing.album_id;
-    if (albumId && (ratingTouched || reviewTouched)) {
-      const { data: existingReview } = await supabase
-        .from('reviews')
-        .select('id, rating, review_text')
-        .eq('user_id', authUser.id)
-        .eq('album_id', albumId)
-        .maybeSingle();
-
-      const finalRating = ratingTouched
-        ? ratingValue
-        : existingReview?.rating ?? existing.rating ?? null;
-      const finalReviewText = reviewTouched
-        ? reviewValue
-        : existingReview?.review_text ?? existing.review ?? null;
-
-      if (finalRating != null && finalRating >= 1 && finalRating <= 10) {
-        if (existingReview) {
-          await supabase
-            .from('reviews')
-            .update({
-              rating: finalRating,
-              review_text: finalReviewText,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existingReview.id);
-        } else {
-          await supabase.from('reviews').insert({
-            user_id: authUser.id,
-            album_id: albumId,
-            rating: finalRating,
-            review_text: finalReviewText,
-          });
-        }
-      } else if (ratingTouched && ratingValue === null && existingReview) {
-        await supabase.from('reviews').delete().eq('id', existingReview.id);
-      }
-    }
-
     try {
-      const newDate = new Date(updated.listened_at);
       const months = new Set();
-      if (oldDate) {
-        months.add(`${oldDate.getUTCFullYear()}-${oldDate.getUTCMonth() + 1}`);
+      if (oldIso) {
+        for (const { year, month } of monthsFromIsoInZone(oldIso, tz)) {
+          months.add(`${year}-${month}`);
+        }
       }
-      months.add(`${newDate.getUTCFullYear()}-${newDate.getUTCMonth() + 1}`);
+      const newIso = fields.listened_at || oldIso;
+      if (newIso) {
+        for (const { year, month } of monthsFromIsoInZone(newIso, tz)) {
+          months.add(`${year}-${month}`);
+        }
+      }
       for (const key of months) {
         const [y, m] = key.split('-').map(Number);
-        await recomputeMonthlyTop(authUser.id, y, m);
+        await recomputeMonthlyTop(authUser.id, y, m, tz);
       }
     } catch (e) {
       console.warn('monthly top recompute on edit:', e);
@@ -216,6 +181,7 @@ export async function DELETE(request, { params }) {
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const supabase = createSupabaseServer();
+    const tz = await userTimeZone(supabase, authUser.id);
 
     const { data: existing, error: fetchErr } = await supabase
       .from('listens')
@@ -246,12 +212,12 @@ export async function DELETE(request, { params }) {
 
     try {
       if (existing.listened_at) {
-        const d = new Date(existing.listened_at);
-        await recomputeMonthlyTop(
-          authUser.id,
-          d.getUTCFullYear(),
-          d.getUTCMonth() + 1
-        );
+        for (const { year, month } of monthsFromIsoInZone(
+          existing.listened_at,
+          tz
+        )) {
+          await recomputeMonthlyTop(authUser.id, year, month, tz);
+        }
       }
     } catch (e) {
       console.warn('monthly top recompute on delete:', e);

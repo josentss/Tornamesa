@@ -60,7 +60,16 @@ export const api = {
     fetchApi('/api/listen', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ albumId, userId, rating, review }),
+      body: JSON.stringify({
+        albumId,
+        userId,
+        rating,
+        review,
+        timezone:
+          typeof Intl !== 'undefined'
+            ? Intl.DateTimeFormat().resolvedOptions().timeZone
+            : 'UTC',
+      }),
     }),
 
   updateListen: async (listenId, { listened_at, rating, review }) =>
