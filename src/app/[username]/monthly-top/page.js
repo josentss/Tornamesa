@@ -154,9 +154,9 @@ async function generateWrappedPng({
   albums,
   bgHex = "#0a121c",
 }) {
-  const W = 900;
-  const H = 1125;
-  const PAD = 44;
+  const W = 800;
+  const H = 1000;
+  const PAD = 40;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -180,22 +180,20 @@ async function generateWrappedPng({
   const cx = W / 2;
 
   // header
-  let y = 56;
+  let y = 48;
 
   ctx.textAlign = "center";
   ctx.fillStyle = accent;
-  ctx.font = "700 14px system-ui, -apple-system, sans-serif";
+  ctx.font = "700 12px system-ui, -apple-system, sans-serif";
   ctx.fillText("TOP ALBUMS", cx, y);
 
-  y += 50;
+  y += 42;
   ctx.fillStyle = textMain;
-  ctx.font = "900 44px system-ui, -apple-system, sans-serif";
+  ctx.font = "900 40px system-ui, -apple-system, sans-serif";
   ctx.fillText(periodTitle || "", cx, y);
 
-  y += 38;
-  ctx.font = "600 22px system-ui, -apple-system, sans-serif";
-  let metaLine = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`;
-  if (username) metaLine += `  ·  @${username}`;
+  y += 32;
+  ctx.font = "600 18px system-ui, -apple-system, sans-serif";
   if (username) {
     const before = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists  ·  `;
     const handle = `@${username}`;
@@ -211,26 +209,30 @@ async function generateWrappedPng({
     ctx.textAlign = "center";
   } else {
     ctx.fillStyle = textMuted;
-    ctx.fillText(metaLine, cx, y);
+    ctx.fillText(
+      `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`,
+      cx,
+      y
+    );
   }
 
-  y += 26;
+  y += 22;
   ctx.strokeStyle = "rgba(245,240,230,0.12)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(PAD + 40, y);
-  ctx.lineTo(W - PAD - 40, y);
+  ctx.moveTo(PAD + 24, y);
+  ctx.lineTo(W - PAD - 24, y);
   ctx.stroke();
 
   // rows
-  const listTop = y + 28;
-  const listBottom = H - 70;
+  const listTop = y + 24;
+  const listBottom = H - 58;
   const rowH = (listBottom - listTop) / Math.max(list.length, 1);
-  const COVER_1 = 112;
-  const COVER_N = 96;
-  const RANK_W = 46;
-  const GAP = 18;
-  const PLAYS_W = 100;
+  const COVER_1 = 100;
+  const COVER_N = 86;
+  const RANK_W = 42;
+  const GAP = 16;
+  const PLAYS_W = 92;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
@@ -242,30 +244,33 @@ async function generateWrappedPng({
     const textX = coverX + coverSize + GAP;
     const textMax = W - PAD - PLAYS_W - textX - 4;
 
+    // rank num
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillStyle = isFirst ? accent : textMain;
     ctx.font = isFirst
-      ? "900 42px system-ui, -apple-system, sans-serif"
-      : "800 34px system-ui, -apple-system, sans-serif";
+      ? "900 38px system-ui, -apple-system, sans-serif"
+      : "800 32px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
+    // cover
     ctx.fillStyle = shadeHex(bgHex, 0.65);
-    roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
+    roundRect(ctx, coverX, coverY, coverSize, coverSize, 12);
     ctx.fill();
     if (covers[i]) {
       ctx.save();
-      roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
+      roundRect(ctx, coverX, coverY, coverSize, coverSize, 12);
       ctx.clip();
       ctx.drawImage(covers[i], coverX, coverY, coverSize, coverSize);
       ctx.restore();
     }
 
+    // title - max 2 lines
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.font = isFirst
-      ? "800 32px system-ui, -apple-system, sans-serif"
-      : "800 28px system-ui, -apple-system, sans-serif";
+      ? "800 26px system-ui, -apple-system, sans-serif"
+      : "800 22px system-ui, -apple-system, sans-serif";
 
     const titleLines = wrapLines(
       ctx,
@@ -273,45 +278,48 @@ async function generateWrappedPng({
       textMax,
       2
     );
-    const lineH = isFirst ? 32 : 28;
-    const artistH = 22;
+    const lineH = isFirst ? 30 : 26;
+    const artistH = 20;
     const blockH = titleLines.length * lineH + 4 + artistH;
     let ty = midY - blockH / 2 + lineH / 2;
 
     for (const line of titleLines) {
       ctx.fillStyle = textMain;
       ctx.font = isFirst
-        ? "800 28px system-ui, -apple-system, sans-serif"
-        : "800 24px system-ui, -apple-system, sans-serif";
+        ? "800 26px system-ui, -apple-system, sans-serif"
+        : "800 22px system-ui, -apple-system, sans-serif";
       ctx.fillText(line, textX, ty);
       ty += lineH;
     }
 
+    // artist
     ctx.fillStyle = textMuted;
-    ctx.font = "600 19px system-ui, -apple-system, sans-serif";
+    ctx.font = "600 16px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.artist || "", textMax),
       textX,
       ty + 2
     );
 
+    // Plays
     const plays = item.count ?? 0;
     const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ctx.fillStyle = isFirst ? accent : textMuted;
     ctx.font = isFirst
-      ? "700 23px system-ui, -apple-system, sans-serif"
-      : "600 21px system-ui, -apple-system, sans-serif";
+      ? "700 20px system-ui, -apple-system, sans-serif"
+      : "600 18px system-ui, -apple-system, sans-serif";
     ctx.fillText(playsLabel, W - PAD, midY);
     ctx.textAlign = "left";
   }
 
+  // footer
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "rgba(245,240,230,0.7)";
-  ctx.font = "600 17px system-ui, -apple-system, sans-serif";
+  ctx.font = "600 15px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("tornamesa.app", cx, H - 34);
+  ctx.fillText("tornamesa.app", cx, H - 28);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
