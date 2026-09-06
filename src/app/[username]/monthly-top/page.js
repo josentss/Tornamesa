@@ -156,7 +156,7 @@ async function generateWrappedPng({
 }) {
   const W = 1080;
   const H = 1350;
-  const PAD = 56;
+  const PAD = 52;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -165,7 +165,6 @@ async function generateWrappedPng({
   const list = (albums || []).slice(0, 5);
   const covers = await Promise.all(list.map((a) => loadImage(a.cover)));
 
-  // background
   ctx.fillStyle = bgHex;
   ctx.fillRect(0, 0, W, H);
   const depth = ctx.createLinearGradient(0, 0, 0, H);
@@ -178,53 +177,60 @@ async function generateWrappedPng({
   const textMain = "#f5f0e6";
   const textMuted = "rgba(245,240,230,0.55)";
   const accent = "#7cc7e8";
+  const cx = W / 2;
 
-  let y = 64;
+  // header
+  let y = 56;
 
+  ctx.textAlign = "center";
   ctx.fillStyle = accent;
   ctx.font = "700 14px system-ui, -apple-system, sans-serif";
-  ctx.fillText("TOP ALBUMS", PAD, y);
+  ctx.fillText("TOP ALBUMS", cx, y);
 
-  y += 52;
+  y += 50;
   ctx.fillStyle = textMain;
-  ctx.font = "900 58px system-ui, -apple-system, sans-serif";
-  ctx.fillText(periodTitle || "", PAD, y);
+  ctx.font = "900 52px system-ui, -apple-system, sans-serif";
+  ctx.fillText(periodTitle || "", cx, y);
 
-  y += 40;
+  y += 38;
   ctx.font = "600 22px system-ui, -apple-system, sans-serif";
-  const meta = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`;
-  ctx.fillStyle = textMuted;
-  ctx.fillText(meta, PAD, y);
-
+  let metaLine = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`;
+  if (username) metaLine += `  ·  @${username}`;
   if (username) {
-    const gap = "  ·  ";
-    const metaW = ctx.measureText(meta).width;
+    const before = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists  ·  `;
+    const handle = `@${username}`;
+    const totalW =
+      ctx.measureText(before).width + ctx.measureText(handle).width;
+    let x = cx - totalW / 2;
+    ctx.textAlign = "left";
     ctx.fillStyle = textMuted;
-    ctx.fillText(gap, PAD + metaW, y);
+    ctx.fillText(before, x, y);
+    x += ctx.measureText(before).width;
     ctx.fillStyle = accent;
-    ctx.fillText(
-      `@${username}`,
-      PAD + metaW + ctx.measureText(gap).width,
-      y
-    );
+    ctx.fillText(handle, x, y);
+    ctx.textAlign = "center";
+  } else {
+    ctx.fillStyle = textMuted;
+    ctx.fillText(metaLine, cx, y);
   }
 
-  y += 28;
+  y += 26;
   ctx.strokeStyle = "rgba(245,240,230,0.12)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(PAD, y);
-  ctx.lineTo(W - PAD, y);
+  ctx.moveTo(PAD + 40, y);
+  ctx.lineTo(W - PAD - 40, y);
   ctx.stroke();
 
-  const listTop = y + 40;
-  const listBottom = H - 80;
+  // rows
+  const listTop = y + 28;
+  const listBottom = H - 70;
   const rowH = (listBottom - listTop) / Math.max(list.length, 1);
-  const COVER_1 = 120;
-  const COVER_N = 96;
-  const RANK_W = 56;
-  const GAP = 26;
-  const PLAYS_W = 130;
+  const COVER_1 = 132;
+  const COVER_N = 112;
+  const RANK_W = 52;
+  const GAP = 22;
+  const PLAYS_W = 118;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
@@ -234,18 +240,16 @@ async function generateWrappedPng({
     const coverX = PAD + RANK_W + GAP;
     const coverY = midY - coverSize / 2;
     const textX = coverX + coverSize + GAP;
-    const textMax = W - PAD - PLAYS_W - textX - 8;
+    const textMax = W - PAD - PLAYS_W - textX - 4;
 
-    // rank
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillStyle = isFirst ? accent : textMain;
     ctx.font = isFirst
-      ? "900 44px system-ui, -apple-system, sans-serif"
-      : "800 36px system-ui, -apple-system, sans-serif";
+      ? "900 46px system-ui, -apple-system, sans-serif"
+      : "800 38px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
-    // cover
     ctx.fillStyle = shadeHex(bgHex, 0.65);
     roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
     ctx.fill();
@@ -257,13 +261,11 @@ async function generateWrappedPng({
       ctx.restore();
     }
 
-    // titulo en 2 líneas max + artista
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "800 30px system-ui, -apple-system, sans-serif"
-      : "800 26px system-ui, -apple-system, sans-serif";
+      ? "800 32px system-ui, -apple-system, sans-serif"
+      : "800 28px system-ui, -apple-system, sans-serif";
 
     const titleLines = wrapLines(
       ctx,
@@ -271,47 +273,45 @@ async function generateWrappedPng({
       textMax,
       2
     );
-    const lineH = isFirst ? 34 : 30;
-    const artistH = 24;
-    const blockH = titleLines.length * lineH + 6 + artistH;
+    const lineH = isFirst ? 36 : 32;
+    const artistH = 22;
+    const blockH = titleLines.length * lineH + 4 + artistH;
     let ty = midY - blockH / 2 + lineH / 2;
 
     for (const line of titleLines) {
       ctx.fillStyle = textMain;
       ctx.font = isFirst
-        ? "800 30px system-ui, -apple-system, sans-serif"
-        : "800 26px system-ui, -apple-system, sans-serif";
+        ? "800 32px system-ui, -apple-system, sans-serif"
+        : "800 28px system-ui, -apple-system, sans-serif";
       ctx.fillText(line, textX, ty);
       ty += lineH;
     }
 
     ctx.fillStyle = textMuted;
-    ctx.font = "600 18px system-ui, -apple-system, sans-serif";
+    ctx.font = "600 19px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.artist || "", textMax),
       textX,
       ty + 2
     );
 
-    // escuchas
     const plays = item.count ?? 0;
     const playsLabel = plays === 1 ? "1 play" : `${plays} plays`;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     ctx.fillStyle = isFirst ? accent : textMuted;
     ctx.font = isFirst
-      ? "700 22px system-ui, -apple-system, sans-serif"
-      : "600 20px system-ui, -apple-system, sans-serif";
+      ? "700 23px system-ui, -apple-system, sans-serif"
+      : "600 21px system-ui, -apple-system, sans-serif";
     ctx.fillText(playsLabel, W - PAD, midY);
     ctx.textAlign = "left";
   }
 
-  // footer
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "rgba(245,240,230,0.7)";
   ctx.font = "600 17px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("tornamesa.app", W / 2, H - 36);
+  ctx.fillText("tornamesa.app", cx, H - 34);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
@@ -444,7 +444,7 @@ function MonthlyTopContent({ username: usernameProp }) {
   const periodTitle =
     week != null
       ? weekRangeLabel(week, month, year).toUpperCase()
-      : `${MONTH_SHORT[month - 1].toUpperCase()} ${year}`;
+      : `${MONTH_NAMES[month - 1].toUpperCase()} ${year}`;
 
   const runGenerate = useCallback(
     async (bg) => {
