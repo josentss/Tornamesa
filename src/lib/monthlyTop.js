@@ -20,7 +20,7 @@ async function resolveUserTimeZone(supabase, userId, timeZone = null) {
   return normalizeTimeZone(prof?.timezone || 'UTC');
 }
 
-function rankAlbums(listens, limit) {
+function rankAlbums(listens, limit, reviewRatings = {}) {
   const map = {};
 
   for (const row of listens) {
@@ -38,7 +38,7 @@ function rankAlbums(listens, limit) {
     }
     map[id].listen_count += 1;
     if (row.rating != null) {
-      map[id].ratingSum += row.rating;
+      map[id].ratingSum += Number(row.rating);
       map[id].ratingN += 1;
     }
     if (row.listened_at) {
@@ -60,15 +60,22 @@ function rankAlbums(listens, limit) {
       return String(a.album_id).localeCompare(String(b.album_id));
     })
     .slice(0, limit)
-    .map((item, i) => ({
-      rank: i + 1,
-      album_id: item.album_id,
-      listen_count: item.listen_count,
-      avg_rating:
-        item.ratingN > 0
-          ? Math.round((item.ratingSum / item.ratingN) * 100) / 100
-          : null,
-    }));
+    .map((item, i) => {
+      const fromReview = reviewRatings[item.album_id];
+      let avg_rating = null;
+      if (fromReview != null && !Number.isNaN(Number(fromReview))) {
+        avg_rating = Math.round(Number(fromReview) * 100) / 100;
+      } else if (item.ratingN > 0) {
+        avg_rating =
+          Math.round((item.ratingSum / item.ratingN) * 100) / 100;
+      }
+      return {
+        rank: i + 1,
+        album_id: item.album_id,
+        listen_count: item.listen_count,
+        avg_rating,
+      };
+    });
 }
 
 export async function recomputeMonthlyTop(
@@ -94,6 +101,28 @@ export async function recomputeMonthlyTop(
   const uniqueAlbums = new Set(
     all.map((l) => l.album_id).filter(Boolean)
   ).size;
+
+  const albumIds = [
+    ...new Set(all.map((l) => l.album_id).filter(Boolean)),
+  ];
+  const reviewRatings = {};
+  if (albumIds.length > 0) {
+    const { data: reviews, error: revErr } = await supabase
+      .from('reviews')
+      .select('album_id, rating')
+      .eq('user_id', userId)
+      .in('album_id', albumIds);
+
+    if (revErr) {
+      console.warn('monthly top reviews fetch:', revErr.message);
+    } else {
+      (reviews || []).forEach((r) => {
+        if (r.album_id != null && r.rating != null) {
+          reviewRatings[r.album_id] = r.rating;
+        }
+      });
+    }
+  }
 
   const { data: summary, error: sumErr } = await supabase
     .from('monthly_summaries')
@@ -122,7 +151,7 @@ export async function recomputeMonthlyTop(
 
   const rows = [];
 
-  rankAlbums(all, TOP_MONTH_LIMIT).forEach((e) => {
+  rankAlbums(all, TOP_MONTH_LIMIT, reviewRatings).forEach((e) => {
     rows.push({
       summary_id: summary.id,
       week: null,
@@ -138,7 +167,7 @@ export async function recomputeMonthlyTop(
       (l) => weekOfMonthInZone(l.listened_at, tz) === w
     );
     if (weekListens.length === 0) continue;
-    rankAlbums(weekListens, TOP_WEEK_LIMIT).forEach((e) => {
+    rankAlbums(weekListens, TOP_WEEK_LIMIT, reviewRatings).forEach((e) => {
       rows.push({
         summary_id: summary.id,
         week: w,
