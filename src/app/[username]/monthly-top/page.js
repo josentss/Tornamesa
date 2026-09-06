@@ -20,12 +20,12 @@ const MONTH_SHORT = [
 ];
 
 const BG_PRESETS = [
-  { id: "forest", label: "Forest", hex: "#1c241c" },
   { id: "night", label: "Night", hex: "#0a121c" },
-  { id: "ink", label: "Ink", hex: "#121018" },
   { id: "slate", label: "Slate", hex: "#1a222c" },
-  { id: "wine", label: "Wine", hex: "#241818" },
   { id: "ocean", label: "Ocean", hex: "#0f1c24" },
+  { id: "ink", label: "Ink", hex: "#121018" },
+  { id: "forest", label: "Forest", hex: "#1c241c" },
+  { id: "wine", label: "Wine", hex: "#241818" },
 ];
 
 function weekRangeLabel(week, month, year) {
@@ -108,11 +108,11 @@ async function generateWrappedPng({
   totalListens,
   uniqueArtists,
   albums,
-  bgHex = "#1c241c",
+  bgHex = "#0a121c",
 }) {
   const W = 1080;
   const H = 1350;
-  const PAD = 52;
+  const PAD = 56;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -121,69 +121,76 @@ async function generateWrappedPng({
   const list = (albums || []).slice(0, 5);
   const covers = await Promise.all(list.map((a) => loadImage(a.cover)));
 
+  // background
   ctx.fillStyle = bgHex;
   ctx.fillRect(0, 0, W, H);
   const depth = ctx.createLinearGradient(0, 0, 0, H);
-  depth.addColorStop(0, "rgba(255,255,255,0.035)");
-  depth.addColorStop(0.55, "rgba(0,0,0,0)");
-  depth.addColorStop(1, "rgba(0,0,0,0.18)");
+  depth.addColorStop(0, "rgba(255,255,255,0.04)");
+  depth.addColorStop(0.5, "rgba(0,0,0,0)");
+  depth.addColorStop(1, "rgba(0,0,0,0.22)");
   ctx.fillStyle = depth;
   ctx.fillRect(0, 0, W, H);
+
+  // accent bar - Tornamesa
+  ctx.fillStyle = "#7cc7e8";
+  ctx.fillRect(0, 0, 8, H);
 
   const textMain = "#f5f0e6";
   const textMuted = "rgba(245,240,230,0.55)";
   const accent = "#7cc7e8";
 
-  let y = 56;
+  let y = 64;
 
   ctx.fillStyle = accent;
-  ctx.font = "700 13px system-ui, -apple-system, sans-serif";
-  ctx.letterSpacing = "0.12em";
+  ctx.font = "700 14px system-ui, -apple-system, sans-serif";
   ctx.fillText("TOP ALBUMS", PAD, y);
-  ctx.font = "700 13px system-ui, -apple-system, sans-serif";
 
-  y += 48;
+  y += 52;
   ctx.fillStyle = textMain;
-  ctx.font = "900 56px system-ui, -apple-system, sans-serif";
+  ctx.font = "900 58px system-ui, -apple-system, sans-serif";
   ctx.fillText(periodTitle || "", PAD, y);
 
-  y += 40;
+  y += 42;
   ctx.font = "600 22px system-ui, -apple-system, sans-serif";
   const meta = `${totalListens ?? 0} listens  ·  ${uniqueArtists ?? 0} artists`;
   ctx.fillStyle = textMuted;
   ctx.fillText(meta, PAD, y);
 
   if (username) {
-    const metaW = ctx.measureText(meta + "  ·  ").width;
+    const gap = "  ·  ";
+    const metaW = ctx.measureText(meta).width;
     ctx.fillStyle = textMuted;
-    ctx.fillText("  ·  ", PAD + ctx.measureText(meta).width, y);
+    ctx.fillText(gap, PAD + metaW, y);
     ctx.fillStyle = accent;
-    ctx.font = "700 22px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       `@${username}`,
-      PAD + ctx.measureText(meta).width + ctx.measureText("  ·  ").width,
+      PAD + metaW + ctx.measureText(gap).width,
       y
     );
   }
 
-  const listTop = y + 48;
-  const listBottom = H - 72;
-  const available = listBottom - listTop;
-  const n = Math.max(list.length, 1);
-  const rowH = available / n;
+  // soft divider
+  y += 28;
+  ctx.strokeStyle = "rgba(124,199,232,0.2)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y);
+  ctx.lineTo(W - PAD, y);
+  ctx.stroke();
 
-  const COVER_N = Math.min(140, Math.floor(rowH * 0.72));
-  const COVER_1 = Math.min(156, Math.floor(rowH * 0.8));
-  const RANK_W = 56;
-  const GAP = 20;
-  const PLAYS_W = 120;
+  const listTop = y + 36;
+  const listBottom = H - 72;
+  const rowH = (listBottom - listTop) / Math.max(list.length, 1);
+  const COVER_1 = 128;
+  const COVER_N = 100;
+  const RANK_W = 64;
+  const GAP = 28;
+  const PLAYS_W = 140;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
     const isFirst = i === 0;
-    const rowTop = listTop + i * rowH;
-    const midY = rowTop + rowH / 2;
-
+    const midY = listTop + rowH * i + rowH / 2;
     const coverSize = isFirst ? COVER_1 : COVER_N;
     const coverX = PAD + RANK_W + GAP;
     const coverY = midY - coverSize / 2;
@@ -198,20 +205,28 @@ async function generateWrappedPng({
       : "800 40px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
-    ctx.fillStyle = shadeHex(bgHex, 0.7);
-    roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
+    ctx.fillStyle = shadeHex(bgHex, 0.65);
+    roundRect(ctx, coverX, coverY, coverSize, coverSize, 16);
     ctx.fill();
     if (covers[i]) {
       ctx.save();
-      roundRect(ctx, coverX, coverY, coverSize, coverSize, 14);
+      roundRect(ctx, coverX, coverY, coverSize, coverSize, 16);
       ctx.clip();
       ctx.drawImage(covers[i], coverX, coverY, coverSize, coverSize);
       ctx.restore();
     }
 
+    // soft glow on #1 cover edge
+    if (isFirst) {
+      ctx.strokeStyle = "rgba(124,199,232,0.35)";
+      ctx.lineWidth = 3;
+      roundRect(ctx, coverX, coverY, coverSize, coverSize, 16);
+      ctx.stroke();
+    }
+
     ctx.fillStyle = textMain;
     ctx.font = isFirst
-      ? "800 32px system-ui, -apple-system, sans-serif"
+      ? "800 34px system-ui, -apple-system, sans-serif"
       : "800 28px system-ui, -apple-system, sans-serif";
     ctx.fillText(
       truncate(ctx, item.title || "Unknown", textMax),
@@ -239,11 +254,10 @@ async function generateWrappedPng({
   }
 
   ctx.textBaseline = "alphabetic";
-
-  ctx.fillStyle = textMuted;
-  ctx.font = "600 16px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = accent;
+  ctx.font = "700 18px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("tornamesa.app", W / 2, H - 28);
+  ctx.fillText("tornamesa.app", W / 2, H - 32);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
@@ -493,32 +507,6 @@ function MonthlyTopContent({ username: usernameProp }) {
       flashShare("Downloaded");
     } finally {
       setShareBusy(false);
-    }
-  };
-
-  const copyCaption = async () => {
-    try {
-      await navigator.clipboard.writeText(shareCaption());
-      flashShare("Caption copied");
-    } catch {
-      flashShare("Could not copy");
-    }
-  };
-
-  const copyImage = async () => {
-    if (!wrappedUrl) return;
-    try {
-      const blob = await dataUrlToBlob(wrappedUrl);
-      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-        await navigator.clipboard.write([
-          new ClipboardItem({ "image/png": blob }),
-        ]);
-        flashShare("Image copied");
-      } else {
-        await copyCaption();
-      }
-    } catch {
-      flashShare("Copy not supported — use Download");
     }
   };
 
@@ -808,11 +796,11 @@ function MonthlyTopContent({ username: usernameProp }) {
 
       {wrappedOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-6"
           onClick={() => setWrappedOpen(false)}
         >
           <div
-            className="w-full sm:max-w-sm bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col"
+            className="w-full sm:max-w-md bg-[#131e2c] border border-[#2a3645] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[min(94vh,900px)] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3645]">
@@ -853,7 +841,7 @@ function MonthlyTopContent({ username: usernameProp }) {
               </div>
             </div>
 
-            <div className="overflow-y-auto p-3 sm:p-4 flex justify-center bg-[#0a0f16] min-h-[180px]">
+            <div className="overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 flex justify-center items-start bg-[#0a0f16] min-h-[200px] flex-1">
               {wrappedLoading && (
                 <p className="text-stone-500 text-sm py-14">Generating...</p>
               )}
@@ -861,7 +849,7 @@ function MonthlyTopContent({ username: usernameProp }) {
                 <img
                   src={wrappedUrl}
                   alt="Wrapped"
-                  className="w-full max-w-[300px] rounded-lg border border-[#2a3645]"
+                  className="w-full max-w-[min(100%,340px)] sm:max-w-[360px] rounded-xl border border-[#2a3645] shadow-lg shadow-black/40"
                 />
               )}
               {!wrappedLoading && !wrappedUrl && (
@@ -871,7 +859,7 @@ function MonthlyTopContent({ username: usernameProp }) {
               )}
             </div>
 
-            <div className="p-4 border-t border-[#2a3645] space-y-2">
+            <div className="p-4 sm:p-5 border-t border-[#2a3645] space-y-2 flex-shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
               {shareMsg && (
                 <p className="text-center text-xs text-[#7cc7e8]">{shareMsg}</p>
               )}
@@ -880,7 +868,7 @@ function MonthlyTopContent({ username: usernameProp }) {
                   type="button"
                   onClick={shareWrapped}
                   disabled={!wrappedUrl || shareBusy || wrappedLoading}
-                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-40"
+                  className="flex-1 text-sm font-semibold py-3 rounded-xl bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-40"
                 >
                   {shareBusy ? "Sharing…" : "Share"}
                 </button>
@@ -888,34 +876,9 @@ function MonthlyTopContent({ username: usernameProp }) {
                   type="button"
                   onClick={downloadWrapped}
                   disabled={!wrappedUrl}
-                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg border border-[#2a3645] text-stone-200 hover:border-[#7cc7e8]/50 disabled:opacity-40"
+                  className="flex-1 text-sm font-semibold py-3 rounded-xl border border-[#2a3645] text-stone-200 hover:border-[#7cc7e8]/50 disabled:opacity-40"
                 >
                   Download
-                </button>
-              </div>
-              <div className="flex gap-2 items-center">
-                <button
-                  type="button"
-                  onClick={copyImage}
-                  disabled={!wrappedUrl}
-                  className="flex-1 text-xs py-2 rounded-lg text-stone-400 hover:text-white disabled:opacity-40"
-                >
-                  Copy image
-                </button>
-                <button
-                  type="button"
-                  onClick={copyCaption}
-                  disabled={!wrappedUrl}
-                  className="flex-1 text-xs py-2 rounded-lg text-stone-400 hover:text-white disabled:opacity-40"
-                >
-                  Copy caption
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWrappedOpen(false)}
-                  className="px-3 text-xs text-stone-500 hover:text-white"
-                >
-                  Close
                 </button>
               </div>
             </div>
