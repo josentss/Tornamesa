@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { clientTimeZone, localDateKey } from "@/lib/timezone";
 
 function formatDate(isoDay) {
   if (!isoDay || isoDay === "Unknown") return "Unknown date";
@@ -136,14 +137,16 @@ function StarRating({ value, onChange, size = "md" }) {
   );
 }
 
-function groupListens(history) {
+function groupListens(history, timeZone) {
+  const tz = timeZone || clientTimeZone();
   const map = {};
-
   (history || []).forEach((item) => {
     const album = item.albums;
     if (!album?.spotify_id) return;
-
-    const day = (item.listened_at || "").split("T")[0] || "Unknown";
+    const day =
+      localDateKey(item.listened_at, tz) ||
+      (item.listened_at || "").split("T")[0] ||
+      "Unknown";
     const key = `${day}_${album.spotify_id}`;
 
     if (!map[key]) {
@@ -423,7 +426,8 @@ export default function DiaryView({
 
   const processed = useMemo(() => {
     let list = filterByPeriod(items, period);
-    let grouped = groupListens(list);
+    const tz = clientTimeZone();
+    let grouped = groupListens(list, tz);
 
     if (query.trim()) {
       const q = query.trim().toLowerCase();
