@@ -154,9 +154,9 @@ async function generateWrappedPng({
   albums,
   bgHex = "#0a121c",
 }) {
-  const W = 1080;
-  const H = 1350;
-  const PAD = 52;
+  const W = 900;
+  const H = 1125;
+  const PAD = 44;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -189,7 +189,7 @@ async function generateWrappedPng({
 
   y += 50;
   ctx.fillStyle = textMain;
-  ctx.font = "900 52px system-ui, -apple-system, sans-serif";
+  ctx.font = "900 44px system-ui, -apple-system, sans-serif";
   ctx.fillText(periodTitle || "", cx, y);
 
   y += 38;
@@ -226,11 +226,11 @@ async function generateWrappedPng({
   const listTop = y + 28;
   const listBottom = H - 70;
   const rowH = (listBottom - listTop) / Math.max(list.length, 1);
-  const COVER_1 = 132;
-  const COVER_N = 112;
-  const RANK_W = 52;
-  const GAP = 22;
-  const PLAYS_W = 118;
+  const COVER_1 = 112;
+  const COVER_N = 96;
+  const RANK_W = 46;
+  const GAP = 18;
+  const PLAYS_W = 100;
 
   for (let i = 0; i < list.length; i++) {
     const item = list[i];
@@ -246,8 +246,8 @@ async function generateWrappedPng({
     ctx.textBaseline = "middle";
     ctx.fillStyle = isFirst ? accent : textMain;
     ctx.font = isFirst
-      ? "900 46px system-ui, -apple-system, sans-serif"
-      : "800 38px system-ui, -apple-system, sans-serif";
+      ? "900 42px system-ui, -apple-system, sans-serif"
+      : "800 34px system-ui, -apple-system, sans-serif";
     ctx.fillText(String(item.rank ?? i + 1), PAD, midY);
 
     ctx.fillStyle = shadeHex(bgHex, 0.65);
@@ -273,7 +273,7 @@ async function generateWrappedPng({
       textMax,
       2
     );
-    const lineH = isFirst ? 36 : 32;
+    const lineH = isFirst ? 32 : 28;
     const artistH = 22;
     const blockH = titleLines.length * lineH + 4 + artistH;
     let ty = midY - blockH / 2 + lineH / 2;
@@ -281,8 +281,8 @@ async function generateWrappedPng({
     for (const line of titleLines) {
       ctx.fillStyle = textMain;
       ctx.font = isFirst
-        ? "800 32px system-ui, -apple-system, sans-serif"
-        : "800 28px system-ui, -apple-system, sans-serif";
+        ? "800 28px system-ui, -apple-system, sans-serif"
+        : "800 24px system-ui, -apple-system, sans-serif";
       ctx.fillText(line, textX, ty);
       ty += lineH;
     }
