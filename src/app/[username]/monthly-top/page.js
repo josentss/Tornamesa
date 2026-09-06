@@ -270,6 +270,8 @@ function MonthlyTopContent({ username: usernameProp }) {
   const [wrappedUrl, setWrappedUrl] = useState(null);
   const [wrappedLoading, setWrappedLoading] = useState(false);
   const [wrappedBg, setWrappedBg] = useState(BG_PRESETS[0].hex);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareMsg, setShareMsg] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -428,6 +430,96 @@ function MonthlyTopContent({ username: usernameProp }) {
         ? `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}-w${week}.png`
         : `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}.png`;
     a.click();
+  };
+
+  const flashShare = (msg) => {
+    setShareMsg(msg);
+    setTimeout(() => setShareMsg(null), 2000);
+  };
+
+  const wrappedFileName = () =>
+    week != null
+      ? `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}-w${week}.png`
+      : `tornamesa-wrapped-${year}-${String(month).padStart(2, "0")}.png`;
+
+  const dataUrlToBlob = async (dataUrl) => {
+    const res = await fetch(dataUrl);
+    return res.blob();
+  };
+
+  const shareCaption = () => {
+    const label = data?.weekLabel
+      ? `${data.label} · ${data.weekLabel}`
+      : data?.label || "This month";
+    const origin =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "https://tornamesa.app";
+    const path = `${origin}/${usernameProp}/monthly-top?year=${year}&month=${month}${
+      week != null ? `&week=${week}` : ""
+    }`;
+    return `My ${label} on Tornamesa\n${path}`;
+  };
+
+  const shareWrapped = async () => {
+    if (!wrappedUrl || shareBusy) return;
+    setShareBusy(true);
+    try {
+      const blob = await dataUrlToBlob(wrappedUrl);
+      const file = new File([blob], wrappedFileName(), { type: "image/png" });
+      const caption = shareCaption();
+
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Tornamesa Wrapped",
+          text: caption,
+        });
+        flashShare("Shared");
+        return;
+      }
+
+      downloadWrapped();
+      try {
+        await navigator.clipboard.writeText(caption);
+        flashShare("Downloaded · caption copied");
+      } catch {
+        flashShare("Downloaded");
+      }
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      console.error(e);
+      downloadWrapped();
+      flashShare("Downloaded");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const copyCaption = async () => {
+    try {
+      await navigator.clipboard.writeText(shareCaption());
+      flashShare("Caption copied");
+    } catch {
+      flashShare("Could not copy");
+    }
+  };
+
+  const copyImage = async () => {
+    if (!wrappedUrl) return;
+    try {
+      const blob = await dataUrlToBlob(wrappedUrl);
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": blob }),
+        ]);
+        flashShare("Image copied");
+      } else {
+        await copyCaption();
+      }
+    } catch {
+      flashShare("Copy not supported — use Download");
+    }
   };
 
   if (loading && !data) {
@@ -779,22 +871,53 @@ function MonthlyTopContent({ username: usernameProp }) {
               )}
             </div>
 
-            <div className="p-4 border-t border-[#2a3645] flex gap-2">
-              <button
-                type="button"
-                onClick={downloadWrapped}
-                disabled={!wrappedUrl}
-                className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-40"
-              >
-                Download PNG
-              </button>
-              <button
-                type="button"
-                onClick={() => setWrappedOpen(false)}
-                className="px-4 text-sm text-stone-400 hover:text-white"
-              >
-                Close
-              </button>
+            <div className="p-4 border-t border-[#2a3645] space-y-2">
+              {shareMsg && (
+                <p className="text-center text-xs text-[#7cc7e8]">{shareMsg}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={shareWrapped}
+                  disabled={!wrappedUrl || shareBusy || wrappedLoading}
+                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-40"
+                >
+                  {shareBusy ? "Sharing…" : "Share"}
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadWrapped}
+                  disabled={!wrappedUrl}
+                  className="flex-1 text-sm font-semibold py-2.5 rounded-lg border border-[#2a3645] text-stone-200 hover:border-[#7cc7e8]/50 disabled:opacity-40"
+                >
+                  Download
+                </button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <button
+                  type="button"
+                  onClick={copyImage}
+                  disabled={!wrappedUrl}
+                  className="flex-1 text-xs py-2 rounded-lg text-stone-400 hover:text-white disabled:opacity-40"
+                >
+                  Copy image
+                </button>
+                <button
+                  type="button"
+                  onClick={copyCaption}
+                  disabled={!wrappedUrl}
+                  className="flex-1 text-xs py-2 rounded-lg text-stone-400 hover:text-white disabled:opacity-40"
+                >
+                  Copy caption
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWrappedOpen(false)}
+                  className="px-3 text-xs text-stone-500 hover:text-white"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
