@@ -323,12 +323,16 @@ export default function AccountSettingsPage() {
     }
   };
 
-  const downloadExport = async (format) => {
+  const downloadExport = async (format, mode = "detailed") => {
     if (!user?.id || exportBusy) return;
     setExportBusy(true);
     setExportMsg({ type: "", text: "" });
     try {
-      const { blob, filename } = await api.exportListens(user.id, format);
+      const { blob, filename } = await api.exportListens(
+        user.id,
+        format,
+        mode
+      );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -492,26 +496,55 @@ export default function AccountSettingsPage() {
             {exportMsg.text}
           </p>
         )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <button
-            type="button"
-            disabled={exportBusy || !user?.id}
-            onClick={() => downloadExport("csv")}
-            className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
-          >
-            {exportBusy ? "Preparing…" : "Download CSV"}
-          </button>
-          <button
-            type="button"
-            disabled={exportBusy || !user?.id}
-            onClick={() => downloadExport("json")}
-            className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
-          >
-            Download JSON
-          </button>
+        <div className="space-y-3 pt-1">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-1.5">
+              Each listen
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={exportBusy || !user?.id}
+                onClick={() => downloadExport("csv", "detailed")}
+                className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
+              >
+                {exportBusy ? "Preparing…" : "CSV"}
+              </button>
+              <button
+                type="button"
+                disabled={exportBusy || !user?.id}
+                onClick={() => downloadExport("json", "detailed")}
+                className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
+              >
+                JSON
+              </button>
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold mb-1.5">
+              Summary by album
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={exportBusy || !user?.id}
+                onClick={() => downloadExport("csv", "summary")}
+                className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
+              >
+                CSV summary
+              </button>
+              <button
+                type="button"
+                disabled={exportBusy || !user?.id}
+                onClick={() => downloadExport("json", "summary")}
+                className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
+              >
+                JSON summary
+              </button>
+            </div>
+          </div>
         </div>
       </section>
-
 
       {/* Change password — collapsed */}
       <section className={sectionClass}>

@@ -324,10 +324,10 @@ export const api = {
       body: JSON.stringify({ items }),
     }),
 
-    exportListens: async (userId, format = 'json') => {
+    exportListens: async (userId, format = 'json', mode = 'detailed') => {
       const headers = await authHeaders();
       const res = await fetch(
-        `/api/users/${userId}/export?format=${encodeURIComponent(format)}&_t=${Date.now()}`,
+        `/api/users/${userId}/export?format=${encodeURIComponent(format)}&mode=${encodeURIComponent(mode)}&_t=${Date.now()}`,
         { headers, cache: 'no-store' }
       );
       if (res.status === 429) {
@@ -346,11 +346,12 @@ export const api = {
         } catch {}
         throw new Error(msg);
       }
+      const suffix = mode === 'summary' ? '-summary' : '';
       if (format === 'csv') {
         return {
           type: 'csv',
           blob: await res.blob(),
-          filename: 'tornamesa-listens.csv',
+          filename: `tornamesa-listens${suffix}.csv`,
         };
       }
       const json = await res.json();
@@ -359,7 +360,7 @@ export const api = {
         blob: new Blob([JSON.stringify(json, null, 2)], {
           type: 'application/json',
         }),
-        filename: 'tornamesa-listens.json',
+        filename: `tornamesa-listens${suffix}.json`,
         meta: json,
       };
     },

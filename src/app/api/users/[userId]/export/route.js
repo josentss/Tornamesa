@@ -15,6 +15,55 @@ function csvEscape(value) {
   return s;
 }
 
+function toFlat(rows, reviewMap) {
+  return rows.map((r) => {
+    const albumId = r.albums?.spotify_id || r.album_id || '';
+    const rev = reviewMap[albumId];
+    return {
+      listen_id: r.id,
+      listened_at: r.listened_at,
+      album_id: albumId,
+      title: r.albums?.title || '',
+      artist: r.albums?.artist || '',
+      rating: rev?.rating ?? r.rating ?? null,
+      review: rev?.review_text ?? r.review ?? null,
+    };
+  });
+}
+
+function toSummary(flat) {
+  const map = new Map();
+  for (const row of flat) {
+    const key = row.album_id || `${row.title}|${row.artist}`;
+    let cur = map.get(key);
+    if (!cur) {
+      cur = {
+        album_id: row.album_id,
+        title: row.title,
+        artist: row.artist,
+        play_count: 0,
+        first_listened: row.listened_at,
+        last_listened: row.listened_at,
+        rating: row.rating,
+        review: row.review,
+      };
+      map.set(key, cur);
+    }
+    cur.play_count += 1;
+    if (row.listened_at < cur.first_listened) {
+      cur.first_listened = row.listened_at;
+    }
+    if (row.listened_at > cur.last_listened) {
+      cur.last_listened = row.listened_at;
+    }
+    if (cur.rating == null && row.rating != null) cur.rating = row.rating;
+    if (!cur.review && row.review) cur.review = row.review;
+  }
+  return [...map.values()].sort((a, b) =>
+    (b.last_listened || '').localeCompare(a.last_listened || '')
+  );
+}
+
 export async function GET(request, { params }) {
   const { userId } = params;
 
@@ -31,9 +80,17 @@ export async function GET(request, { params }) {
 
   const { searchParams } = new URL(request.url);
   const format = (searchParams.get('format') || 'json').toLowerCase();
+  const mode = (searchParams.get('mode') || 'detailed').toLowerCase();
+
   if (format !== 'json' && format !== 'csv') {
     return NextResponse.json(
       { error: 'format must be json or csv' },
+      { status: 400 }
+    );
+  }
+  if (mode !== 'detailed' && mode !== 'summary') {
+    return NextResponse.json(
+      { error: 'mode must be detailed or summary' },
       { status: 400 }
     );
   }
@@ -80,87 +137,135 @@ export async function GET(request, { params }) {
         rows.map((r) => r.albums?.spotify_id || r.album_id).filter(Boolean)
       ),
     ];
+
     const reviewMap = {};
     for (let i = 0; i < albumIds.length; i += 200) {
       const chunk = albumIds.slice(i, i + 200);
-      const { data: reviews } = await supabase
+      const { data: reviews, error: revErr } = await supabase
         .from('reviews')
-        .select('album_id, rating, review')
+        .select('album_id, rating, review_text')
         .eq('user_id', userId)
         .in('album_id', chunk);
+
+      if (revErr) {
+        console.warn('export reviews:', revErr.message);
+        continue;
+      }
       (reviews || []).forEach((r) => {
-        reviewMap[r.album_id] = r;
+        if (r.album_id) reviewMap[r.album_id] = r;
       });
     }
 
-    const flat = rows.map((r) => {
-      const albumId = r.albums?.spotify_id || r.album_id || '';
-      const rev = reviewMap[albumId];
-      return {
-        listen_id: r.id,
-        listened_at: r.listened_at,
-        album_id: albumId,
-        title: r.albums?.title || '',
-        artist: r.albums?.artist || '',
-        rating: rev?.rating ?? r.rating ?? null,
-        review: rev?.review ?? r.review ?? null,
-      };
-    });
+    const detailed = toFlat(rows, reviewMap);
+    const payloadRows =
+      mode === 'summary' ? toSummary(detailed) : detailed;
 
     if (format === 'csv') {
-      const header = [
-        'listen_id',
-        'listened_at',
-        'album_id',
-        'title',
-        'artist',
-        'rating',
-        'review',
-      ];
-      const lines = [header.join(',')];
-      for (const row of flat) {
-        lines.push(
-          [
-            row.listen_id,
-            row.listened_at,
-            row.album_id,
-            csvEscape(row.title),
-            csvEscape(row.artist),
-            row.rating ?? '',
-            csvEscape(row.review),
-          ].join(',')
-        );
+      let header;
+      let lines;
+
+      if (mode === 'summary') {
+        header = [
+          'album_id',
+          'title',
+          'artist',
+          'play_count',
+          'first_listened',
+          'last_listened',
+          'rating',
+          'review',
+        ];
+        lines = [header.join(',')];
+        for (const row of payloadRows) {
+          lines.push(
+            [
+              row.album_id,
+              csvEscape(row.title),
+              csvEscape(row.artist),
+              row.play_count,
+              row.first_listened,
+              row.last_listened,
+              row.rating ?? '',
+              csvEscape(row.review),
+            ].join(',')
+          );
+        }
+      } else {
+        header = [
+          'listen_id',
+          'listened_at',
+          'album_id',
+          'title',
+          'artist',
+          'rating',
+          'review',
+        ];
+        lines = [header.join(',')];
+        for (const row of payloadRows) {
+          lines.push(
+            [
+              row.listen_id,
+              row.listened_at,
+              row.album_id,
+              csvEscape(row.title),
+              csvEscape(row.artist),
+              row.rating ?? '',
+              csvEscape(row.review),
+            ].join(',')
+          );
+        }
       }
-      if (truncated) {
-        lines.push('# truncated at max rows');
-      }
+
+      if (truncated) lines.push('# truncated at max rows');
+
+      const filename =
+        mode === 'summary'
+          ? 'tornamesa-listens-summary.csv'
+          : 'tornamesa-listens.csv';
 
       return new NextResponse(lines.join('\n'), {
         status: 200,
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
-          'Content-Disposition': `attachment; filename="tornamesa-listens.csv"`,
+          'Content-Disposition': `attachment; filename="${filename}"`,
           'Cache-Control': 'no-store',
-          'X-Export-Count': String(flat.length),
+          'X-Export-Count': String(payloadRows.length),
+          'X-Export-Mode': mode,
           'X-Export-Truncated': truncated ? '1' : '0',
         },
       });
     }
 
-    return NextResponse.json(
-      {
-        exported_at: new Date().toISOString(),
-        count: flat.length,
-        truncated,
-        listens: flat,
+    const body =
+      mode === 'summary'
+        ? {
+            exported_at: new Date().toISOString(),
+            mode: 'summary',
+            count: payloadRows.length,
+            listen_events: detailed.length,
+            truncated,
+            albums: payloadRows,
+          }
+        : {
+            exported_at: new Date().toISOString(),
+            mode: 'detailed',
+            count: payloadRows.length,
+            truncated,
+            listens: payloadRows,
+          };
+
+    const filename =
+      mode === 'summary'
+        ? 'tornamesa-listens-summary.json'
+        : 'tornamesa-listens.json';
+
+    return NextResponse.json(body, {
+      headers: {
+        'Cache-Control': 'no-store',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'X-Export-Mode': mode,
       },
-      {
-        headers: {
-          'Cache-Control': 'no-store',
-          'Content-Disposition': `attachment; filename="tornamesa-listens.json"`,
-        },
-      }
-    );
+    });
   } catch (e) {
     console.error('export:', e);
     return NextResponse.json(
