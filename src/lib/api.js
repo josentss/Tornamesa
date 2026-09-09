@@ -324,6 +324,46 @@ export const api = {
       body: JSON.stringify({ items }),
     }),
 
+    exportListens: async (userId, format = 'json') => {
+      const headers = await authHeaders();
+      const res = await fetch(
+        `/api/users/${userId}/export?format=${encodeURIComponent(format)}&_t=${Date.now()}`,
+        { headers, cache: 'no-store' }
+      );
+      if (res.status === 429) {
+        const retry = res.headers.get('Retry-After');
+        throw new Error(
+          retry
+            ? `Too many exports. Try again in ${retry}s.`
+            : 'Too many exports. Try again later.'
+        );
+      }
+      if (!res.ok) {
+        let msg = 'Export failed';
+        try {
+          const j = await res.json();
+          if (j?.error) msg = j.error;
+        } catch {}
+        throw new Error(msg);
+      }
+      if (format === 'csv') {
+        return {
+          type: 'csv',
+          blob: await res.blob(),
+          filename: 'tornamesa-listens.csv',
+        };
+      }
+      const json = await res.json();
+      return {
+        type: 'json',
+        blob: new Blob([JSON.stringify(json, null, 2)], {
+          type: 'application/json',
+        }),
+        filename: 'tornamesa-listens.json',
+        meta: json,
+      };
+    },
+
   checkHealth: () =>
     fetchApi('/api/health').catch(() => ({ status: 'offline' })),
 };

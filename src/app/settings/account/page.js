@@ -124,6 +124,9 @@ export default function AccountSettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportMsg, setExportMsg] = useState({ type: "", text: "" });
+
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
@@ -320,6 +323,29 @@ export default function AccountSettingsPage() {
     }
   };
 
+  const downloadExport = async (format) => {
+    if (!user?.id || exportBusy) return;
+    setExportBusy(true);
+    setExportMsg({ type: "", text: "" });
+    try {
+      const { blob, filename } = await api.exportListens(user.id, format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportMsg({ type: "success", text: `Downloaded ${filename}` });
+    } catch (err) {
+      setExportMsg({
+        type: "error",
+        text: err.message || "Export failed",
+      });
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Email */}
@@ -449,6 +475,43 @@ export default function AccountSettingsPage() {
           </div>
         )}
       </section>
+
+      {/* exportar data escuchas */}
+      <section className={sectionClass}>
+        <h2 className="text-sm font-semibold text-white">Export data</h2>
+        <p className="text-xs text-stone-500 mt-1">
+          Download your listens as CSV or JSON. Limited to a few exports per
+          hour.
+        </p>
+        {exportMsg.text && (
+          <p
+            className={`text-xs ${
+              exportMsg.type === "error" ? "text-red-400" : "text-[#7cc7e8]"
+            }`}
+          >
+            {exportMsg.text}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button
+            type="button"
+            disabled={exportBusy || !user?.id}
+            onClick={() => downloadExport("csv")}
+            className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
+          >
+            {exportBusy ? "Preparing…" : "Download CSV"}
+          </button>
+          <button
+            type="button"
+            disabled={exportBusy || !user?.id}
+            onClick={() => downloadExport("json")}
+            className="text-xs font-semibold px-3 py-2 rounded-lg border border-[#2a3645] bg-[#1f2b3a] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
+          >
+            Download JSON
+          </button>
+        </div>
+      </section>
+
 
       {/* Change password — collapsed */}
       <section className={sectionClass}>
