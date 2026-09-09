@@ -363,7 +363,19 @@ export const api = {
         filename: `tornamesa-listens${suffix}.json`,
         meta: json,
       };
-    },
+  },
+  compareMonth: async (userId, { with: withUser, year, month }) => {
+    const params = new URLSearchParams({
+      with: withUser,
+      year: String(year),
+      month: String(month),
+      _t: String(Date.now()),
+    });
+    return fetchApi(`/api/users/${userId}/compare?${params}`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
+    });
+  },
 
   checkHealth: () =>
     fetchApi('/api/health').catch(() => ({ status: 'offline' })),
