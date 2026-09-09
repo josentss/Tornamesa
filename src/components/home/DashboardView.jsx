@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { EmptyState } from "@/components/shared";
 import HScroll from "@/components/home/HScroll";
+import OnThisDay from "@/components/home/OnThisDay";
 import {
   groupOwnHistory,
   groupFriendsFeed,
@@ -135,6 +136,7 @@ export default function DashboardView({
   monthlyTop,
   toListen,
   dataReady,
+  onThisDay,
 }) {
   const ownGrouped = groupOwnHistory(ownHistory);
   const friendsGrouped = groupFriendsFeed(feed);
@@ -287,6 +289,8 @@ export default function DashboardView({
           </div>
         </section>
       )}
+
+      {dataReady && onThisDay && <OnThisDay data={onThisDay} />}
 
       {dataReady && toListenItems.length > 0 && (
         <section>

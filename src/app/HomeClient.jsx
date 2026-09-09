@@ -18,7 +18,9 @@ export default function HomeClient({ initialLoggedIn = false }) {
   const [username, setUsername] = useState(null);
   const [monthlyTop, setMonthlyTop] = useState([]);
   const [toListen, setToListen] = useState(null);
+  const [onThisDay, setOnThisDay] = useState(null);
   const [dataReady, setDataReady] = useState(false);
+
 
   const showDashboard = Boolean(user) || (loading && initialLoggedIn);
   const needsOnboarding =
@@ -39,6 +41,7 @@ export default function HomeClient({ initialLoggedIn = false }) {
       setUsername(null);
       setMonthlyTop([]);
       setToListen(null);
+      setOnThisDay(null);
       setDataReady(false);
       return;
     }
@@ -87,8 +90,15 @@ export default function HomeClient({ initialLoggedIn = false }) {
                 .catch(() => null)
             : Promise.resolve(null),
           api.getUserLists(user.id).catch(() => []),
-        ]).then(async ([topRes, listsRes]) => {
+          api.getOnThisDay(user.id).catch(() => null),
+        ]).then(async ([topRes, listsRes, otdRes]) => {
           if (cancelled) return;
+
+          setOnThisDay(
+            otdRes && Array.isArray(otdRes.years) && otdRes.years.length > 0
+              ? otdRes
+              : null
+          );
 
           const topEntries =
             topRes?.entries ||
@@ -177,6 +187,7 @@ export default function HomeClient({ initialLoggedIn = false }) {
           monthlyTop={monthlyTop}
           toListen={toListen}
           dataReady={dataReady}
+          onThisDay={onThisDay}
         />
       ) : (
         <LandingView />

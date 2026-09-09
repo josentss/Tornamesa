@@ -92,13 +92,19 @@ export const api = {
           cache: 'no-store',
           headers: await authHeaders(),
         }
-      ),
+    ),
 
     getFriendsFeed: async (userId) =>
       fetchApi(`/api/users/${userId}/feed?_t=${Date.now()}`, {
         cache: 'no-store',
         headers: await authHeaders(),
       }),
+
+  getOnThisDay: async (userId) =>
+    fetchApi(`/api/users/${userId}/on-this-day?_t=${Date.now()}`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
+    }),
 
   getUserProfile: (userId) =>
     fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {
