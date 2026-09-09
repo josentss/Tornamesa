@@ -22,8 +22,8 @@ async function monthAlbumMap(supabase, userId, year, month, tz) {
     `
     )
     .eq('user_id', userId)
-    .gte('listened_at', start.toISOString())
-    .lt('listened_at', end.toISOString());
+    .gte('listened_at', start)
+    .lt('listened_at', end);
 
   if (error) throw error;
 

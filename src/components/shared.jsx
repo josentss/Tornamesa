@@ -165,6 +165,13 @@ export function Header({ user: initialUser }) {
                       </Link>
                     )}
                     <Link
+                      href="/compare"
+                      className="block px-4 py-2.5 text-sm text-stone-300 hover:text-[#87ceeb] hover:bg-[#1e293b]"
+                      onClick={() => setShowMenu(false)}
+                    >
+                      Compare
+                    </Link>
+                    <Link
                       href="/settings/profile"
                       className="block px-4 py-2.5 text-sm text-stone-300 hover:text-[#87ceeb] hover:bg-[#1e293b]"
                       onClick={() => setShowMenu(false)}
