@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,22 @@ const MONTH_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+
+function CalendarIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      className={className}
+      aria-hidden
+    >
+      <path
+        fill="currentColor"
+        d="M7 2h1a1 1 0 0 1 1 1v1h5V3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3V3a1 1 0 0 1 1-1m8 2h1V3h-1zM8 4V3H7v1zM6 5a2 2 0 0 0-2 2v1h15V7a2 2 0 0 0-2-2zM4 18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V9H4zm8-5h5v5h-5zm1 1v3h3v-3z"
+      />
+    </svg>
+  );
+}
 
 function normalizeFollowing(list) {
   return (list || [])
@@ -48,34 +64,51 @@ function Avatar({ src, name, size = 40 }) {
   );
 }
 
-function AlbumRow({ item, right }) {
+function CoverTile({ item, badge }) {
   return (
     <Link
       href={`/album/${item.album_id}`}
-      className="flex items-center gap-3 rounded-xl border border-[#2a3645] bg-[#0a121c]/70 px-2.5 py-2 hover:border-[#7cc7e8]/40 transition-colors group min-w-0"
+      className="group flex flex-col min-w-[112px] w-[112px] sm:w-auto sm:min-w-0"
     >
-      <div className="relative w-11 h-11 rounded-lg overflow-hidden bg-[#1f2b3a] flex-shrink-0">
+      <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] transition-all group-hover:border-[#7cc7e8]/50">
         {item.cover ? (
           <Image
             src={item.cover}
             alt=""
             fill
-            sizes="44px"
+            sizes="120px"
             className="object-cover"
             loading="lazy"
           />
-        ) : null}
+        ) : (
+          <div className="w-full h-full bg-[#1f2b3a]" />
+        )}
+        {badge && (
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 pt-4 pb-1.5">
+            <p className="text-[10px] font-semibold text-white text-center leading-tight">
+              {badge}
+            </p>
+          </div>
+        )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors">
-          {item.title}
-        </p>
-        <p className="text-[11px] text-stone-500 truncate">{item.artist}</p>
-      </div>
-      <div className="flex-shrink-0 text-right text-[11px] text-stone-400">
-        {right}
-      </div>
+      <p className="mt-1.5 text-[11px] font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors">
+        {item.title}
+      </p>
+      <p className="text-[10px] text-stone-500 truncate">{item.artist}</p>
     </Link>
+  );
+}
+
+function HStrip({ children }) {
+  return (
+    <>
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none sm:hidden">
+        {children}
+      </div>
+      <div className="hidden sm:grid sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {children}
+      </div>
+    </>
   );
 }
 
@@ -93,7 +126,10 @@ export default function ComparePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [listLoading, setListLoading] = useState(true);
-  const [showAllCommon, setShowAllCommon] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [tab, setTab] = useState("shared");
+  const calRef = useRef(null);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/auth/login");
@@ -121,6 +157,17 @@ export default function ComparePage() {
     };
   }, [user?.username]);
 
+  useEffect(() => {
+    if (!calOpen) return;
+    const onDoc = (e) => {
+      if (calRef.current && !calRef.current.contains(e.target)) {
+        setCalOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [calOpen]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return following;
@@ -137,7 +184,14 @@ export default function ComparePage() {
     setWithUser(username === withUser ? "" : username);
     setResult(null);
     setError("");
-    setShowAllCommon(false);
+    setTab("shared");
+  };
+
+  const setPeriod = (y, m) => {
+    setYear(y);
+    setMonth(m);
+    setCalOpen(false);
+    setResult(null);
   };
 
   const runCompare = async () => {
@@ -145,7 +199,7 @@ export default function ComparePage() {
     setBusy(true);
     setError("");
     setResult(null);
-    setShowAllCommon(false);
+    setTab("shared");
     try {
       const data = await api.compareMonth(user.id, {
         with: withUser,
@@ -168,50 +222,44 @@ export default function ComparePage() {
     );
   }
 
-  const commonPreview = showAllCommon
-    ? result?.common || []
-    : (result?.common || []).slice(0, 6);
-
-  const periodChips = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    periodChips.push({
-      year: d.getFullYear(),
-      month: d.getMonth() + 1,
-      label: `${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`,
-    });
-  }
+  const tabs = result
+    ? [
+        {
+          id: "shared",
+          label: "Shared",
+          count: result.stats?.common ?? 0,
+        },
+        {
+          id: "gaps",
+          label: "Gaps",
+          count: result.both_rated?.length ?? 0,
+        },
+        {
+          id: "you",
+          label: "Only you",
+          count: result.stats?.only_you ?? 0,
+        },
+        {
+          id: "them",
+          label: `@${result.them?.username || "them"}`,
+          count: result.stats?.only_them ?? 0,
+        },
+      ]
+    : [];
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={user} />
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <div className="text-center sm:text-left">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            Compare
-          </h1>
-          <p className="text-sm text-stone-500 mt-1.5 max-w-md">
-            Pick someone you follow and see how your month of albums lines up.
-          </p>
-        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+          Compare
+        </h1>
+        <p className="text-sm text-stone-500 mt-1">
+          Your month vs someone you follow.
+        </p>
 
-        {/* select friend */}
-        <section className="mt-8">
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400">
-              1 · Who
-            </h2>
-            {selected && (
-              <button
-                type="button"
-                onClick={() => pickFriend(selected.username)}
-                className="text-[11px] text-stone-500 hover:text-stone-300"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-
+        {/* friends */}
+        <section className="mt-7">
           {listLoading ? (
             <p className="text-sm text-stone-500 py-6 text-center">
               Loading friends…
@@ -219,13 +267,13 @@ export default function ComparePage() {
           ) : following.length === 0 ? (
             <div className="rounded-2xl border border-[#2a3645] bg-[#131e2c]/40 px-4 py-8 text-center">
               <p className="text-sm text-stone-400">
-                Follow a few people first to compare months.
+                Follow people first to compare months.
               </p>
               <Link
                 href="/discover"
                 className="inline-block mt-3 text-sm text-[#7cc7e8] hover:underline"
               >
-                Discover people
+                Discover
               </Link>
             </div>
           ) : (
@@ -235,32 +283,32 @@ export default function ComparePage() {
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Filter friends…"
+                  placeholder="Filter…"
                   className="w-full mb-3 bg-[#0a121c] border border-[#2a3645] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-[#7cc7e8]"
                 />
               )}
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                {filtered.slice(0, 24).map((f) => {
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {filtered.slice(0, 20).map((f) => {
                   const active = withUser === f.username;
                   return (
                     <button
                       key={f.username}
                       type="button"
                       onClick={() => pickFriend(f.username)}
-                      className={`flex flex-col items-center gap-2 rounded-2xl border px-2 py-3 transition-all ${
+                      className={`flex flex-col items-center gap-1.5 rounded-2xl border px-2 py-2.5 transition-all ${
                         active
-                          ? "border-[#7cc7e8] bg-[#7cc7e8]/10 shadow-sm shadow-[#7cc7e8]/10"
-                          : "border-[#2a3645] bg-[#131e2c]/40 hover:border-[#3d5068]"
+                          ? "border-[#7cc7e8] bg-[#7cc7e8]/10"
+                          : "border-[#2a3645] bg-[#131e2c]/35 hover:border-[#3d5068]"
                       }`}
                     >
                       <Avatar
                         src={f.avatar_url}
                         name={f.username}
-                        size={48}
+                        size={44}
                       />
                       <span
-                        className={`text-[11px] font-medium truncate w-full text-center ${
-                          active ? "text-[#7cc7e8]" : "text-stone-300"
+                        className={`text-[10px] sm:text-[11px] font-medium truncate w-full text-center ${
+                          active ? "text-[#7cc7e8]" : "text-stone-400"
                         }`}
                       >
                         @{f.username}
@@ -269,252 +317,250 @@ export default function ComparePage() {
                   );
                 })}
               </div>
-              {filtered.length > 24 && (
-                <p className="text-[11px] text-stone-600 mt-2 text-center">
-                  Showing 24 of {filtered.length} — use the filter
-                </p>
-              )}
-              {filtered.length === 0 && (
-                <p className="text-sm text-stone-500 py-4 text-center">
-                  No matches
-                </p>
-              )}
             </>
           )}
         </section>
 
-        {/* select period */}
-        <section className={`mt-8 ${!withUser ? "opacity-40 pointer-events-none" : ""}`}>
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-3">
-            2 · Month
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {periodChips.map((p) => {
-              const active = p.year === year && p.month === month;
-              return (
-                <button
-                  key={`${p.year}-${p.month}`}
-                  type="button"
-                  onClick={() => {
-                    setYear(p.year);
-                    setMonth(p.month);
-                    setResult(null);
-                  }}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-                    active
-                      ? "border-[#7cc7e8] bg-[#7cc7e8]/15 text-[#7cc7e8]"
-                      : "border-[#2a3645] text-stone-400 hover:border-[#3d5068] hover:text-stone-200"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        {/* period + action */}
+        <section
+          className={`mt-6 flex flex-wrap items-center gap-3 ${
+            !withUser ? "opacity-40 pointer-events-none" : ""
+          }`}
+        >
+          <div className="relative" ref={calRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setCalYear(year);
+                setCalOpen((v) => !v);
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-[#2a3645] bg-[#131e2c]/60 px-3 py-2.5 text-sm font-semibold text-stone-200 hover:border-[#7cc7e8]/40 transition-colors"
+            >
+              <CalendarIcon className="w-4 h-4 text-[#7cc7e8]" />
+              {MONTH_SHORT[month - 1]} {year}
+            </button>
 
-        <div className="mt-8 flex flex-col sm:flex-row sm:items-center gap-3">
+            {calOpen && (
+              <div className="absolute left-0 top-full mt-2 z-30 w-[240px] rounded-xl border border-[#2a3645] bg-[#0f1720] shadow-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <button
+                    type="button"
+                    className="text-stone-400 hover:text-white px-2 py-1 text-sm"
+                    onClick={() => setCalYear((y) => y - 1)}
+                  >
+                    ‹
+                  </button>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {calYear}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-stone-400 hover:text-white px-2 py-1 text-sm"
+                    onClick={() => setCalYear((y) => y + 1)}
+                  >
+                    ›
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {MONTH_SHORT.map((label, i) => {
+                    const m = i + 1;
+                    const active = calYear === year && m === month;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => setPeriod(calYear, m)}
+                        className={`text-xs font-semibold py-2 rounded-lg transition-colors ${
+                          active
+                            ? "bg-[#7cc7e8] text-[#0a121c]"
+                            : "text-stone-400 hover:bg-[#1f2b3a] hover:text-white"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={runCompare}
             disabled={!withUser || busy}
-            className="w-full sm:w-auto text-sm font-bold px-6 py-3 rounded-xl bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-35 transition-colors"
+            className="text-sm font-bold px-5 py-2.5 rounded-xl bg-[#7cc7e8] text-[#0a121c] hover:bg-[#a5d8f0] disabled:opacity-35 transition-colors"
           >
             {busy
-              ? "Comparing…"
+              ? "…"
               : selected
-                ? `Compare with @${selected.username}`
+                ? `Compare · @${selected.username}`
                 : "Compare"}
           </button>
-          {selected && (
-            <p className="text-xs text-stone-500">
-              {MONTH_NAMES[month - 1]} {year}
-            </p>
-          )}
-        </div>
+        </section>
 
-        {error && (
-          <p className="mt-4 text-sm text-red-400">{error}</p>
-        )}
+        {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
 
-        {/* resultados */}
+        {/* resultado */}
         {result && (
-          <div className="mt-10 space-y-8 animate-in fade-in">
-            {/* match card */}
-            <div className="rounded-2xl border border-[#2a3645] bg-gradient-to-b from-[#131e2c] to-[#0a121c] p-5 sm:p-6">
-              <div className="flex items-center justify-center gap-4 sm:gap-6">
-                <div className="flex flex-col items-center gap-1.5 min-w-0">
-                  <Avatar
-                    src={user.avatar_url}
-                    name={result.you?.username}
-                    size={56}
-                  />
-                  <span className="text-xs text-stone-400 truncate max-w-[5.5rem]">
-                    @{result.you?.username}
-                  </span>
-                </div>
-                <div className="text-center flex-shrink-0">
-                  <p className="text-4xl sm:text-5xl font-black text-[#7cc7e8] tabular-nums leading-none">
+          <div className="mt-8 space-y-5">
+            <div className="rounded-2xl border border-[#2a3645] bg-[#131e2c]/50 px-4 py-5 sm:px-6">
+              <div className="flex items-center justify-center gap-3 sm:gap-5">
+                <Avatar
+                  src={user.avatar_url}
+                  name={result.you?.username}
+                  size={48}
+                />
+                <div className="text-center px-1">
+                  <p className="text-3xl sm:text-4xl font-black text-[#7cc7e8] tabular-nums leading-none">
                     {result.stats?.affinity_percent ?? 0}%
                   </p>
-                  <p className="text-[10px] uppercase tracking-widest text-stone-500 mt-1.5">
-                    affinity
+                  <p className="text-[10px] uppercase tracking-widest text-stone-500 mt-1">
+                    {MONTH_SHORT[month - 1]} {year}
                   </p>
                 </div>
-                <div className="flex flex-col items-center gap-1.5 min-w-0">
-                  <Avatar
-                    src={result.them?.avatar_url || selected?.avatar_url}
-                    name={result.them?.username}
-                    size={56}
-                  />
-                  <Link
-                    href={`/${result.them?.username}`}
-                    className="text-xs text-[#7cc7e8] hover:underline truncate max-w-[5.5rem]"
-                  >
-                    @{result.them?.username}
-                  </Link>
-                </div>
+                <Avatar
+                  src={result.them?.avatar_url || selected?.avatar_url}
+                  name={result.them?.username}
+                  size={48}
+                />
               </div>
-              <p className="text-center text-xs text-stone-500 mt-4">
-                {result.period?.label} · {result.stats?.common ?? 0} albums in
-                common
+              <p className="text-center text-[11px] text-stone-500 mt-3">
+                <span className="text-stone-300 font-medium">
+                  {result.stats?.common ?? 0}
+                </span>{" "}
+                shared · {result.stats?.you_albums ?? 0} yours ·{" "}
+                {result.stats?.them_albums ?? 0} theirs
               </p>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                {[
-                  ["Yours", result.stats?.you_albums],
-                  ["Shared", result.stats?.common],
-                  ["Theirs", result.stats?.them_albums],
-                ].map(([label, n]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl bg-[#0a121c]/80 border border-[#2a3645] py-2"
-                  >
-                    <p className="text-base font-bold tabular-nums">{n ?? 0}</p>
-                    <p className="text-[10px] text-stone-500">{label}</p>
-                  </div>
-                ))}
-              </div>
             </div>
 
-            {result.common?.length > 0 && (
-              <section>
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-3">
-                  Shared listens
-                </h2>
-                <ul className="space-y-2">
-                  {commonPreview.map((item) => (
-                    <li key={item.album_id}>
-                      <AlbumRow
+            {/* tabs */}
+            <div className="flex gap-1 overflow-x-auto scrollbar-none border-b border-[#2a3645] pb-px">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  className={`flex-shrink-0 text-xs font-semibold px-3 py-2 rounded-t-lg border-b-2 transition-colors ${
+                    tab === t.id
+                      ? "border-[#7cc7e8] text-[#7cc7e8]"
+                      : "border-transparent text-stone-500 hover:text-stone-300"
+                  }`}
+                >
+                  {t.label}
+                  <span className="ml-1 tabular-nums opacity-70">
+                    {t.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {tab === "shared" && (
+              <div>
+                {result.common?.length ? (
+                  <HStrip>
+                    {result.common.map((item) => (
+                      <CoverTile
+                        key={item.album_id}
                         item={item}
-                        right={
+                        badge={
                           <>
-                            <p>
-                              <span className="text-[#7cc7e8]">
-                                ×{item.you_plays}
-                              </span>
-                              <span className="text-stone-600"> / </span>
-                              <span>×{item.them_plays}</span>
-                            </p>
+                            ×{item.you_plays}
+                            <span className="text-white/50"> / </span>×
+                            {item.them_plays}
                             {(item.you_rating != null ||
                               item.them_rating != null) && (
-                              <p className="text-yellow-400/90">
-                                {item.you_rating != null
-                                  ? `★${item.you_rating}`
-                                  : "—"}
-                                <span className="text-stone-600"> / </span>
-                                {item.them_rating != null
-                                  ? `★${item.them_rating}`
-                                  : "—"}
-                              </p>
+                              <>
+                                <br />
+                                <span className="text-yellow-400">
+                                  {item.you_rating != null
+                                    ? `★${item.you_rating}`
+                                    : "—"}
+                                  /
+                                  {item.them_rating != null
+                                    ? `★${item.them_rating}`
+                                    : "—"}
+                                </span>
+                              </>
                             )}
                           </>
                         }
                       />
-                    </li>
-                  ))}
-                </ul>
-                {(result.common?.length || 0) > 6 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllCommon((v) => !v)}
-                    className="mt-3 text-xs text-[#7cc7e8] hover:underline"
-                  >
-                    {showAllCommon
-                      ? "Show less"
-                      : `Show all ${result.common.length}`}
-                  </button>
+                    ))}
+                  </HStrip>
+                ) : (
+                  <p className="text-sm text-stone-600 py-4 text-center">
+                    No albums in common this month.
+                  </p>
                 )}
-              </section>
+              </div>
             )}
 
-            {result.both_rated?.length > 0 && (
-              <section>
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-3">
-                  Rating gaps
-                </h2>
-                <ul className="space-y-2">
-                  {result.both_rated.slice(0, 5).map((item) => (
-                    <li key={item.album_id}>
-                      <AlbumRow
+            {tab === "gaps" && (
+              <div>
+                {result.both_rated?.length ? (
+                  <HStrip>
+                    {result.both_rated.slice(0, 12).map((item) => (
+                      <CoverTile
+                        key={item.album_id}
                         item={item}
-                        right={
-                          <p className="text-yellow-400">
-                            ★{item.you_rating}
-                            <span className="text-stone-600"> vs </span>
-                            ★{item.them_rating}
-                          </p>
+                        badge={
+                          <span className="text-yellow-400">
+                            ★{item.you_rating} vs ★{item.them_rating}
+                          </span>
                         }
                       />
-                    </li>
-                  ))}
-                </ul>
-              </section>
+                    ))}
+                  </HStrip>
+                ) : (
+                  <p className="text-sm text-stone-600 py-4 text-center">
+                    No shared ratings yet.
+                  </p>
+                )}
+              </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <section>
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-3">
-                  Only you
-                </h2>
+            {tab === "you" && (
+              <div>
                 {result.only_you?.length ? (
-                  <ul className="space-y-2">
-                    {result.only_you.slice(0, 5).map((item) => (
-                      <li key={item.album_id}>
-                        <AlbumRow
-                          item={item}
-                          right={
-                            <span className="text-[#7cc7e8]">
-                              ×{item.plays}
-                            </span>
-                          }
-                        />
-                      </li>
+                  <HStrip>
+                    {result.only_you.slice(0, 12).map((item) => (
+                      <CoverTile
+                        key={item.album_id}
+                        item={item}
+                        badge={
+                          <span className="text-[#7cc7e8]">×{item.plays}</span>
+                        }
+                      />
                     ))}
-                  </ul>
+                  </HStrip>
                 ) : (
-                  <p className="text-xs text-stone-600">Nothing exclusive</p>
+                  <p className="text-sm text-stone-600 py-4 text-center">
+                    Nothing exclusive.
+                  </p>
                 )}
-              </section>
-              <section>
-                <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-3">
-                  Only @{result.them?.username}
-                </h2>
+              </div>
+            )}
+
+            {tab === "them" && (
+              <div>
                 {result.only_them?.length ? (
-                  <ul className="space-y-2">
-                    {result.only_them.slice(0, 5).map((item) => (
-                      <li key={item.album_id}>
-                        <AlbumRow
-                          item={item}
-                          right={<span>×{item.plays}</span>}
-                        />
-                      </li>
+                  <HStrip>
+                    {result.only_them.slice(0, 12).map((item) => (
+                      <CoverTile
+                        key={item.album_id}
+                        item={item}
+                        badge={<span>×{item.plays}</span>}
+                      />
                     ))}
-                  </ul>
+                  </HStrip>
                 ) : (
-                  <p className="text-xs text-stone-600">Nothing exclusive</p>
+                  <p className="text-sm text-stone-600 py-4 text-center">
+                    Nothing exclusive.
+                  </p>
                 )}
-              </section>
-            </div>
+              </div>
+            )}
           </div>
         )}
       </main>
