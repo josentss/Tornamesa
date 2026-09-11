@@ -8,20 +8,6 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Header, Footer, LoadingSpinner } from "@/components/shared";
 
-const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
 const MONTH_SHORT = [
   "Jan",
   "Feb",
@@ -36,8 +22,6 @@ const MONTH_SHORT = [
   "Nov",
   "Dec",
 ];
-
-const TILE_LIMIT = 8;
 
 function CalendarIcon({ className = "w-4 h-4" }) {
   return (
@@ -110,8 +94,8 @@ function roundRect(ctx, x, y, w, h, r) {
 
 async function generateComparePng(result) {
   const W = 900;
-  const H = 1120;
-  const PAD = 48;
+  const H = 900;
+  const PAD = 40;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -119,58 +103,70 @@ async function generateComparePng(result) {
 
   ctx.fillStyle = "#0a121c";
   ctx.fillRect(0, 0, W, H);
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, "rgba(124,199,232,0.08)");
-  g.addColorStop(0.45, "rgba(0,0,0,0)");
-  g.addColorStop(1, "rgba(0,0,0,0.25)");
-  ctx.fillStyle = g;
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "rgba(124,199,232,0.10)");
+  grad.addColorStop(1, "rgba(0,0,0,0.2)");
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  const textMain = "#f5f0e6";
-  const textMuted = "rgba(245,240,230,0.55)";
+  const main = "#f5f0e6";
+  const muted = "rgba(245,240,230,0.55)";
   const accent = "#7cc7e8";
 
   ctx.fillStyle = accent;
-  ctx.font = "700 14px system-ui, -apple-system, sans-serif";
-  ctx.fillText("COMPARE", PAD, 56);
+  ctx.font = "700 13px system-ui, sans-serif";
+  ctx.fillText("TORNAMESA COMPARE", PAD, 48);
 
-  ctx.fillStyle = textMain;
-  ctx.font = "800 36px system-ui, -apple-system, sans-serif";
-  const vs = `@${result.you?.username || "you"}  vs  @${result.them?.username || ""}`;
-  ctx.fillText(vs.slice(0, 42), PAD, 110);
+  ctx.fillStyle = main;
+  ctx.font = "800 34px system-ui, sans-serif";
+  ctx.fillText(
+    `@${result.you?.username || "you"}  ·  @${result.them?.username || ""}`,
+    PAD,
+    100
+  );
 
-  ctx.fillStyle = textMuted;
-  ctx.font = "600 18px system-ui, -apple-system, sans-serif";
-  ctx.fillText(result.period?.label || "", PAD, 148);
+  ctx.fillStyle = muted;
+  ctx.font = "600 16px system-ui, sans-serif";
+  ctx.fillText(result.period?.label || "", PAD, 132);
 
   ctx.fillStyle = accent;
-  ctx.font = "900 96px system-ui, -apple-system, sans-serif";
-  ctx.fillText(`${result.stats?.affinity_percent ?? 0}%`, PAD, 260);
+  ctx.font = "900 88px system-ui, sans-serif";
+  ctx.fillText(`${result.stats?.affinity_percent ?? 0}%`, PAD, 240);
 
-  ctx.fillStyle = textMuted;
-  ctx.font = "600 16px system-ui, -apple-system, sans-serif";
-  ctx.fillText("affinity this month", PAD, 292);
+  ctx.fillStyle = muted;
+  ctx.font = "600 15px system-ui, sans-serif";
+  ctx.fillText("monthly taste match", PAD, 272);
 
-  ctx.fillStyle = textMain;
-  ctx.font = "600 18px system-ui, -apple-system, sans-serif";
-  const line = `${result.stats?.common ?? 0} matches · ${result.stats?.you_albums ?? 0} yours · ${result.stats?.them_albums ?? 0} theirs`;
-  ctx.fillText(line, PAD, 340);
+  ctx.fillStyle = main;
+  ctx.font = "600 17px system-ui, sans-serif";
+  ctx.fillText(
+    `${result.stats?.common ?? 0} albums · ${result.stats?.common_artists ?? 0} artists shared`,
+    PAD,
+    318
+  );
+  ctx.fillStyle = muted;
+  ctx.font = "500 14px system-ui, sans-serif";
+  ctx.fillText(
+    `Albums ${result.stats?.affinity_albums ?? 0}%  ·  Artists ${result.stats?.affinity_artists ?? 0}%`,
+    PAD,
+    344
+  );
 
   const covers = (result.common || []).slice(0, 4);
   const imgs = await Promise.all(covers.map((c) => loadImage(c.cover)));
-  const size = 168;
-  const gap = 16;
-  const totalW = covers.length * size + (covers.length - 1) * gap;
-  let x = (W - totalW) / 2;
+  const size = 150;
+  const gap = 14;
+  const rowW = covers.length * size + Math.max(0, covers.length - 1) * gap;
+  let x = covers.length ? (W - rowW) / 2 : PAD;
   const y = 400;
 
-  ctx.fillStyle = textMuted;
-  ctx.font = "700 13px system-ui, -apple-system, sans-serif";
-  ctx.fillText("TOP MATCHES", PAD, y - 24);
+  ctx.fillStyle = muted;
+  ctx.font = "700 12px system-ui, sans-serif";
+  ctx.fillText("TOP MATCHES", PAD, y - 20);
 
   for (let i = 0; i < covers.length; i++) {
     const img = imgs[i];
-    roundRect(ctx, x, y, size, size, 16);
+    roundRect(ctx, x, y, size, size, 14);
     ctx.save();
     ctx.clip();
     if (img) ctx.drawImage(img, x, y, size, size);
@@ -179,25 +175,23 @@ async function generateComparePng(result) {
       ctx.fillRect(x, y, size, size);
     }
     ctx.restore();
-
-    ctx.fillStyle = textMain;
-    ctx.font = "700 14px system-ui, -apple-system, sans-serif";
-    const title = (covers[i].title || "").slice(0, 18);
-    ctx.fillText(title, x, y + size + 28);
-    ctx.fillStyle = textMuted;
-    ctx.font = "600 12px system-ui, -apple-system, sans-serif";
+    ctx.fillStyle = main;
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.fillText((covers[i].title || "").slice(0, 16), x, y + size + 24);
+    ctx.fillStyle = muted;
+    ctx.font = "600 12px system-ui, sans-serif";
     ctx.fillText(
       `×${covers[i].you_plays} / ×${covers[i].them_plays}`,
       x,
-      y + size + 48
+      y + size + 44
     );
     x += size + gap;
   }
 
-  ctx.fillStyle = textMuted;
-  ctx.font = "600 16px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = muted;
+  ctx.font = "600 15px system-ui, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("tornamesa.app", W / 2, H - 36);
+  ctx.fillText("tornamesa.app", W / 2, H - 32);
   ctx.textAlign = "left";
 
   return canvas.toDataURL("image/png");
@@ -207,15 +201,15 @@ function CoverTile({ item, badge }) {
   return (
     <Link
       href={`/album/${item.album_id}`}
-      className="group flex flex-col min-w-[120px] w-[120px] sm:w-auto sm:min-w-0"
+      className="group flex flex-col min-w-[96px] w-[96px] sm:min-w-0 sm:w-auto"
     >
-      <div className="relative aspect-square rounded-xl overflow-hidden border border-[#2a3645] bg-[#131e2c] transition-all group-hover:border-[#7cc7e8]/50">
+      <div className="relative aspect-square rounded-lg overflow-hidden border border-[#2a3645] bg-[#131e2c] transition-all group-hover:border-[#7cc7e8]/50">
         {item.cover ? (
           <Image
             src={item.cover}
             alt=""
             fill
-            sizes="140px"
+            sizes="120px"
             className="object-cover"
             loading="lazy"
           />
@@ -223,17 +217,19 @@ function CoverTile({ item, badge }) {
           <div className="w-full h-full bg-[#1f2b3a]" />
         )}
         {badge && (
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pt-5 pb-1.5">
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-1.5 pt-4 pb-1.5">
             <p className="text-[10px] font-semibold text-white text-center leading-tight">
               {badge}
             </p>
           </div>
         )}
       </div>
-      <p className="mt-1.5 text-[11px] font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors">
+      <p className="mt-1 text-[10px] sm:text-[11px] font-semibold text-white truncate group-hover:text-[#7cc7e8] transition-colors">
         {item.title}
       </p>
-      <p className="text-[10px] text-stone-500 truncate">{item.artist}</p>
+      <p className="text-[9px] sm:text-[10px] text-stone-500 truncate">
+        {item.artist}
+      </p>
     </Link>
   );
 }
@@ -241,10 +237,10 @@ function CoverTile({ item, badge }) {
 function TileGrid({ children }) {
   return (
     <>
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none md:hidden">
+      <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none md:hidden">
         {children}
       </div>
-      <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-4 gap-4">
+      <div className="hidden md:grid md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
         {children}
       </div>
     </>
@@ -309,7 +305,9 @@ export default function ComparePage() {
         const y = now.getFullYear();
         const m = now.getMonth() + 1;
         const [a, b] = await Promise.all([
-          api.getMonthlyTop(user.username, { year: y, month: m }).catch(() => null),
+          api
+            .getMonthlyTop(user.username, { year: y, month: m })
+            .catch(() => null),
           api.getMonthlyTop(withUser, { year: y, month: m }).catch(() => null),
         ]);
         const set = new Set();
@@ -413,7 +411,7 @@ export default function ComparePage() {
         await navigator.share({
           files: [file],
           title: "Tornamesa Compare",
-          text: `${result.stats?.affinity_percent ?? 0}% affinity with @${result.them?.username} · ${result.period?.label}`,
+          text: `${result.stats?.affinity_percent ?? 0}% taste match with @${result.them?.username} · ${result.period?.label}`,
         });
       } else {
         const a = document.createElement("a");
@@ -442,8 +440,7 @@ export default function ComparePage() {
           id: "shared",
           label: "Matches",
           count: result.stats?.common ?? 0,
-          items: (result.common || []).slice(0, TILE_LIMIT),
-          extra: Math.max(0, (result.common || []).length - TILE_LIMIT),
+          items: result.common || [],
           badge: (item) => (
             <>
               ×{item.you_plays}
@@ -455,8 +452,7 @@ export default function ComparePage() {
           id: "gaps",
           label: "We disagree",
           count: result.both_rated?.length ?? 0,
-          items: (result.both_rated || []).slice(0, TILE_LIMIT),
-          extra: Math.max(0, (result.both_rated || []).length - TILE_LIMIT),
+          items: result.both_rated || [],
           badge: (item) => (
             <span className="text-yellow-400">
               ★{item.you_rating} vs ★{item.them_rating}
@@ -465,20 +461,18 @@ export default function ComparePage() {
         },
         {
           id: "you",
-          label: "Your exclusive",
+          label: "Just you",
           count: result.stats?.only_you ?? 0,
-          items: (result.only_you || []).slice(0, TILE_LIMIT),
-          extra: Math.max(0, (result.stats?.only_you || 0) - TILE_LIMIT),
+          items: result.only_you || [],
           badge: (item) => (
             <span className="text-[#7cc7e8]">×{item.plays}</span>
           ),
         },
         {
           id: "them",
-          label: "Their exclusive",
+          label: "Just them",
           count: result.stats?.only_them ?? 0,
-          items: (result.only_them || []).slice(0, TILE_LIMIT),
-          extra: Math.max(0, (result.stats?.only_them || 0) - TILE_LIMIT),
+          items: result.only_them || [],
           badge: (item) => <span>×{item.plays}</span>,
         },
       ]
@@ -490,15 +484,13 @@ export default function ComparePage() {
     <div className="flex flex-col min-h-screen bg-[#0a0f16] text-[#f0f9ff]">
       <Header user={user} />
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Compare
-            </h1>
-            <p className="text-sm text-stone-500 mt-1">
-              Your month of albums vs someone you follow.
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Compare
+          </h1>
+          <p className="text-sm text-stone-500 mt-1">
+            See how your month of albums lines up with a friend.
+          </p>
         </div>
 
         <section className="mt-8">
@@ -653,7 +645,7 @@ export default function ComparePage() {
                 </div>
                 {monthsWithData.size > 0 && (
                   <p className="text-[10px] text-stone-600 mt-2 text-center">
-                    Highlighted months have listens
+                    Months with listens are available
                   </p>
                 )}
               </div>
@@ -714,19 +706,35 @@ export default function ComparePage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center sm:items-end gap-2">
+                <div className="flex flex-col items-center sm:items-end gap-1.5">
                   <p className="text-sm text-stone-300 text-center sm:text-right">
                     <span className="text-white font-semibold">
                       {result.stats?.common ?? 0}
                     </span>{" "}
-                    matches · {result.stats?.you_albums ?? 0} yours ·{" "}
-                    {result.stats?.them_albums ?? 0} theirs
+                    albums in common
+                    {result.stats?.common_artists != null && (
+                      <>
+                        {" "}
+                        ·{" "}
+                        <span className="text-white font-semibold">
+                          {result.stats.common_artists}
+                        </span>{" "}
+                        artists overlap
+                      </>
+                    )}
                   </p>
+                  {(result.stats?.affinity_albums != null ||
+                    result.stats?.affinity_artists != null) && (
+                    <p className="text-[11px] text-stone-500 text-center sm:text-right">
+                      Taste mix: {result.stats?.affinity_albums ?? "—"}% albums
+                      · {result.stats?.affinity_artists ?? "—"}% artists
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={handleShare}
                     disabled={shareBusy}
-                    className="text-xs font-semibold px-3.5 py-2 rounded-lg border border-[#2a3645] bg-[#0a121c] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
+                    className="mt-1 text-xs font-semibold px-3.5 py-2 rounded-lg border border-[#2a3645] bg-[#0a121c] text-stone-200 hover:border-[#7cc7e8]/40 disabled:opacity-40 transition-colors"
                   >
                     {shareBusy ? "Preparing…" : "Share result"}
                   </button>
@@ -757,22 +765,15 @@ export default function ComparePage() {
             {activeTab && (
               <div>
                 {activeTab.items.length ? (
-                  <>
-                    <TileGrid>
-                      {activeTab.items.map((item) => (
-                        <CoverTile
-                          key={item.album_id}
-                          item={item}
-                          badge={activeTab.badge(item)}
-                        />
-                      ))}
-                    </TileGrid>
-                    {activeTab.extra > 0 && (
-                      <p className="text-[11px] text-stone-600 mt-3 text-center md:text-left">
-                        +{activeTab.extra} more in this view
-                      </p>
-                    )}
-                  </>
+                  <TileGrid>
+                    {activeTab.items.map((item) => (
+                      <CoverTile
+                        key={item.album_id}
+                        item={item}
+                        badge={activeTab.badge(item)}
+                      />
+                    ))}
+                  </TileGrid>
                 ) : (
                   <p className="text-sm text-stone-600 py-8 text-center">
                     Nothing here for this month.
