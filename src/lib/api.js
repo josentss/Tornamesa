@@ -106,9 +106,10 @@ export const api = {
       headers: await authHeaders(),
     }),
 
-  getUserProfile: (userId) =>
+  getUserProfile: async (userId) =>
     fetchApi(`/api/users/${userId}?_t=${Date.now()}`, {
       cache: 'no-store',
+      headers: await authHeadersOptional(),
     }),
 
   updateUserProfile: async (userId, profileData) =>
@@ -146,9 +147,10 @@ export const api = {
     );
   },
 
-  getProfileStats: (username) =>
+  getProfileStats: async (username) =>
     fetchApi(`/api/profiles/username/${encodeURIComponent(username)}/stats?_t=${Date.now()}`, {
       cache: 'no-store',
+      headers: await authHeadersOptional(),
     }),
 
   followUser: async (userId, targetId) =>
@@ -204,9 +206,10 @@ export const api = {
     });
   },
 
-  getAlbumReviews: (albumId) =>
+  getAlbumReviews: async (albumId) =>
     fetchApi(`/api/albums/${albumId}/reviews?_t=${Date.now()}`, {
       cache: 'no-store',
+      headers: await authHeadersOptional(),
     }),
 
   createReview: async (albumId, rating, reviewText) =>
@@ -216,7 +219,7 @@ export const api = {
       body: JSON.stringify({ rating, review_text: reviewText }),
     }),
 
-  getUserReviews: (username, limit = 20, offset = 0, rating = null) => {
+  getUserReviews: async (username, limit = 20, offset = 0, rating = null) => {
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
@@ -227,7 +230,7 @@ export const api = {
     }
     return fetchApi(
       `/api/profiles/username/${encodeURIComponent(username)}/reviews?${params}`,
-      { cache: 'no-store' }
+      { cache: 'no-store', headers: await authHeadersOptional() }
     );
   },
 
@@ -298,7 +301,7 @@ export const api = {
       body: JSON.stringify({ year, month }),
     }),
 
-  getMonthlyTop: (username, { year, month, week, limit } = {}) => {
+  getMonthlyTop: async (username, { year, month, week, limit } = {}) => {
     const params = new URLSearchParams({ _t: String(Date.now()) });
     if (year != null) params.set('year', year);
     if (month != null) params.set('month', month);
@@ -306,7 +309,7 @@ export const api = {
     if (limit != null) params.set('limit', limit);
     return fetchApi(
       `/api/profiles/username/${encodeURIComponent(username)}/monthly-top?${params}`,
-      { cache: 'no-store' }
+      { cache: 'no-store', headers: await authHeadersOptional() }
     );
   },
 

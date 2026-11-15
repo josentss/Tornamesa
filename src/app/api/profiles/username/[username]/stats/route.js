@@ -1,23 +1,30 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
+import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request, { params }) {
   const { username } = params;
+  const viewer = await getRequestUser(request);
   const supabase = createSupabaseServer();
 
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username')
+      .select('id, username, is_private, diary_public')
       .eq('username', username.toLowerCase())
       .single();
 
     if (profileError || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (!canView(viewer, profile, 'stats')) {
+      return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
     }
 
     const userId = profile.id;
@@ -200,6 +207,6 @@ export async function GET(request, { params }) {
     );
   } catch (error) {
     console.error('Error fetching profile stats:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load profile stats' }, { status: 500 });
   }
 }

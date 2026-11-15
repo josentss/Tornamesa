@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 import {
   getMonthlyTopPayload,
   listMonthsWithActivity,
@@ -28,17 +30,25 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Invalid year/month' }, { status: 400 });
   }
 
+  const viewer = await getRequestUser(request);
   const supabase = createSupabaseServer();
 
   try {
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, username')
+      .select('id, username, is_private, diary_public')
       .ilike('username', username)
       .maybeSingle();
 
     if (error || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (!canView(viewer, profile, 'top')) {
+      return NextResponse.json({ error: 'This top is private' }, { status: 403 });
+    }
+    if (force && viewer?.id !== profile.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const payload = await getMonthlyTopPayload(
@@ -62,6 +72,6 @@ export async function GET(request, { params }) {
     );
   } catch (err) {
     console.error('monthly-top error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load monthly top' }, { status: 500 });
   }
 }
