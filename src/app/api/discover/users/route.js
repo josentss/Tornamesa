@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -42,8 +43,7 @@ export async function GET(request) {
   const limit = Math.min(parseInt(searchParams.get('limit') || '12', 10), 30);
 
   const authUser = await getRequestUser(request);
-  const currentUserId =
-    authUser?.id || searchParams.get('currentUserId') || null;
+  const currentUserId = authUser?.id || null;
 
   const supabase = createSupabaseServer();
 
@@ -81,8 +81,8 @@ export async function GET(request) {
       const sharedByUser = new Map();
       if (myAlbumIds.length > 0 && baseUsers.length > 0) {
         const otherIds = baseUsers
-          .map((u) => u.id)
-          .filter((id) => id !== currentUserId);
+          .filter((u) => u.id !== currentUserId && canView(authUser, u, 'reviews'))
+          .map((u) => u.id);
         if (otherIds.length > 0) {
           const { data: sharedRows } = await supabase
             .from('reviews')
@@ -219,7 +219,7 @@ export async function GET(request) {
           similar = ranked
             .map((r) => {
               const p = profileById.get(r.id);
-              if (!p || p.id === currentUserId) return null;
+              if (!p || p.id === currentUserId || !canView(authUser, p, 'reviews')) return null;
               const sharedAlbums = r.albumIds
                 .slice(0, 3)
                 .map((aid) => {

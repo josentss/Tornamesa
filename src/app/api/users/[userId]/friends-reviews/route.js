@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,11 +72,20 @@ export async function GET(request, { params }) {
     }
 
     const followingIds = following.map((f) => f.following_id);
+    const { data: visibleProfiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, is_private')
+      .in('id', followingIds);
+    if (profilesError) throw profilesError;
+    const visibleIds = (visibleProfiles || [])
+      .filter((profile) => canView(authUser, profile, 'reviews'))
+      .map((profile) => profile.id);
+    if (!visibleIds.length) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } });
 
     const { data: reviewsData, error } = await supabase
       .from('reviews')
       .select('id, album_id, rating, review_text, created_at, user_id')
-      .in('user_id', followingIds)
+      .in('user_id', visibleIds)
       .order('created_at', { ascending: false })
       .limit(12);
 
@@ -141,6 +151,6 @@ export async function GET(request, { params }) {
     });
   } catch (err) {
     console.error('Friends reviews error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load friends reviews' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
+import { canView } from '@/lib/canView';
 import {
   normalizeTimeZone,
   zonedMonthRange,
@@ -103,7 +104,7 @@ export async function GET(request, { params }) {
 
     const { data: other } = await supabase
       .from('profiles')
-      .select('id, username, full_name, avatar_url, is_private, timezone')
+      .select('id, username, full_name, avatar_url, is_private, diary_public, timezone')
       .ilike('username', withUsername)
       .maybeSingle();
 
@@ -115,6 +116,9 @@ export async function GET(request, { params }) {
         { error: 'Cannot compare with yourself' },
         { status: 400 }
       );
+    }
+    if (!canView(authUser, other, 'diary')) {
+      return NextResponse.json({ error: 'This diary is private' }, { status: 403 });
     }
 
     const { data: follow } = await supabase
@@ -238,7 +242,7 @@ export async function GET(request, { params }) {
   } catch (e) {
     console.error('compare:', e);
     return NextResponse.json(
-      { error: e.message || 'Compare failed' },
+      { error: 'Compare failed' },
       { status: 500 }
     );
   }

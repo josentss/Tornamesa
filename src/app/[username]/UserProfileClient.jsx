@@ -99,7 +99,7 @@ export default function UserProfileClient({ params }) {
   const isOwner =
     currentUser && profileData && currentUser.id === profileData.id;
   const isPrivateLocked = !!profileData?.is_private && !isOwner;
-  const canShowActivity = isOwner || profileData?.show_activity !== false;
+  const canShowActivity = isOwner || (profileData?.show_activity !== false && profileData?.diary_public !== false);
   const canShowDiaryLink =
     isOwner ||
     (profileData?.diary_public !== false && !isPrivateLocked);

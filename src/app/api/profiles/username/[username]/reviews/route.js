@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
+import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -55,17 +57,22 @@ export async function GET(request, { params }) {
       ? parseInt(ratingParam, 10)
       : null;
 
+  const viewer = await getRequestUser(request);
   const supabase = createSupabaseServer();
 
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username')
+      .select('id, username, is_private')
       .eq('username', username.toLowerCase())
       .single();
 
     if (profileError || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    if (!canView(viewer, profile, 'reviews')) {
+      return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
     }
 
     let query = supabase
@@ -149,6 +156,6 @@ export async function GET(request, { params }) {
     );
   } catch (err) {
     console.error('GET user reviews error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load reviews' }, { status: 500 });
   }
 }

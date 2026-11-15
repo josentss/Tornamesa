@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { ensureToListenList, getListsWithCounts } from '@/lib/lists';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,18 +17,18 @@ export async function GET(request, { params }) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('is_private')
+      .select('id, is_private')
       .eq('id', userId)
       .maybeSingle();
 
     const authUser = await getRequestUser(request);
     const isOwner = authUser?.id === userId;
-    const isPrivate = profile?.is_private === true;
+    if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
     if (albumId) {
       if (!authUser) return unauthorized();
       if (!isOwner) return forbidden();
-    } else if (isPrivate && !isOwner) {
+    } else if (!canView(authUser, profile, 'lists')) {
       return NextResponse.json(
         { error: 'This profile is private', lists: [] },
         { status: 403 }
@@ -71,7 +72,7 @@ export async function GET(request, { params }) {
     );
   } catch (err) {
     console.error('GET lists error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load or save lists' }, { status: 500 });
   }
 }
 
@@ -132,6 +133,6 @@ export async function POST(request, { params }) {
     );
   } catch (err) {
     console.error('POST list error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load or save lists' }, { status: 500 });
   }
 }

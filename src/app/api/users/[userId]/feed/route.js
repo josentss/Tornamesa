@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -27,6 +28,24 @@ export async function GET(request, { params }) {
     }
 
     const followingIds = following.map((f) => f.following_id);
+    const [{ data: profiles, error: profilesError }, { data: reciprocal, error: reciprocalError }] =
+      await Promise.all([
+        supabase.from('profiles')
+          .select('id, is_private, diary_public, show_activity')
+          .in('id', followingIds),
+        supabase.from('follows')
+          .select('follower_id')
+          .eq('following_id', userId)
+          .in('follower_id', followingIds),
+      ]);
+    if (profilesError || reciprocalError) throw profilesError || reciprocalError;
+    const reciprocatedIds = new Set((reciprocal || []).map((row) => row.follower_id));
+    const visibleIds = (profiles || [])
+      .filter((profile) => canView(authUser, profile, 'feed', {
+        mutualFollow: reciprocatedIds.has(profile.id),
+      }))
+      .map((profile) => profile.id);
+    if (!visibleIds.length) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } });
 
     const { data: feedData, error } = await supabase
       .from('listens')
@@ -43,7 +62,7 @@ export async function GET(request, { params }) {
         albums ( spotify_id, title, artist, cover_url )
       `
       )
-      .in('user_id', followingIds)
+      .in('user_id', visibleIds)
       .order('created_at', { ascending: false, nullsFirst: false })
       .limit(40);
 
@@ -111,6 +130,6 @@ export async function GET(request, { params }) {
     });
   } catch (error) {
     console.error('Feed error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load feed' }, { status: 500 });
   }
 }

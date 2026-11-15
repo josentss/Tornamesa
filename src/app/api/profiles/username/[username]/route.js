@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -41,7 +42,7 @@ export async function GET(request, { params }) {
       .eq('id', base.id)
       .maybeSingle();
 
-    if (privacyError) {
+    if (privacyError || !privacy) {
       return NextResponse.json(
         { error: 'Failed to load profile' },
         { status: 500, headers: noStoreHeaders }
@@ -51,8 +52,6 @@ export async function GET(request, { params }) {
     const is_private = privacy?.is_private === true;
     const diary_public = privacy?.diary_public !== false;
     const show_activity = privacy?.show_activity !== false;
-
-    const isOwner = !!(viewerId && viewerId === base.id);
 
     const [{ count: followers }, { count: following }] = await Promise.all([
       supabase
@@ -77,7 +76,7 @@ export async function GET(request, { params }) {
     }
 
     // Private profile for non-owners: limited data, no socials
-    if (is_private && !isOwner) {
+    if (!canView(authUser, { ...base, ...privacy }, 'profile')) {
       return NextResponse.json(
         {
           profile: {
@@ -104,6 +103,14 @@ export async function GET(request, { params }) {
         },
         { headers: noStoreHeaders }
       );
+    }
+
+    if (!canView(authUser, { ...base, ...privacy }, 'diary')) {
+      return NextResponse.json({
+        profile: { ...base, is_private, diary_public, show_activity, followers: followers || 0, following: following || 0, isFollowing },
+        listens: [],
+        restricted: false,
+      }, { headers: noStoreHeaders });
     }
 
     const { data: listensData, error: listensError } = await supabase

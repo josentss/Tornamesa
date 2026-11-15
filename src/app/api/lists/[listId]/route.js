@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -62,15 +63,12 @@ export async function GET(request, { params }) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('username, is_private')
+      .select('id, username, is_private')
       .eq('id', list.user_id)
       .maybeSingle();
 
     const authUser = await getRequestUser(request);
-    const isOwner = authUser?.id === list.user_id;
-    const isPrivate = profile?.is_private === true;
-
-    if (isPrivate && !isOwner) {
+    if (!canView(authUser, profile, 'lists')) {
       return NextResponse.json(
         { error: 'This list is private' },
         { status: 403 }
@@ -139,7 +137,7 @@ export async function GET(request, { params }) {
     );
   } catch (err) {
     console.error('GET list error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load or modify list' }, { status: 500 });
   }
 }
 
@@ -210,7 +208,7 @@ export async function PATCH(request, { params }) {
     });
   } catch (err) {
     console.error('PATCH list error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load or modify list' }, { status: 500 });
   }
 }
 
@@ -246,6 +244,6 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('DELETE list error:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load or modify list' }, { status: 500 });
   }
 }

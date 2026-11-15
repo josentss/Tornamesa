@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,7 +19,6 @@ export async function GET(request, { params }) {
   const offset = parseInt(searchParams.get('offset') || '0', 10);
 
   const authUser = await getRequestUser(request);
-  const viewerId = authUser?.id || null;
 
   const supabase = createSupabaseServer();
 
@@ -38,15 +38,11 @@ export async function GET(request, { params }) {
 
     const { data: privacy } = await supabase
       .from('profiles')
-      .select('is_private, diary_public')
+      .select('id, is_private, diary_public')
       .eq('id', base.id)
       .maybeSingle();
 
-    const isOwner = !!(viewerId && viewerId === base.id);
-    const isPrivate = privacy?.is_private === true;
-    const diaryClosed = privacy?.diary_public === false;
-
-    if (!isOwner && (isPrivate || diaryClosed)) {
+    if (!canView(authUser, privacy, 'diary')) {
       return NextResponse.json(
         { error: 'This diary is private' },
         { status: 403, headers: noStoreHeaders }
