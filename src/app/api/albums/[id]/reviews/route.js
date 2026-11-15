@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,6 +13,7 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Album ID is required' }, { status: 400 });
   }
 
+  const viewer = await getRequestUser(request);
   const supabase = createSupabaseServer();
 
   try {
@@ -27,7 +30,8 @@ export async function GET(request, { params }) {
         profiles (
           id,
           username,
-          avatar_url
+          avatar_url,
+          is_private
         )
       `
       )
@@ -43,7 +47,7 @@ export async function GET(request, { params }) {
       const ids = [...new Set(missing.filter(Boolean))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url')
+        .select('id, username, avatar_url, is_private')
         .in('id', ids);
       const map = {};
       (profiles || []).forEach((p) => {
@@ -55,7 +59,9 @@ export async function GET(request, { params }) {
       }));
     }
 
-    const reviews = rows.map((r) => ({
+    const reviews = rows
+      .filter((r) => canView(viewer, r.profiles, 'reviews'))
+      .map((r) => ({
       id: r.id,
       rating: r.rating,
       reviewText: r.review_text || null,
@@ -74,6 +80,6 @@ export async function GET(request, { params }) {
     );
   } catch (err) {
     console.error('GET album reviews:', err);
-    return NextResponse.json({ error: err.message || 'Failed to load reviews' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load reviews' }, { status: 500 });
   }
 }
