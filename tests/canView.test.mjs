@@ -43,3 +43,17 @@ test('mutual follow reveals hidden feed only for nonprivate, open diary', () => 
   assert.equal(canView(visitor, { ...profile, is_private: true }, 'feed', { mutualFollow: true }), false);
   assert.equal(canView(visitor, { ...profile, diary_public: false }, 'feed', { mutualFollow: true }), false);
 });
+
+test('follow relationships are hidden from non-owners of private profiles', () => {
+  const privateProfile = { ...open, is_private: true };
+  assert.equal(canView(null, privateProfile, 'follows'), false);
+  assert.equal(canView(visitor, privateProfile, 'follows'), false);
+  assert.equal(canView(owner, privateProfile, 'follows'), true);
+});
+
+test('public follow relationships remain available when diary and activity are closed', () => {
+  const publicProfile = { ...open, diary_public: false, show_activity: false };
+  assert.equal(canView(null, publicProfile, 'follows'), true);
+  assert.equal(canView(visitor, publicProfile, 'follows'), true);
+  assert.equal(canView(visitor, { ...publicProfile, is_private: null }, 'follows'), false);
+});
