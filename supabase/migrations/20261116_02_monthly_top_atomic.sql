@@ -24,11 +24,14 @@ BEGIN
   FROM public.profiles AS p
   WHERE p.id = p_user_id;
 
-  IF v_tz IS NULL OR NOT EXISTS (
-    SELECT 1 FROM pg_catalog.pg_timezone_names AS z WHERE z.name = v_tz
-  ) THEN
+  IF v_tz IS NULL THEN RETURN 'UTC'; END IF;
+  -- A direct timezone conversion is cheaper than enumerating pg_timezone_names
+  -- for every trigger row in a multi-listen import.
+  BEGIN
+    PERFORM now() AT TIME ZONE v_tz;
+  EXCEPTION WHEN invalid_parameter_value THEN
     RETURN 'UTC';
-  END IF;
+  END;
   RETURN v_tz;
 END;
 $$;
