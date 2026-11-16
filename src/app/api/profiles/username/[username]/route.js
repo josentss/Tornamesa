@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { getRequestUser, createRequestSupabaseClient } from '@/lib/apiAuth';
+import { getRequestUser } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
-import { getVisibleFollowCounts } from '@/lib/followsVisibility';
+import { getFollowCounts } from '@/lib/followsVisibility';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -54,11 +54,8 @@ export async function GET(request, { params }) {
     const diary_public = privacy?.diary_public !== false;
     const show_activity = privacy?.show_activity !== false;
 
-    // The counters match the RLS-visible relations shown on follow list pages.
-    // Do not expose counts for a private profile to unrelated visitors.
-    const { followers, following } = canView(authUser, { ...base, ...privacy }, 'follows')
-      ? await getVisibleFollowCounts(createRequestSupabaseClient(request, authUser), base.id)
-      : { followers: 0, following: 0 };
+    // Counts include every relationship; private directory contents stay owner-only.
+    const { followers, following } = await getFollowCounts(supabase, base.id);
 
     let isFollowing = false;
     if (viewerId && viewerId !== base.id) {

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { getRequestUser, createRequestSupabaseClient } from '@/lib/apiAuth';
+import { getRequestUser } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
-import { getVisibleFollowPage } from '@/lib/followsVisibility';
+import { getFollowPage } from '@/lib/followsVisibility';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -50,10 +50,9 @@ export async function GET(request, { params }) {
       );
     }
 
-    // RLS filters both ends of each relationship before pagination/counting.
-    const readClient = createRequestSupabaseClient(request, authUser);
-    const { users, total } = await getVisibleFollowPage(
-      readClient, supabase, 'followers', profile.id, limit, offset
+    // The subject's directory is authorized above. Include private participants.
+    const { users, total } = await getFollowPage(
+      supabase, authUser, profile, 'followers', limit, offset
     );
 
     let followingSet = new Set();
