@@ -18,6 +18,7 @@ export default function UserProfileClient({ params }) {
 
   const [profileData, setProfileData] = useState(null);
   const [profileRestricted, setProfileRestricted] = useState(false);
+  const [relationshipRevision, setRelationshipRevision] = useState(0);
   const [stats, setStats] = useState(null);
   const [recentReviews, setRecentReviews] = useState([]);
   const [userLists, setUserLists] = useState([]);
@@ -96,7 +97,7 @@ export default function UserProfileClient({ params }) {
     return () => {
       cancelled = true;
     };
-  }, [resolvedUsername, currentUser?.id]);
+  }, [resolvedUsername, currentUser?.id, relationshipRevision]);
 
   const isOwner =
     currentUser && profileData && currentUser.id === profileData.id;
@@ -181,6 +182,8 @@ export default function UserProfileClient({ params }) {
           type: "success",
         });
       }
+      // Re-check reciprocal access immediately after following/unfollowing.
+      setRelationshipRevision((revision) => revision + 1);
     } catch (err) {
       console.error(err);
       setToast({ message: "Something went wrong", type: "error" });
