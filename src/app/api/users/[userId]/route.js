@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { validateUsername, sanitizeString } from '@/lib/validators';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -126,7 +126,7 @@ export async function GET(request, { params }) {
     if (!data && viewer?.id !== userId) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404, headers: noStoreHeaders });
     }
-    if (data && !canView(viewer, data, 'profile')) {
+    if (data && !await canViewWithFollows(supabase, viewer, data, 'profile')) {
       return NextResponse.json({ error: 'This profile is private' }, { status: 403, headers: noStoreHeaders });
     }
     return NextResponse.json(normalizeProfile(data, userId), {

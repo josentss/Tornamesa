@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 import {
   getMonthlyTopPayload,
   listMonthsWithActivity,
@@ -44,7 +44,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!canView(viewer, profile, 'top')) {
+    if (!await canViewWithFollows(supabase, viewer, profile, 'top')) {
       return NextResponse.json({ error: 'This top is private' }, { status: 403 });
     }
     if (force && viewer?.id !== profile.id) {

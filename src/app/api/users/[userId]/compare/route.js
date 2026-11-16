@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 import {
   normalizeTimeZone,
   zonedMonthRange,
@@ -117,7 +117,7 @@ export async function GET(request, { params }) {
         { status: 400 }
       );
     }
-    if (!canView(authUser, other, 'diary')) {
+    if (!await canViewWithFollows(supabase, authUser, other, 'diary')) {
       return NextResponse.json({ error: 'This diary is private' }, { status: 403 });
     }
 

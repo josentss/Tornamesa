@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
+import { isMutualFollow } from '@/lib/visibilityAccess';
 import { getFollowCounts } from '@/lib/followsVisibility';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,8 @@ export async function GET(request, { params }) {
       );
     }
 
+    const mutualFollow = await isMutualFollow(supabase, authUser, { ...base, ...privacy });
+    const viewOptions = { mutualFollow };
     const is_private = privacy?.is_private === true;
     const diary_public = privacy?.diary_public !== false;
     const show_activity = privacy?.show_activity !== false;
@@ -69,7 +72,7 @@ export async function GET(request, { params }) {
     }
 
     // Private profile for non-owners: limited data, no socials
-    if (!canView(authUser, { ...base, ...privacy }, 'profile')) {
+    if (!canView(authUser, { ...base, ...privacy }, 'profile', viewOptions)) {
       return NextResponse.json(
         {
           profile: {
@@ -98,7 +101,16 @@ export async function GET(request, { params }) {
       );
     }
 
-    if (!canView(authUser, { ...base, ...privacy }, 'diary')) {
+    if (!canView(authUser, { ...base, ...privacy }, 'diary', viewOptions)) {
+      return NextResponse.json({
+        profile: { ...base, is_private, diary_public, show_activity, followers: followers || 0, following: following || 0, isFollowing },
+        listens: [],
+        restricted: false,
+      }, { headers: noStoreHeaders });
+    }
+
+    // The public diary may be readable without publishing recent activity.
+    if (!canView(authUser, { ...base, ...privacy }, 'feed', viewOptions)) {
       return NextResponse.json({
         profile: { ...base, is_private, diary_public, show_activity, followers: followers || 0, following: following || 0, isFollowing },
         listens: [],
