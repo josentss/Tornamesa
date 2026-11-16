@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
+import { canView } from '@/lib/canView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,18 +15,23 @@ const noStoreHeaders = {
 export async function GET(request, { params }) {
   const { username } = params;
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') || '40', 10), 100);
-  const offset = parseInt(searchParams.get('offset') || '0', 10);
+  const requestedLimit = Number.parseInt(searchParams.get('limit') || '40', 10);
+  const requestedOffset = Number.parseInt(searchParams.get('offset') || '0', 10);
+  const limit = Number.isSafeInteger(requestedLimit)
+    ? Math.max(1, Math.min(requestedLimit, 100))
+    : 40;
+  const offset = Number.isSafeInteger(requestedOffset)
+    ? Math.max(0, requestedOffset)
+    : 0;
   const authUser = await getRequestUser(request);
-  const currentUserId =
-    authUser?.id || searchParams.get('currentUserId') || null;
+  const currentUserId = authUser?.id || null;
 
   const supabase = createSupabaseServer();
 
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username')
+      .select('id, username, is_private')
       .ilike('username', username)
       .maybeSingle();
 
@@ -33,6 +39,13 @@ export async function GET(request, { params }) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404, headers: noStoreHeaders }
+      );
+    }
+
+    if (!canView(authUser, profile, 'follows')) {
+      return NextResponse.json(
+        { error: 'This profile is private' },
+        { status: 403, headers: noStoreHeaders }
       );
     }
 
@@ -95,7 +108,7 @@ export async function GET(request, { params }) {
   } catch (error) {
     console.error('GET following:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to load following' },
+      { error: 'Failed to load following' },
       { status: 500, headers: noStoreHeaders }
     );
   }
