@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { sanitizeString } from '@/lib/validators';
-import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
-import {
-  normalizeTimeZone,
-  monthsFromIsoInZone,
-  zonedLocalToUtc,
-} from '@/lib/timezone';
+import { normalizeTimeZone, zonedLocalToUtc } from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,8 +64,6 @@ export async function PATCH(request, { params }) {
     }
 
     const fields = {};
-    const oldIso = existing.listened_at || null;
-
     if (body.listened_at != null && body.listened_at !== '') {
       let iso = String(body.listened_at).trim();
       if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
@@ -127,27 +120,8 @@ export async function PATCH(request, { params }) {
 
     if (updateErr) throw updateErr;
 
-    try {
-      const months = new Set();
-      if (oldIso) {
-        for (const { year, month } of monthsFromIsoInZone(oldIso, tz)) {
-          months.add(`${year}-${month}`);
-        }
-      }
-      const newIso = fields.listened_at || oldIso;
-      if (newIso) {
-        for (const { year, month } of monthsFromIsoInZone(newIso, tz)) {
-          months.add(`${year}-${month}`);
-        }
-      }
-      for (const key of months) {
-        const [y, m] = key.split('-').map(Number);
-        await recomputeMonthlyTop(authUser.id, y, m, tz);
-      }
-    } catch (e) {
-      console.warn('monthly top recompute on edit:', e);
-    }
-
+    // SQL trigger invalidates affected user-local months (old and new)
+    // within this UPDATE; readers rebuild the dirty summaries on demand.
     return NextResponse.json(
       { success: true, data: updated },
       { headers: noStoreHeaders }
@@ -210,19 +184,7 @@ export async function DELETE(request, { params }) {
 
     if (delErr) throw delErr;
 
-    try {
-      if (existing.listened_at) {
-        for (const { year, month } of monthsFromIsoInZone(
-          existing.listened_at,
-          tz
-        )) {
-          await recomputeMonthlyTop(authUser.id, year, month, tz);
-        }
-      }
-    } catch (e) {
-      console.warn('monthly top recompute on delete:', e);
-    }
-
+    // SQL trigger invalidates the month before DELETE returns.
     return NextResponse.json(
       { success: true, deletedId: id },
       { headers: noStoreHeaders }

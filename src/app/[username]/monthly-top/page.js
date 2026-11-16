@@ -331,6 +331,8 @@ function MonthlyTopContent({ username: usernameProp }) {
   const searchParams = useSearchParams();
 
   const now = new Date();
+  const hasYearParam = searchParams.has("year");
+  const hasMonthParam = searchParams.has("month");
   const year = parseInt(searchParams.get("year") || now.getUTCFullYear(), 10);
   const month = parseInt(searchParams.get("month") || now.getUTCMonth() + 1, 10);
   const weekParam = searchParams.get("week");
@@ -368,12 +370,23 @@ function MonthlyTopContent({ username: usernameProp }) {
       setError(null);
       try {
         const res = await api.getMonthlyTop(usernameProp, {
-          year,
-          month,
+          year: hasYearParam ? year : undefined,
+          month: hasMonthParam ? month : undefined,
           week: week ?? undefined,
           limit: 500,
         });
-        if (!cancelled) setData(res);
+        if (!cancelled) {
+          setData(res);
+          // Resolve the default month in the profile owner's timezone, not UTC.
+          // Canonicalize URL once so calendar navigation and sharing agree.
+          if (!hasYearParam || !hasMonthParam) {
+            const params = new URLSearchParams();
+            params.set("year", String(res.year));
+            params.set("month", String(res.month));
+            if (week != null) params.set("week", String(week));
+            router.replace(`/${usernameProp}/monthly-top?${params.toString()}`, { scroll: false });
+          }
+        }
       } catch (err) {
         if (!cancelled) setError(err.message || "Could not load monthly top");
       } finally {
@@ -384,7 +397,7 @@ function MonthlyTopContent({ username: usernameProp }) {
     return () => {
       cancelled = true;
     };
-  }, [usernameProp, year, month, week, reloadKey]);
+  }, [usernameProp, year, month, week, hasYearParam, hasMonthParam, router, reloadKey]);
 
   const setPeriod = (next) => {
     const params = new URLSearchParams();

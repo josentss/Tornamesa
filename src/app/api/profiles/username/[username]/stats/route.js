@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { recomputeMonthlyTop } from '@/lib/monthlyTop';
+import { ensureMonthlyTop } from '@/lib/monthlyTop';
+import { normalizeTimeZone, localDateKey, zonedMonthRange, zonedLocalToUtc } from '@/lib/timezone';
 import { getRequestUser } from '@/lib/apiAuth';
 import { canViewWithFollows } from '@/lib/visibilityAccess';
 
@@ -15,7 +16,7 @@ export async function GET(request, { params }) {
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username, is_private, diary_public, show_activity')
+      .select('id, username, is_private, diary_public, show_activity, timezone')
       .eq('username', username.toLowerCase())
       .single();
 
@@ -28,11 +29,11 @@ export async function GET(request, { params }) {
     }
 
     const userId = profile.id;
-    const now = new Date();
-    const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const nowYear = now.getUTCFullYear();
-    const nowMonth = now.getUTCMonth() + 1;
+    const tz = normalizeTimeZone(profile.timezone || 'UTC');
+    const today = localDateKey(new Date(), tz);
+    const [nowYear, nowMonth] = today.split('-').map(Number);
+    const startOfYear = zonedLocalToUtc(nowYear, 1, 1, 0, 0, 0, tz).toISOString();
+    const { start: startOfMonth } = zonedMonthRange(nowYear, nowMonth, tz);
 
     // Unique albums this year / this month (not total listen rows)
     const [{ data: yearRows }, { data: monthRows }] = await Promise.all([
@@ -58,25 +59,8 @@ export async function GET(request, { params }) {
     // Monthly top from dedicated table
     let monthlyTop = [];
     try {
-      let { data: summary } = await supabase
-        .from('monthly_summaries')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('year', nowYear)
-        .eq('month', nowMonth)
-        .maybeSingle();
-
-      if (!summary) {
-        await recomputeMonthlyTop(userId, nowYear, nowMonth);
-        const res = await supabase
-          .from('monthly_summaries')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('year', nowYear)
-          .eq('month', nowMonth)
-          .maybeSingle();
-        summary = res.data;
-      }
+      // Rebuild only if missing/dirty: profile stats must not serve stale tops.
+      const summary = await ensureMonthlyTop(userId, nowYear, nowMonth);
 
       if (summary) {
         const { data: entries } = await supabase
