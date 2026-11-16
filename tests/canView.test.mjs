@@ -17,7 +17,7 @@ test('missing profile fails closed', () => {
   assert.equal(canView(visitor, open, 'unknown'), false);
 });
 
-test('private profile is visible only to its owner across scopes', () => {
+test('private profile without verified reciprocal access is owner-only', () => {
   const profile = { ...open, is_private: true };
   for (const scope of ['profile', 'diary', 'top', 'stats', 'reviews', 'lists', 'feed', 'follows']) {
     assert.equal(canView(visitor, profile, scope), false, scope);
@@ -81,4 +81,18 @@ test('public follow relationships remain available when diary and activity are c
   assert.equal(canView(null, publicProfile, 'follows'), true);
   assert.equal(canView(visitor, publicProfile, 'follows'), true);
   assert.equal(canView(visitor, { ...publicProfile, is_private: null }, 'follows'), false);
+});
+
+test('independent diary and activity flags form the expected four-state matrix', () => {
+  for (const diaryPublic of [true, false]) {
+    for (const showActivity of [true, false]) {
+      const profile = { ...open, diary_public: diaryPublic, show_activity: showActivity };
+      assert.equal(canView(visitor, profile, 'diary'), diaryPublic);
+      assert.equal(canView(visitor, profile, 'top'), diaryPublic);
+      assert.equal(canView(visitor, profile, 'stats'), diaryPublic);
+      assert.equal(canView(visitor, profile, 'feed'), diaryPublic && showActivity);
+      assert.equal(canView(visitor, profile, 'reviews'), true);
+      assert.equal(canView(owner, profile, 'feed'), true);
+    }
+  }
 });
