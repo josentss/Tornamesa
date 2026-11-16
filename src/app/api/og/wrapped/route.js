@@ -1,5 +1,9 @@
 import { ImageResponse } from 'next/og';
-import { createClient } from '@supabase/supabase-js';
+import { createSupabaseServer } from '@/lib/supabase-server';
+import { getRequestUser } from '@/lib/apiAuth';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
+import { ensureMonthlyTop } from '@/lib/monthlyTop';
+import { localDateKey, normalizeTimeZone } from '@/lib/timezone';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,13 +12,6 @@ const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-
-function supabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-}
 
 async function coverToDataUrl(url) {
   if (!url) return null;
@@ -33,20 +30,20 @@ async function coverToDataUrl(url) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const username = searchParams.get('username');
-  const now = new Date();
-  const year = parseInt(searchParams.get('year') || String(now.getUTCFullYear()), 10);
-  const month = parseInt(searchParams.get('month') || String(now.getUTCMonth() + 1), 10);
+  const yearArg = searchParams.get('year');
+  const monthArg = searchParams.get('month');
 
   if (!username) {
     return new Response('Missing username', { status: 400 });
   }
 
   try {
-    const supabase = supabaseAdmin();
+    const supabase = createSupabaseServer();
+    const viewer = await getRequestUser(request);
 
     const { data: profile, error: profileErr } = await supabase
       .from('profiles')
-      .select('id, username')
+      .select('id, username, is_private, diary_public, timezone')
       .eq('username', username.toLowerCase())
       .single();
 
@@ -54,13 +51,26 @@ export async function GET(request) {
       return new Response('User not found', { status: 404 });
     }
 
-    const { data: summary } = await supabase
-      .from('monthly_summaries')
-      .select('id, total_listens, unique_albums')
-      .eq('user_id', profile.id)
-      .eq('year', year)
-      .eq('month', month)
-      .maybeSingle();
+    // Image URLs are often loaded without an Authorization header.
+    // Public diary content is visible anonymously; mutual/private content
+    // requires a verified bearer identity and is NEVER rendered for strangers.
+    if (!await canViewWithFollows(supabase, viewer, profile, 'top')) {
+      return new Response('This top is private', {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store' },
+      });
+    }
+
+    const today = localDateKey(new Date(), normalizeTimeZone(profile.timezone || 'UTC'));
+    const [defaultYear, defaultMonth] = today.split('-').map(Number);
+    const year = yearArg == null ? defaultYear : Number(yearArg);
+    const month = monthArg == null ? defaultMonth : Number(monthArg);
+    if (!Number.isInteger(year) || year < 1900 || year > 2100 ||
+        !Number.isInteger(month) || month < 1 || month > 12) {
+      return new Response('Invalid year/month', { status: 400 });
+    }
+
+    const summary = await ensureMonthlyTop(profile.id, year, month);
 
     let albums = [];
     let totalListens = 0;
@@ -281,10 +291,10 @@ export async function GET(request) {
           </div>
         </div>
       ),
-      { width: 1080, height: 1350 }
+      { width: 1080, height: 1350, headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (err) {
     console.error('Wrapped OG error:', err);
-    return new Response(String(err?.message || err), { status: 500 });
+    return new Response('Failed to generate Wrapped image', { status: 500 });
   }
 }
