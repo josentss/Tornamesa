@@ -144,6 +144,7 @@ export default function AccountSettingsPage() {
     privacyUserRef.current = user?.id ?? null;
     privacySavingRef.current = false;
     confirmedPrivacyRef.current = null;
+    setSavingPrivacy(false);
     setPrivacyLoaded(false);
     setPrivacyUnavailable(false);
     setPrivacyMsg({ type: "", text: "" });
@@ -491,7 +492,7 @@ export default function AccountSettingsPage() {
                   disabled={savingPrivacy || privacyUnavailable}
                   onChange={(v) => handleToggle("isPrivate", v)}
                   label="Private profile"
-                  description="Only you and mutual followers can open your full profile. Others see a limited view."
+                  description="Only you and mutual followers can open your profile details. Diary and activity controls still apply."
                 />
                 <Toggle
                   id="public-diary"

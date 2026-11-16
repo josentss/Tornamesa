@@ -83,7 +83,7 @@ export default function PrivacyPage() {
             </h2>
             <p>
               A private profile shows a limited view to other people. You and
-              people who follow you mutually can open your full profile. A
+              people who follow you mutually can open your profile details and permitted sections. A
               one-way follow does not grant access. Private accounts can still
               appear in the follower or following lists of public accounts,
               and follower counts remain visible.
