@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
+import { isMutualFollow } from '@/lib/visibilityAccess';
 import { getFollowPage } from '@/lib/followsVisibility';
 
 export const dynamic = 'force-dynamic';
@@ -43,7 +44,8 @@ export async function GET(request, { params }) {
       );
     }
 
-    if (!canView(authUser, profile, 'follows')) {
+    const mutualFollow = await isMutualFollow(supabase, authUser, profile);
+    if (!canView(authUser, profile, 'follows', { mutualFollow })) {
       return NextResponse.json(
         { error: 'This profile is private' },
         { status: 403, headers: noStoreHeaders }
@@ -52,7 +54,7 @@ export async function GET(request, { params }) {
 
     // The subject's directory is authorized above. Include private participants.
     const { users, total } = await getFollowPage(
-      supabase, authUser, profile, 'followers', limit, offset
+      supabase, authUser, profile, 'followers', limit, offset, { mutualFollow }
     );
 
     let followingSet = new Set();

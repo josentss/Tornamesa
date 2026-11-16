@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
+import { getMutualFollowIds } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -59,8 +60,11 @@ export async function GET(request, { params }) {
       }));
     }
 
+    const mutualIds = await getMutualFollowIds(supabase, viewer,
+      rows.filter((r) => r.profiles?.is_private === true).map((r) => r.user_id)
+    );
     const reviews = rows
-      .filter((r) => canView(viewer, r.profiles, 'reviews'))
+      .filter((r) => canView(viewer, r.profiles, 'reviews', { mutualFollow: mutualIds.has(r.user_id) }))
       .map((r) => ({
       id: r.id,
       rating: r.rating,

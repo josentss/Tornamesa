@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -68,7 +68,7 @@ export async function GET(request, { params }) {
       .maybeSingle();
 
     const authUser = await getRequestUser(request);
-    if (!canView(authUser, profile, 'lists')) {
+    if (!await canViewWithFollows(supabase, authUser, profile, 'lists')) {
       return NextResponse.json(
         { error: 'This list is private' },
         { status: 403 }

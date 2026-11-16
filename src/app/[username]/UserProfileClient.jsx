@@ -17,6 +17,7 @@ export default function UserProfileClient({ params }) {
   const router = useRouter();
 
   const [profileData, setProfileData] = useState(null);
+  const [profileRestricted, setProfileRestricted] = useState(false);
   const [stats, setStats] = useState(null);
   const [recentReviews, setRecentReviews] = useState([]);
   const [userLists, setUserLists] = useState([]);
@@ -55,6 +56,7 @@ export default function UserProfileClient({ params }) {
         if (cancelled) return;
 
         setProfileData(profileRes.profile);
+        setProfileRestricted(profileRes.restricted === true);
 
         if (profileRes.restricted) {
           setStats(null);
@@ -98,8 +100,9 @@ export default function UserProfileClient({ params }) {
 
   const isOwner =
     currentUser && profileData && currentUser.id === profileData.id;
-  const isPrivateLocked = !!profileData?.is_private && !isOwner;
-  const canShowActivity = isOwner || (profileData?.show_activity !== false && profileData?.diary_public !== false);
+  // The API determines whether the authenticated viewer has reciprocal access.
+  const isPrivateLocked = profileRestricted;
+  const canShowActivity = isOwner || (!isPrivateLocked && profileData?.show_activity !== false && profileData?.diary_public !== false);
   const canShowDiaryLink =
     isOwner ||
     (profileData?.diary_public !== false && !isPrivateLocked);
@@ -291,8 +294,7 @@ export default function UserProfileClient({ params }) {
               This profile is private
             </p>
             <p className="text-stone-500 text-xs mt-2">
-              Only @{profileData.username} can see their activity, lists and
-              stats.
+              Only the account owner and mutual followers can see this content.
             </p>
           </div>
         </section>

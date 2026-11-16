@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { ensureToListenList, getListsWithCounts } from '@/lib/lists';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -28,7 +28,7 @@ export async function GET(request, { params }) {
     if (albumId) {
       if (!authUser) return unauthorized();
       if (!isOwner) return forbidden();
-    } else if (!canView(authUser, profile, 'lists')) {
+    } else if (!await canViewWithFollows(supabase, authUser, profile, 'lists')) {
       return NextResponse.json(
         { error: 'This profile is private', lists: [] },
         { status: 403 }
