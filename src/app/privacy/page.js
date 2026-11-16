@@ -21,7 +21,7 @@ export default function PrivacyPage() {
           Privacy Policy
         </h1>
         <p className="mt-2 text-sm text-stone-500">
-          Last updated: August 18, 2026
+          Last updated: November 16, 2026
         </p>
 
         <div className="mt-8 space-y-8 text-sm text-stone-300 leading-relaxed">
@@ -82,10 +82,25 @@ export default function PrivacyPage() {
               4. Visibility and privacy controls
             </h2>
             <p>
-              You can mark your profile as private, hide your diary, or hide
-              recent activity from your public profile. Private content is not
-              shown to other users through normal product views. Do not post
-              sensitive personal information in bios or reviews.
+              A private profile shows a limited view to other people. You and
+              people who follow you mutually can open your profile details and permitted sections. A
+              one-way follow does not grant access. Private accounts can still
+              appear in the follower or following lists of public accounts,
+              and follower counts remain visible.
+            </p>
+            <p className="mt-3">
+              Public diary controls access to your listening diary, monthly
+              tops and statistics for people who may view your profile.
+              Show recent activity separately controls whether recent listens
+              appear on your profile and in activity feeds; it requires Public
+              diary to be enabled. Turning either option off does not delete
+              listening data or reset your other privacy preferences.
+            </p>
+            <p className="mt-3">
+              People allowed to view your profile may still see individual
+              reviews and lists when Public diary is off. You can revoke a
+              mutual follower&apos;s private-profile access by unfollowing them.
+              Avoid posting sensitive information in bios or reviews.
             </p>
           </section>
 
