@@ -33,7 +33,7 @@ BEGIN
 END;
 $$;
 
--- This service-role-only RPC locks each user/month, reads the complete period
+-- This service-role-only RPC locks each user, reads the complete period
 -- in PostgreSQL (no 1000-row PostgREST response cap), then atomically replaces
 -- the monthly and weekly entries. Any error rolls back ALL writes.
 CREATE OR REPLACE FUNCTION public.rebuild_monthly_top_atomic(
@@ -62,12 +62,10 @@ BEGIN
     RAISE EXCEPTION 'Profile not found' USING ERRCODE = '22023';
   END IF;
 
-  -- Lock before reading the source rows; concurrent rebuilds serialize.
+  -- Use the SAME per-user lock as all invalidation triggers. Without it,
+  -- a concurrent uncommitted listen could be missed and then marked clean.
   PERFORM pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(
-      p_user_id::text || ':' || p_year::text || '-' || p_month::text,
-      0::bigint
-    )
+    pg_catalog.hashtextextended('monthly_top:' || p_user_id::text, 0::bigint)
   );
 
   v_tz := public.monthly_top_timezone(p_user_id);
@@ -158,6 +156,29 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  -- Serialize dirty markers with rebuilds, even if no summary exists yet.
+  -- Updates that move a row between users take locks in UUID order.
+  IF TG_OP = 'UPDATE' AND OLD.user_id IS DISTINCT FROM NEW.user_id THEN
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        'monthly_top:' || least(OLD.user_id, NEW.user_id)::text, 0::bigint
+      )
+    );
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        'monthly_top:' || greatest(OLD.user_id, NEW.user_id)::text, 0::bigint
+      )
+    );
+  ELSIF TG_OP <> 'INSERT' THEN
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('monthly_top:' || OLD.user_id::text, 0::bigint)
+    );
+  ELSE
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('monthly_top:' || NEW.user_id::text, 0::bigint)
+    );
+  END IF;
+
   IF TG_OP <> 'INSERT' AND OLD.listened_at IS NOT NULL THEN
     UPDATE public.monthly_summaries AS s
     SET is_dirty = true
@@ -203,6 +224,27 @@ BEGIN
     AND OLD.album_id IS NOT DISTINCT FROM NEW.album_id
     AND OLD.rating IS NOT DISTINCT FROM NEW.rating THEN
     RETURN NULL;
+  END IF;
+
+  IF TG_OP = 'UPDATE' AND OLD.user_id IS DISTINCT FROM NEW.user_id THEN
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        'monthly_top:' || least(OLD.user_id, NEW.user_id)::text, 0::bigint
+      )
+    );
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        'monthly_top:' || greatest(OLD.user_id, NEW.user_id)::text, 0::bigint
+      )
+    );
+  ELSIF TG_OP <> 'INSERT' THEN
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('monthly_top:' || OLD.user_id::text, 0::bigint)
+    );
+  ELSE
+    PERFORM pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended('monthly_top:' || NEW.user_id::text, 0::bigint)
+    );
   END IF;
 
   IF TG_OP <> 'INSERT' THEN
@@ -254,6 +296,9 @@ RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 BEGIN
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('monthly_top:' || NEW.id::text, 0::bigint)
+  );
   UPDATE public.monthly_summaries AS s
   SET is_dirty = true
   WHERE s.user_id = NEW.id;
