@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import { ErrorMessage, SuccessMessage } from "@/components/shared";
+import { fromPrivacyResponse, toPrivacyPayload, canEditRecentActivity } from "@/lib/privacyPreferences";
 
 const sectionClass =
   "bg-[#131e2c]/90 border border-[#2a3645] rounded-2xl p-5 sm:p-6 space-y-4";
@@ -54,18 +55,20 @@ function IconTrash() {
   );
 }
 
-function Toggle({ checked, onChange, disabled, label, description }) {
+function Toggle({ id, checked, onChange, disabled, label, description }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <p className="text-sm font-medium text-white">{label}</p>
         {description && (
-          <p className="text-xs text-stone-500 mt-0.5">{description}</p>
+          <p id={`${id}-description`} className="text-xs text-stone-500 mt-0.5">{description}</p>
         )}
       </div>
       <button
         type="button"
         role="switch"
+        aria-label={label}
+        aria-describedby={description ? `${id}-description` : undefined}
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
@@ -119,6 +122,16 @@ export default function AccountSettingsPage() {
   const [privacyMsg, setPrivacyMsg] = useState({ type: "", text: "" });
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [privacyLoaded, setPrivacyLoaded] = useState(false);
+  const [privacyUnavailable, setPrivacyUnavailable] = useState(false);
+  const privacySavingRef = useRef(false);
+  const privacyUserRef = useRef(null);
+  const confirmedPrivacyRef = useRef(null);
+
+  const applyPrivacy = useCallback((settings) => {
+    setIsPrivate(settings.isPrivate);
+    setDiaryPublic(settings.diaryPublic);
+    setShowActivity(settings.showActivity);
+  }, []);
 
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -128,25 +141,34 @@ export default function AccountSettingsPage() {
   const [exportMsg, setExportMsg] = useState({ type: "", text: "" });
 
   useEffect(() => {
+    privacyUserRef.current = user?.id ?? null;
+    privacySavingRef.current = false;
+    confirmedPrivacyRef.current = null;
+    setPrivacyLoaded(false);
+    setPrivacyUnavailable(false);
+    setPrivacyMsg({ type: "", text: "" });
     if (!user?.id) return;
+
     let cancelled = false;
     (async () => {
       try {
-        const data = await api.getUserProfile(user.id);
-        if (cancelled || !data) return;
-        setIsPrivate(data.is_private === true);
-        setDiaryPublic(data.diary_public !== false);
-        setShowActivity(data.show_activity !== false);
+        const settings = fromPrivacyResponse(await api.getUserProfile(user.id));
+        if (cancelled) return;
+        confirmedPrivacyRef.current = settings;
+        applyPrivacy(settings);
       } catch {
-        /* defaults */
+        if (cancelled) return;
+        setPrivacyUnavailable(true);
+        setPrivacyMsg({
+          type: "error",
+          text: "Could not load privacy settings. Reload this page to retry.",
+        });
       } finally {
         if (!cancelled) setPrivacyLoaded(true);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+    return () => { cancelled = true; };
+  }, [user?.id, applyPrivacy]);
 
   const verifyPassword = async (password) => {
     const supabase = createClient();
@@ -241,54 +263,54 @@ export default function AccountSettingsPage() {
     }
   };
 
-  const savePrivacy = async (next) => {
-    if (!user?.id) return;
+  const handleToggle = async (key, value) => {
+    const userId = user?.id;
+    // Prevent overlapping writes even before React disables the switches.
+    if (!userId || !privacyLoaded || privacyUnavailable || privacySavingRef.current) return;
+    const confirmed = confirmedPrivacyRef.current;
+    if (!confirmed || (key === "showActivity" && !canEditRecentActivity(confirmed))) return;
+
+    const next = { ...confirmed, [key]: value };
+    privacySavingRef.current = true;
     setSavingPrivacy(true);
     setPrivacyMsg({ type: "", text: "" });
+    applyPrivacy(next);
+
     try {
-      const res = await api.updatePrivacy(user.id, {
-        is_private: next.isPrivate,
-        diary_public: next.diaryPublic,
-        show_activity: next.showActivity,
-      });
-
-      const saved = res?.data;
-      if (saved) {
-        setIsPrivate(saved.is_private === true);
-        setDiaryPublic(saved.diary_public !== false);
-        setShowActivity(saved.show_activity !== false);
-      }
-
+      const result = await api.updatePrivacy(userId, toPrivacyPayload(next));
+      const saved = fromPrivacyResponse(result?.data);
+      if (privacyUserRef.current !== userId) return;
+      confirmedPrivacyRef.current = saved;
+      applyPrivacy(saved);
       setPrivacyMsg({ type: "success", text: "Privacy settings saved." });
-    } catch (err) {
-      setPrivacyMsg({
-        type: "error",
-        text: err.message || "Could not save privacy settings.",
-      });
+    } catch {
+      if (privacyUserRef.current !== userId) return;
       try {
-        const data = await api.getUserProfile(user.id);
-        setIsPrivate(data.is_private === true);
-        setDiaryPublic(data.diary_public !== false);
-        setShowActivity(data.show_activity !== false);
+        // A network error can happen after a successful write: read actual state.
+        const actual = fromPrivacyResponse(await api.getUserProfile(userId));
+        if (privacyUserRef.current !== userId) return;
+        confirmedPrivacyRef.current = actual;
+        applyPrivacy(actual);
+        const verified = ["isPrivate", "diaryPublic", "showActivity"]
+          .every((field) => actual[field] === next[field]);
+        setPrivacyMsg(verified
+          ? { type: "success", text: "Privacy settings saved and verified." }
+          : { type: "error", text: "Changes could not be saved. Current settings restored." });
       } catch {
-        /* ignore */
+        if (privacyUserRef.current !== userId) return;
+        applyPrivacy(confirmedPrivacyRef.current || confirmed);
+        setPrivacyUnavailable(true);
+        setPrivacyMsg({
+          type: "error",
+          text: "Could not verify privacy settings. Reload this page before making changes.",
+        });
       }
     } finally {
-      setSavingPrivacy(false);
+      if (privacyUserRef.current === userId) {
+        privacySavingRef.current = false;
+        setSavingPrivacy(false);
+      }
     }
-  };
-
-  const handleToggle = (key, value) => {
-    const next = {
-      isPrivate,
-      diaryPublic,
-      showActivity,
-      [key]: value,
-    };
-    if (key === "isPrivate") setIsPrivate(value);
-    if (key === "diaryPublic") setDiaryPublic(value);
-    if (key === "showActivity") setShowActivity(value);
-    savePrivacy(next);
   };
 
   const handleDeleteAccount = async () => {
@@ -439,43 +461,58 @@ export default function AccountSettingsPage() {
         </p>
       </section>
 
-      {/* Privacy — first actionable block */}
+      {/* Privacy preferences: a compact, explicit dependent control. */}
       <section className={sectionClass}>
         <h2 className="text-sm font-semibold text-white">Privacy</h2>
         {!privacyLoaded ? (
-          <p className="text-xs text-stone-500">Loading...</p>
+          <p className="text-xs text-stone-500">Loading privacy settings...</p>
         ) : (
-          <div className="space-y-5">
-            {privacyMsg.text &&
-              (privacyMsg.type === "error" ? (
-                <ErrorMessage
-                  message={privacyMsg.text}
-                  onDismiss={() => setPrivacyMsg({ type: "", text: "" })}
+          <div className="space-y-4">
+            {savingPrivacy && (
+              <p role="status" className="text-xs text-stone-400">
+                Saving privacy settings...
+              </p>
+            )}
+            {privacyMsg.text && (
+              <p
+                role={privacyMsg.type === "error" ? "alert" : "status"}
+                className={`text-xs ${
+                  privacyMsg.type === "error" ? "text-red-400" : "text-[#7cc7e8]"
+                }`}
+              >
+                {privacyMsg.text}
+              </p>
+            )}
+            {(!privacyUnavailable || confirmedPrivacyRef.current) && (
+              <>
+                <Toggle
+                  id="private-profile"
+                  checked={isPrivate}
+                  disabled={savingPrivacy || privacyUnavailable}
+                  onChange={(v) => handleToggle("isPrivate", v)}
+                  label="Private profile"
+                  description="Only you and mutual followers can open your full profile. Others see a limited view."
                 />
-              ) : (
-                <SuccessMessage message={privacyMsg.text} />
-              ))}
-            <Toggle
-              checked={isPrivate}
-              disabled={savingPrivacy}
-              onChange={(v) => handleToggle("isPrivate", v)}
-              label="Private profile"
-              description="Only you can see your full profile. Others see a limited view."
-            />
-            <Toggle
-              checked={diaryPublic}
-              disabled={savingPrivacy}
-              onChange={(v) => handleToggle("diaryPublic", v)}
-              label="Public diary"
-              description="Allow others to open your diary page from your profile."
-            />
-            <Toggle
-              checked={showActivity}
-              disabled={savingPrivacy}
-              onChange={(v) => handleToggle("showActivity", v)}
-              label="Show recent activity"
-              description="Show your recent listens on your public profile."
-            />
+                <Toggle
+                  id="public-diary"
+                  checked={diaryPublic}
+                  disabled={savingPrivacy || privacyUnavailable}
+                  onChange={(v) => handleToggle("diaryPublic", v)}
+                  label="Public diary"
+                  description="Allow people with profile access to view your listening diary, monthly tops and statistics."
+                />
+                <Toggle
+                  id="recent-activity"
+                  checked={showActivity}
+                  disabled={savingPrivacy || privacyUnavailable || !canEditRecentActivity({ diaryPublic })}
+                  onChange={(v) => handleToggle("showActivity", v)}
+                  label="Show recent activity"
+                  description={diaryPublic
+                    ? "Show recent listens on your profile and in activity feeds."
+                    : "Paused while Public diary is off. Your saved preference will be kept."}
+                />
+              </>
+            )}
           </div>
         )}
       </section>
