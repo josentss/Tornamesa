@@ -96,14 +96,14 @@ export default function ProfileHeaderCard({
                   </h1>
 
                   {(profileData.pronouns ||
-                    (profileData.is_private && isOwner)) && (
+                    (profileData.is_private && !isPrivateLocked)) && (
                     <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
                       {profileData.pronouns && (
                         <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-[#7cc7e8] px-2 py-0.5 rounded-md border border-[#2a3645]">
                           {profileData.pronouns}
                         </span>
                       )}
-                      {profileData.is_private && isOwner && (
+                      {profileData.is_private && !isPrivateLocked && (
                         <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-stone-400 px-2 py-0.5 rounded-md border border-[#2a3645]">
                           Private
                         </span>
@@ -214,14 +214,14 @@ export default function ProfileHeaderCard({
                   {displayName}
                 </h1>
                 {(profileData.pronouns ||
-                  (profileData.is_private && isOwner)) && (
+                  (profileData.is_private && !isPrivateLocked)) && (
                   <div className="flex flex-wrap items-center justify-center gap-1.5 mt-1.5">
                     {profileData.pronouns && (
                       <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-[#7cc7e8] px-2 py-0.5 rounded-md border border-[#2a3645]">
                         {profileData.pronouns}
                       </span>
                     )}
-                    {profileData.is_private && isOwner && (
+                    {profileData.is_private && !isPrivateLocked && (
                       <span className="text-[10px] uppercase tracking-wider bg-[#1f2b3a] text-stone-400 px-2 py-0.5 rounded-md border border-[#2a3645]">
                         Private
                       </span>
