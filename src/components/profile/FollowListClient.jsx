@@ -188,7 +188,7 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
               />
             ))}
           </div>
-        ) : users.length === 0 ? (
+        ) : error ? null : users.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-stone-400 text-sm">
               {tab === "followers"

@@ -121,7 +121,10 @@ export default function ProfileHeaderCard({
                       onClick={() =>
                         router.push(`/${profileData.username}/followers`)
                       }
-                      className="hover:opacity-80 transition-opacity focus:outline-none"
+                      disabled={isPrivateLocked}
+                      className={isPrivateLocked
+                        ? "cursor-default opacity-80 focus:outline-none"
+                        : "hover:opacity-80 transition-opacity focus:outline-none"}
                     >
                       <strong className="text-white font-semibold">
                         {profileData.followers || 0}
@@ -133,7 +136,10 @@ export default function ProfileHeaderCard({
                       onClick={() =>
                         router.push(`/${profileData.username}/following`)
                       }
-                      className="hover:opacity-80 transition-opacity focus:outline-none"
+                      disabled={isPrivateLocked}
+                      className={isPrivateLocked
+                        ? "cursor-default opacity-80 focus:outline-none"
+                        : "hover:opacity-80 transition-opacity focus:outline-none"}
                     >
                       <strong className="text-white font-semibold">
                         {profileData.following || 0}
@@ -231,7 +237,10 @@ export default function ProfileHeaderCard({
                     onClick={() =>
                       router.push(`/${profileData.username}/followers`)
                     }
-                    className="hover:opacity-80 focus:outline-none"
+                    disabled={isPrivateLocked}
+                    className={isPrivateLocked
+                      ? "cursor-default opacity-80 focus:outline-none"
+                      : "hover:opacity-80 focus:outline-none"}
                   >
                     <strong className="text-white font-semibold">
                       {profileData.followers || 0}
@@ -243,7 +252,10 @@ export default function ProfileHeaderCard({
                     onClick={() =>
                       router.push(`/${profileData.username}/following`)
                     }
-                    className="hover:opacity-80 focus:outline-none"
+                    disabled={isPrivateLocked}
+                    className={isPrivateLocked
+                      ? "cursor-default opacity-80 focus:outline-none"
+                      : "hover:opacity-80 focus:outline-none"}
                   >
                     <strong className="text-white font-semibold">
                       {profileData.following || 0}
