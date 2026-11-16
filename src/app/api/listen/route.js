@@ -78,7 +78,9 @@ export async function POST(request) {
         ? Number(rating)
         : null;
 
-    const tz = normalizeTimeZone(timezone);
+    // Do not silently overwrite an established profile timezone when the
+    // client omits it. The database uses the stored zone for month boundaries.
+    const tz = timezone ? normalizeTimeZone(timezone) : null;
     const listenedAt = new Date().toISOString();
 
     const { data: newListen, error: listenError } = await supabase
@@ -96,11 +98,13 @@ export async function POST(request) {
 
     if (listenError) throw listenError;
 
-    const { error: timezoneError } = await supabase
-      .from('profiles')
-      .update({ timezone: tz })
-      .eq('id', userId);
-    if (timezoneError) console.warn('save timezone failed:', timezoneError);
+    if (tz) {
+      const { error: timezoneError } = await supabase
+        .from('profiles')
+        .update({ timezone: tz })
+        .eq('id', userId);
+      if (timezoneError) console.warn('save timezone failed:', timezoneError);
+    }
 
     // The SQL trigger marks this user-local month dirty atomically with
     // the insert. The next top/stats read rebuilds once, not on every listen.

@@ -11,6 +11,11 @@ ALTER TABLE public.monthly_summaries
 COMMENT ON COLUMN public.monthly_summaries.is_dirty IS
   'True after a relevant listen/review/timezone change; rebuilt lazily on the next authorized read.';
 
+-- The supplied production diagnostic confirmed two redundant, nonunique
+-- btree indexes identical to the surviving indexes. Do not drop constraints.
+DROP INDEX IF EXISTS public.monthly_summaries_user_ym_idx;
+DROP INDEX IF EXISTS public.monthly_top_entries_summary_rank_idx;
+
 -- Validate timezone names in the database, with UTC fallback for empty/invalid
 -- profile values. The trigger and rebuild use the SAME calendar boundaries.
 CREATE OR REPLACE FUNCTION public.monthly_top_timezone(p_user_id uuid)
