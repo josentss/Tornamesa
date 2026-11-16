@@ -61,7 +61,7 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
     } finally {
       if (version === requestVersion.current) setLoading(false);
     }
-  }, [resolvedUsername, fetchPage]);
+  }, [resolvedUsername, fetchPage, user?.id]);
 
   useEffect(() => {
     load();
