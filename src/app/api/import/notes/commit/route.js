@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
-import { recomputeMonthlyTop } from '@/lib/monthlyTop';
+import { recomputeMonthsForDates } from '@/lib/monthlyTop';
+import { normalizeTimeZone } from '@/lib/timezone';
 import { buildListenTimestamps } from '@/lib/notesImport';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
@@ -115,7 +116,14 @@ export async function POST(request) {
     }
 
     const supabase = createSupabaseServer();
-    const monthsTouched = new Set();
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('timezone')
+      .eq('id', user.id)
+      .single();
+    if (profileError) throw profileError;
+    const tz = normalizeTimeZone(profile?.timezone || 'UTC');
+    const insertedDates = [];
     let inserted = 0;
     const failures = [];
 
@@ -140,7 +148,7 @@ export async function POST(request) {
         continue;
       }
 
-      const timestamps = buildListenTimestamps(year, month, count, lineIndex);
+      const timestamps = buildListenTimestamps(year, month, count, lineIndex, tz);
       const rows = timestamps.map((listened_at) => ({
         user_id: user.id,
         album_id: albumId,
@@ -156,23 +164,20 @@ export async function POST(request) {
       }
 
       inserted += rows.length;
-      monthsTouched.add(`${year}-${month}`);
+      insertedDates.push(...timestamps);
     }
 
-    for (const key of monthsTouched) {
-      const [y, m] = key.split('-').map(Number);
-      try {
-        await recomputeMonthlyTop(user.id, y, m);
-      } catch (e) {
-        console.warn('recompute after import:', e);
-      }
-    }
+    // One rebuild per affected user-local month after the full import.
+    // Failures remain dirty and are reported, never mislabeled as recomputed.
+    const { monthsRecomputed, monthsFailed } =
+      await recomputeMonthsForDates(user.id, insertedDates);
 
     return NextResponse.json({
       success: true,
       inserted,
       failures,
-      monthsRecomputed: [...monthsTouched],
+      monthsRecomputed,
+      monthsFailed,
     });
   } catch (error) {
     console.error('import commit:', error);

@@ -2,13 +2,9 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { sanitizeString } from '@/lib/validators';
-import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 import { getRequestUser, unauthorized } from '@/lib/apiAuth';
-import {
-  normalizeTimeZone,
-  monthsFromIsoInZone,
-} from '@/lib/timezone';
+import { normalizeTimeZone } from '@/lib/timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,23 +96,14 @@ export async function POST(request) {
 
     if (listenError) throw listenError;
 
-    try {
-      await supabase
-        .from('profiles')
-        .update({ timezone: tz })
-        .eq('id', userId);
-    } catch (tzErr) {
-      console.warn('save timezone failed:', tzErr);
-    }
+    const { error: timezoneError } = await supabase
+      .from('profiles')
+      .update({ timezone: tz })
+      .eq('id', userId);
+    if (timezoneError) console.warn('save timezone failed:', timezoneError);
 
-    try {
-      for (const { year, month } of monthsFromIsoInZone(listenedAt, tz)) {
-        await recomputeMonthlyTop(userId, year, month, tz);
-      }
-    } catch (recomputeErr) {
-      console.warn('monthly top recompute failed:', recomputeErr);
-    }
-
+    // The SQL trigger marks this user-local month dirty atomically with
+    // the insert. The next top/stats read rebuilds once, not on every listen.
     return NextResponse.json(
       {
         success: true,
