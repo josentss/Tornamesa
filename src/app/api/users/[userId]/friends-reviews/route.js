@@ -3,6 +3,7 @@ import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
+import { getMutualFollowIds } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -74,11 +75,15 @@ export async function GET(request, { params }) {
     const followingIds = following.map((f) => f.following_id);
     const { data: visibleProfiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, is_private')
+      .select('id, is_private, diary_public, show_activity')
       .in('id', followingIds);
     if (profilesError) throw profilesError;
+    const mutualIds = await getMutualFollowIds(
+      supabase, authUser,
+      (visibleProfiles || []).filter((profile) => profile.is_private === true).map((profile) => profile.id)
+    );
     const visibleIds = (visibleProfiles || [])
-      .filter((profile) => canView(authUser, profile, 'reviews'))
+      .filter((profile) => canView(authUser, profile, 'feed', { mutualFollow: mutualIds.has(profile.id) }))
       .map((profile) => profile.id);
     if (!visibleIds.length) return NextResponse.json([], { headers: { 'Cache-Control': 'no-store' } });
 

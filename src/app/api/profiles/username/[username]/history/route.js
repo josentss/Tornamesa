@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -42,7 +42,7 @@ export async function GET(request, { params }) {
       .eq('id', base.id)
       .maybeSingle();
 
-    if (!canView(authUser, privacy, 'diary')) {
+    if (!await canViewWithFollows(supabase, authUser, privacy, 'diary')) {
       return NextResponse.json(
         { error: 'This diary is private' },
         { status: 403, headers: noStoreHeaders }

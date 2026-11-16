@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
 import { getRequestUser } from '@/lib/apiAuth';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,7 +71,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!canView(viewer, profile, 'reviews')) {
+    if (!await canViewWithFollows(supabase, viewer, profile, 'reviews')) {
       return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
     }
 

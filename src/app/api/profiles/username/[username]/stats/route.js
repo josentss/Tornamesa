@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { recomputeMonthlyTop } from '@/lib/monthlyTop';
 import { getRequestUser } from '@/lib/apiAuth';
-import { canView } from '@/lib/canView';
+import { canViewWithFollows } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -15,7 +15,7 @@ export async function GET(request, { params }) {
   try {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, username, is_private, diary_public')
+      .select('id, username, is_private, diary_public, show_activity')
       .eq('username', username.toLowerCase())
       .single();
 
@@ -23,7 +23,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!canView(viewer, profile, 'stats')) {
+    if (!await canViewWithFollows(supabase, viewer, profile, 'stats')) {
       return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
     }
 
@@ -196,7 +196,7 @@ export async function GET(request, { params }) {
         monthlyListens,
         monthlyTop,
         ratingDistribution,
-        recentActivity,
+        recentActivity: (viewer?.id === userId || profile.show_activity === true) ? recentActivity : [],
         lists: [],
       },
       {

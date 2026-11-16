@@ -14,9 +14,10 @@ export async function getFollowPage(
   profile,
   type,
   limit,
-  offset
+  offset,
+  { mutualFollow = false } = {}
 ) {
-  if (!canView(viewer, profile, 'follows')) {
+  if (!canView(viewer, profile, 'follows', { mutualFollow })) {
     throw new Error('Private follow directory');
   }
   if (type !== 'followers' && type !== 'following') {

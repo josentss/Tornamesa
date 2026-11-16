@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
+import { getMutualFollowIds } from '@/lib/visibilityAccess';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -80,8 +81,13 @@ export async function GET(request) {
 
       const sharedByUser = new Map();
       if (myAlbumIds.length > 0 && baseUsers.length > 0) {
+        const mutualIds = await getMutualFollowIds(
+          supabase, authUser,
+          baseUsers.filter((u) => u.is_private === true).map((u) => u.id)
+        );
         const otherIds = baseUsers
-          .filter((u) => u.id !== currentUserId && canView(authUser, u, 'reviews'))
+          .filter((u) => u.id !== currentUserId
+            && canView(authUser, u, 'reviews', { mutualFollow: mutualIds.has(u.id) }))
           .map((u) => u.id);
         if (otherIds.length > 0) {
           const { data: sharedRows } = await supabase
@@ -215,11 +221,15 @@ export async function GET(request) {
             (albumRows || []).map((a) => [a.spotify_id, a])
           );
           const profileById = new Map((profiles || []).map((p) => [p.id, p]));
+          const mutualIds = await getMutualFollowIds(
+            supabase, authUser,
+            (profiles || []).filter((p) => p.is_private === true).map((p) => p.id)
+          );
 
           similar = ranked
             .map((r) => {
               const p = profileById.get(r.id);
-              if (!p || p.id === currentUserId || !canView(authUser, p, 'reviews')) return null;
+              if (!p || p.id === currentUserId || !canView(authUser, p, 'reviews', { mutualFollow: mutualIds.has(p.id) })) return null;
               const sharedAlbums = r.albumIds
                 .slice(0, 3)
                 .map((aid) => {
@@ -256,7 +266,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('GET discover/users:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to load users' },
+      { error: 'Failed to load users' },
       { status: 500, headers: noStoreHeaders }
     );
   }
