@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -8,9 +8,9 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Header, Footer, ErrorMessage } from "@/components/shared";
 
+const PAGE_SIZE = 40;
+
 export default function FollowListClient({ username: rawUsername, initialTab }) {
-  const username =
-    typeof rawUsername === "string" ? rawUsername : rawUsername?.username;
   const [resolvedUsername, setResolvedUsername] = useState(
     typeof rawUsername === "string" ? rawUsername : null
   );
@@ -21,6 +21,8 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const requestVersion = useRef(0);
   const [error, setError] = useState(null);
   const [actionId, setActionId] = useState(null);
 
@@ -34,28 +36,57 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
     }
   }, [rawUsername]);
 
+  const fetchPage = useCallback((offset) => (
+    tab === "following"
+      ? api.getFollowing(resolvedUsername, null, PAGE_SIZE, offset)
+      : api.getFollowers(resolvedUsername, null, PAGE_SIZE, offset)
+  ), [resolvedUsername, tab]);
+
   const load = useCallback(async () => {
     if (!resolvedUsername) return;
+    const version = ++requestVersion.current;
     setLoading(true);
+    setLoadingMore(false);
     setError(null);
     try {
-      const data =
-        tab === "following"
-          ? await api.getFollowing(resolvedUsername, user?.id)
-          : await api.getFollowers(resolvedUsername, user?.id);
+      const data = await fetchPage(0);
+      if (version !== requestVersion.current) return;
       setUsers(data.users || []);
       setTotal(data.total ?? (data.users || []).length);
     } catch (err) {
+      if (version !== requestVersion.current) return;
       setError(err.message || "Could not load list");
       setUsers([]);
+      setTotal(0);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  }, [resolvedUsername, tab, user?.id]);
+  }, [resolvedUsername, fetchPage, user?.id]);
 
   useEffect(() => {
     load();
+    return () => { requestVersion.current += 1; };
   }, [load]);
+
+  const loadMore = async () => {
+    if (loading || loadingMore || users.length >= total) return;
+    const version = requestVersion.current;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const data = await fetchPage(users.length);
+      if (version !== requestVersion.current) return;
+      setUsers((previous) => {
+        const known = new Set(previous.map((item) => item.id));
+        return [...previous, ...(data.users || []).filter((item) => !known.has(item.id))];
+      });
+      setTotal(data.total ?? total);
+    } catch (err) {
+      if (version === requestVersion.current) setError(err.message || "Could not load more users");
+    } finally {
+      if (version === requestVersion.current) setLoadingMore(false);
+    }
+  };
 
   const switchTab = (next) => {
     setTab(next);
@@ -161,12 +192,13 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
           <div className="text-center py-16">
             <p className="text-stone-400 text-sm">
               {tab === "followers"
-                ? "No followers yet."
-                : "Not following anyone yet."}
+                ? "No followers to show."
+                : "No followed accounts to show."}
             </p>
           </div>
         ) : (
-          <ul className="space-y-2">
+          <>
+            <ul className="space-y-2">
             {users.map((u) => (
               <li
                 key={u.id}
@@ -227,7 +259,20 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
                 )}
               </li>
             ))}
-          </ul>
+            </ul>
+            {users.length < total && (
+              <div className="mt-6 text-center">
+                <button
+                  type="button"
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="px-5 py-2 text-sm rounded-lg border border-[#2a3645] text-stone-300 hover:border-[#7cc7e8] disabled:opacity-50"
+                >
+                  {loadingMore ? "Loading..." : "Load more"}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

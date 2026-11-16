@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { getRequestUser } from '@/lib/apiAuth';
+import { getRequestUser, createRequestSupabaseClient } from '@/lib/apiAuth';
 import { canView } from '@/lib/canView';
+import { getVisibleFollowPage } from '@/lib/followsVisibility';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -49,26 +50,11 @@ export async function GET(request, { params }) {
       );
     }
 
-    const { data: rows, error } = await supabase
-      .from('follows')
-      .select(
-        `
-        following_id,
-        profiles:following_id (
-          id,
-          username,
-          full_name,
-          avatar_url,
-          is_private
-        )
-      `
-      )
-      .eq('follower_id', profile.id)
-      .range(offset, offset + limit - 1);
-
-    if (error) throw error;
-
-    const users = (rows || []).map((r) => r.profiles).filter(Boolean);
+    // RLS filters both ends of each relationship before pagination/counting.
+    const readClient = createRequestSupabaseClient(request, authUser);
+    const { users, total } = await getVisibleFollowPage(
+      readClient, supabase, 'following', profile.id, limit, offset
+    );
 
     let followingSet = new Set();
     if (currentUserId && users.length > 0) {
@@ -91,16 +77,11 @@ export async function GET(request, { params }) {
       isSelf: currentUserId === u.id,
     }));
 
-    const { count } = await supabase
-      .from('follows')
-      .select('*', { count: 'exact', head: true })
-      .eq('follower_id', profile.id);
-
     return NextResponse.json(
       {
         username: profile.username,
         type: 'following',
-        total: count || 0,
+        total,
         users: list,
       },
       { headers: noStoreHeaders }
