@@ -101,17 +101,22 @@ test('public A following includes private B even for unrelated C', async () => {
   assert.equal(page.total, 2);
 });
 
-test('only B may open private B followers and following, including when A follows B', async () => {
+test('private B directory opens only for owner or server-verified mutual access', async () => {
   const { client, calls } = serviceClient();
   await assert.rejects(getFollowPage(client, visitor, profiles[1], 'followers', 40, 0), /Private follow directory/);
   await assert.rejects(getFollowPage(client, ownerA, profiles[1], 'following', 40, 0), /Private follow directory/);
   await assert.rejects(getFollowPage(client, null, profiles[1], 'followers', 40, 0), /Private follow directory/);
   assert.equal(calls.follows, 0);
   assert.equal(calls.profiles, 0);
-  const followers = await getFollowPage(client, ownerB, profiles[1], 'followers', 40, 0);
-  const following = await getFollowPage(client, ownerB, profiles[1], 'following', 40, 0);
-  assert.deepEqual(followers.users.map((p) => p.username), ['a']);
-  assert.deepEqual(following.users.map((p) => p.username), ['a', 'c']);
+  const ownerFollowers = await getFollowPage(client, ownerB, profiles[1], 'followers', 40, 0);
+  const ownerFollowing = await getFollowPage(client, ownerB, profiles[1], 'following', 40, 0);
+  assert.deepEqual(ownerFollowers.users.map((p) => p.username), ['a']);
+  assert.deepEqual(ownerFollowing.users.map((p) => p.username), ['a', 'c']);
+  // The route must prove reciprocity before supplying this option.
+  const mutualFollowers = await getFollowPage(
+    client, ownerA, profiles[1], 'followers', 40, 0, { mutualFollow: true }
+  );
+  assert.deepEqual(mutualFollowers.users.map((p) => p.username), ['a']);
 });
 
 test('full counters do not depend on viewer or counterparty privacy', async () => {
