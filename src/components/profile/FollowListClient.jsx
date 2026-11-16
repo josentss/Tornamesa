@@ -11,8 +11,6 @@ import { Header, Footer, ErrorMessage } from "@/components/shared";
 const PAGE_SIZE = 40;
 
 export default function FollowListClient({ username: rawUsername, initialTab }) {
-  const username =
-    typeof rawUsername === "string" ? rawUsername : rawUsername?.username;
   const [resolvedUsername, setResolvedUsername] = useState(
     typeof rawUsername === "string" ? rawUsername : null
   );
@@ -194,8 +192,8 @@ export default function FollowListClient({ username: rawUsername, initialTab }) 
           <div className="text-center py-16">
             <p className="text-stone-400 text-sm">
               {tab === "followers"
-                ? "No followers yet."
-                : "Not following anyone yet."}
+                ? "No followers to show."
+                : "No followed accounts to show."}
             </p>
           </div>
         ) : (
