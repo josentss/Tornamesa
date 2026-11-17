@@ -123,48 +123,58 @@ export function dedupeAlbums(list) {
 }
 
 // upserts
-export async function upsertAlbumFromSpotify(albumData) {
-  if (!albumData?.id) return;
-  try {
-    const supabase = createSupabaseServer();
-    const totalDuration = (albumData.tracks?.items || []).reduce(
-      (acc, t) => acc + (t.duration_ms || 0),
-      0
-    );
-    const { error } = await supabase.from('albums').upsert(
-      {
-        spotify_id: albumData.id,
-        title: albumData.name,
-        artist: albumData.artists?.[0]?.name || 'Unknown',
-        cover_url: albumData.images?.[0]?.url || null,
-        duration_ms: totalDuration || 0,
-      },
-      { onConflict: 'spotify_id' }
-    );
-    if (error) console.warn('upsertAlbumFromSpotify:', error.message);
-  } catch (e) {
-    console.warn('upsertAlbumFromSpotify:', e.message);
-  }
+// A search hit is BASIC metadata. Never overwrite an existing complete row
+// (especially duration_ms) with the placeholder zero from search results.
+export async function upsertAlbumsMapped(mappedAlbums) {
+  const rows = [...new Map(
+    (mappedAlbums || [])
+      .filter((m) => /^[a-zA-Z0-9]{22}$/.test(m?.id || ''))
+      .map((m) => [m.id, {
+        spotify_id: m.id,
+        title: m.title || 'Unknown',
+        artist: m.artist || 'Unknown',
+        cover_url: m.coverUrl || null,
+        duration_ms: 0,
+      }])
+  ).values()];
+  if (!rows.length) return;
+  const supabase = createSupabaseServer();
+  const { error } = await supabase.from('albums').upsert(rows, {
+    onConflict: 'spotify_id',
+    ignoreDuplicates: true,
+  });
+  if (error) throw error;
 }
 
 export async function upsertAlbumMapped(mapped) {
-  if (!mapped?.id) return;
-  try {
-    const supabase = createSupabaseServer();
-    const { error } = await supabase.from('albums').upsert(
-      {
-        spotify_id: mapped.id,
-        title: mapped.title || 'Unknown',
-        artist: mapped.artist || 'Unknown',
-        cover_url: mapped.coverUrl || null,
-        duration_ms: 0,
-      },
-      { onConflict: 'spotify_id' }
-    );
-    if (error) console.warn('upsertAlbumMapped:', error.message);
-  } catch (e) {
-    console.warn('upsertAlbumMapped:', e.message);
-  }
+  return upsertAlbumsMapped([mapped]);
+}
+
+export async function upsertAlbumFromSpotify(albumData) {
+  if (!albumData?.id) return;
+  const supabase = createSupabaseServer();
+  const { data: existing, error: readError } = await supabase
+    .from('albums')
+    .select('duration_ms')
+    .eq('spotify_id', albumData.id)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  const page = albumData.tracks;
+  const tracks = Array.isArray(page?.items) ? page.items : [];
+  const complete = page && !page.next &&
+    (!Number.isFinite(page.total) || tracks.length >= page.total);
+  const duration = complete
+    ? tracks.reduce((acc, t) => acc + (Number(t.duration_ms) || 0), 0)
+    : 0;
+  const { error } = await supabase.from('albums').upsert({
+    spotify_id: albumData.id,
+    title: albumData.name || 'Unknown',
+    artist: albumData.artists?.[0]?.name || 'Unknown',
+    cover_url: albumData.images?.[0]?.url || null,
+    duration_ms: duration > 0 ? duration : (existing?.duration_ms || 0),
+  }, { onConflict: 'spotify_id' });
+  if (error) throw error;
 }
 
 // resolve por id
@@ -181,7 +191,7 @@ export async function fetchSpotifyAlbumById(id) {
   }
 }
 
-export async function getAlbumByIdResolved(id) {
+export async function getAlbumByIdResolved(id, { allowSpotify = true } = {}) {
   if (!id) return null;
   try {
     const supabase = createSupabaseServer();
@@ -192,11 +202,12 @@ export async function getAlbumByIdResolved(id) {
       .maybeSingle();
 
     if (existing) return mapDbRow(existing);
+    if (!allowSpotify) return null;
 
     const raw = await fetchSpotifyAlbumById(id);
     if (!raw) return null;
 
-    void upsertAlbumFromSpotify(raw);
+    await upsertAlbumFromSpotify(raw);
     return mapSpotifyAlbum(raw);
   } catch (e) {
     console.warn('getAlbumByIdResolved:', e.message);
@@ -300,10 +311,11 @@ export async function searchSpotifyAlbums(query, limit = 15) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
 
-  const take = clampSearchLimit(limit, 15);
+  // Development Mode supports at most 10 results per search request.
+  const take = Math.min(10, clampSearchLimit(limit, 10));
 
   const url =
-    `https://api.spotify.com/v1/search?type=album&q=${encodeURIComponent(q)}`;
+    `https://api.spotify.com/v1/search?type=album&limit=${take}&q=${encodeURIComponent(q)}`;
 
   const res = await spotifyFetch(url);
 
@@ -338,9 +350,14 @@ export async function searchSpotifyAlbums(query, limit = 15) {
     .filter(Boolean)
     .sort((a, b) => Number(a._noise) - Number(b._noise));
 
-  void Promise.allSettled(
-    mapped.map(({ _noise, ...m }) => upsertAlbumMapped(m))
-  );
+  // Persist before returning: unawaited writes may never finish on Vercel.
+  try {
+    await upsertAlbumsMapped(mapped.map(({ _noise, ...m }) => m));
+  } catch (e) {
+    // Search can still return results, but Import Commit verifies each ID
+    // exists locally, and will never fetch an unpersisted ID on commit.
+    console.warn('Spotify search catalog persistence:', e.message);
+  }
 
   return mapped
     .map(({ _noise, ...rest }) => rest)
