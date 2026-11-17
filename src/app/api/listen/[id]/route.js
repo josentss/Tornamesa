@@ -100,6 +100,14 @@ export async function PATCH(request, { params }) {
     let rating = null;
     let reviewText = null;
     if (changeReview) {
+      // Old client tabs still send per-log scores. Do not reinterpret them as
+      // changes to a shared album review or accidentally wipe its text.
+      if (body.ratingScope !== 'album') {
+        return NextResponse.json(
+          { error: 'Diary editor changed. Reload the page before editing album ratings.' },
+          { status: 409, headers: noStoreHeaders }
+        );
+      }
       // These fields are ONE global album review, not values for this listen.
       // An explicit rating is required to avoid silently deleting a review
       // when an older client sends only per-listen notes.

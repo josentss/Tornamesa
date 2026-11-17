@@ -72,11 +72,11 @@ export const api = {
       }),
     }),
 
-  updateListen: async (listenId, { listened_at, rating, review }) =>
+  updateListen: async (listenId, { listened_at, rating, review, ratingScope }) =>
     fetchApi(`/api/listen/${listenId}`, {
       method: 'PATCH',
       headers: await authHeaders(),
-      body: JSON.stringify({ listened_at, rating, review }),
+      body: JSON.stringify({ listened_at, rating, review, ratingScope }),
     }),
 
   deleteListen: async (listenId) =>

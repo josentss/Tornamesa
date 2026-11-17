@@ -15,6 +15,7 @@ test('canonical update RPC is service-role-only and checks listen owner', () => 
   assert.match(migration, /FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /TO service_role/);
   assert.match(editApi, /existing.user_id !== authUser.id/);
+  assert.match(editApi, /body.ratingScope !== 'album'/);
 });
 
 test('album review and date use one transactional RPC', () => {

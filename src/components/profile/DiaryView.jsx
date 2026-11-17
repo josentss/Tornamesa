@@ -260,7 +260,7 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
         // Only send edited fields. Rating and review are global for this album.
         ...(dateChanged ? { listened_at: date } : {}),
         ...(reviewChanged
-          ? { rating: Number(rating), review: reviewText || null }
+          ? { ratingScope: "album", rating: Number(rating), review: reviewText || null }
           : {}),
       });
       onSaved?.(res.data, entry);
