@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { sanitizeString } from '@/lib/validators';
-import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { getRequestUser } from '@/lib/apiAuth';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 import { normalizeTimeZone, zonedLocalToUtc } from '@/lib/timezone';
 
@@ -40,6 +39,13 @@ export async function PATCH(request, { params }) {
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const body = await request.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400, headers: noStoreHeaders });
+    }
+    const listenId = Number(id);
+    if (!Number.isSafeInteger(listenId) || listenId <= 0) {
+      return NextResponse.json({ error: 'Invalid listen ID' }, { status: 400, headers: noStoreHeaders });
+    }
     const supabase = createSupabaseServer();
     const tz = await userTimeZone(supabase, authUser.id);
 
@@ -103,19 +109,27 @@ export async function PATCH(request, { params }) {
           { status: 400, headers: noStoreHeaders }
         );
       }
-      if (body.rating !== null && body.rating !== '') {
-        rating = Number(body.rating);
-        if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
-          return NextResponse.json(
-            { error: 'Rating must be an integer between 1 and 10' },
-            { status: 400, headers: noStoreHeaders }
-          );
-        }
-      }
-      reviewText = body.review == null ? null : sanitizeString(body.review);
-      if (rating === null && reviewText) {
+      // Do not permit an old open browser tab to accidentally delete the
+      // entire album review by sending rating:null during a date-only edit.
+      rating = Number(body.rating);
+      if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
         return NextResponse.json(
-          { error: 'An album review requires a rating' },
+          { error: 'Album rating must be an integer between 1 and 10' },
+          { status: 400, headers: noStoreHeaders }
+        );
+      }
+      if (body.review != null && typeof body.review !== 'string') {
+        return NextResponse.json(
+          { error: 'Album review must be text' },
+          { status: 400, headers: noStoreHeaders }
+        );
+      }
+      reviewText = body.review == null ? null : body.review.trim();
+      // No silent truncation of an existing review that can be longer than
+      // the historic per-listen note field.
+      if (reviewText && reviewText.length > 10000) {
+        return NextResponse.json(
+          { error: 'Album review is too long (maximum 10000 characters)' },
           { status: 400, headers: noStoreHeaders }
         );
       }
@@ -133,7 +147,7 @@ export async function PATCH(request, { params }) {
     const { data: updated, error: updateErr } = await supabase
       .rpc('update_listen_and_album_review', {
         p_user_id: authUser.id,
-        p_listen_id: Number(id),
+        p_listen_id: listenId,
         p_change_date: changeDate,
         p_listened_at: listenedAt,
         p_change_review: changeReview,
@@ -176,8 +190,6 @@ export async function DELETE(request, { params }) {
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const supabase = createSupabaseServer();
-    const tz = await userTimeZone(supabase, authUser.id);
-
     const { data: existing, error: fetchErr } = await supabase
       .from('listens')
       .select('id, user_id, listened_at, album_id')

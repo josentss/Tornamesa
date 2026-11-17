@@ -49,29 +49,20 @@ BEGIN
 
   IF p_change_review THEN
     v_note := NULLIF(btrim(p_review_text), '');
-    IF p_rating IS NULL THEN
-      -- Clearing a rating deletes the general review (including its text).
-      -- The UI must not do this silently on a normal save.
-      IF v_note IS NOT NULL THEN
-        RAISE EXCEPTION 'An album review needs a rating'
-          USING ERRCODE = '22023';
-      END IF;
-      DELETE FROM public.reviews AS r
-      WHERE r.user_id = p_user_id AND r.album_id = v_listen.album_id;
-    ELSE
-      IF p_rating < 1 OR p_rating > 10 THEN
-        RAISE EXCEPTION 'Rating must be between 1 and 10'
-          USING ERRCODE = '22023';
-      END IF;
-      INSERT INTO public.reviews AS r
-        (user_id, album_id, rating, review_text)
-      VALUES
-        (p_user_id, v_listen.album_id, p_rating, v_note)
-      ON CONFLICT (user_id, album_id) DO UPDATE SET
-        rating = EXCLUDED.rating,
-        review_text = EXCLUDED.review_text,
-        updated_at = now();
+    -- Never delete a general album review implicitly through Edit log.
+    IF p_rating IS NULL OR p_rating < 1 OR p_rating > 10 THEN
+      RAISE EXCEPTION 'Album rating must be between 1 and 10'
+        USING ERRCODE = '22023';
     END IF;
+
+    INSERT INTO public.reviews AS r
+      (user_id, album_id, rating, review_text)
+    VALUES
+      (p_user_id, v_listen.album_id, p_rating, v_note)
+    ON CONFLICT (user_id, album_id) DO UPDATE SET
+      rating = EXCLUDED.rating,
+      review_text = EXCLUDED.review_text,
+      updated_at = now();
   END IF;
 
   SELECT r.* INTO v_review FROM public.reviews AS r
