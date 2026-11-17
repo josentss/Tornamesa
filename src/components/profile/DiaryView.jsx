@@ -19,8 +19,7 @@ function formatDate(isoDay) {
 }
 
 function toDateInputValue(iso) {
-  if (!iso) return "";
-  return String(iso).slice(0, 10);
+  return iso ? (localDateKey(iso, clientTimeZone()) || String(iso).slice(0, 10)) : "";
 }
 
 function StarRatingFilter({ value, onChange, size = "sm" }) {
@@ -222,7 +221,8 @@ function groupByDay(entries) {
 }
 
 function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
-  const [date, setDate] = useState(toDateInputValue(entry.listened_at));
+  const initialDate = toDateInputValue(entry.listened_at);
+  const [date, setDate] = useState(initialDate);
   const [rating, setRating] = useState(
     entry.listenRating != null ? Number(entry.listenRating) : null
   );
@@ -240,7 +240,9 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
     setConfirmDelete(false);
     try {
       const res = await api.updateListen(entry.listenId, {
-        listened_at: date,
+        // Do not rewrite the original timestamp for a rating-only edit.
+        // The date field is intentionally user-local, not the UTC date key.
+        ...(date !== initialDate ? { listened_at: date } : {}),
         rating: rating == null ? null : Number(rating),
         review: review.trim() || null,
       });
