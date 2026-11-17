@@ -67,7 +67,7 @@ export async function PATCH(request, { params }) {
     let changeDate = false;
     if (body.listened_at != null && body.listened_at !== '') {
       let iso = String(body.listened_at).trim();
-      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(iso)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
         const [y, m, d] = iso.split('-').map(Number);
         if (new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10) !== iso) {
           return NextResponse.json(
