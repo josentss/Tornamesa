@@ -49,7 +49,6 @@ export default function SearchPage() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [remoteSearched, setRemoteSearched] = useState(false);
   const [freshness, setFreshness] = useState(null);
   const [error, setError] = useState(null);
 
@@ -63,7 +62,6 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     setSearched(true);
-    setRemoteSearched(forceSpotify);
     setFreshness(null);
 
     try {
