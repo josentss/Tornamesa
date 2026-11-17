@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { clientTimeZone, localDateKey } from "@/lib/timezone";
+import { resolveDiaryRating } from "@/lib/diaryRating";
 
 function formatDate(isoDay) {
   if (!isoDay || isoDay === "Unknown") return "Unknown date";
@@ -155,6 +156,8 @@ function groupListens(history, timeZone) {
         day,
         count: 0,
         rating: null,
+        listenRating: null,
+        albumRating: item.albumRating ?? null,
         review: null,
         listened_at: item.listened_at,
         listenId: item.id,
@@ -176,6 +179,8 @@ function groupListens(history, timeZone) {
       map[key].listened_at = item.listened_at;
       map[key].listenId = item.id;
       if (item.rating != null) map[key].rating = item.rating;
+      map[key].listenRating = item.listenRating ?? null;
+      map[key].albumRating = item.albumRating ?? null;
       if (item.review) map[key].review = item.review;
     } else {
       if (item.rating != null && map[key].rating == null) {
@@ -219,7 +224,7 @@ function groupByDay(entries) {
 function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
   const [date, setDate] = useState(toDateInputValue(entry.listened_at));
   const [rating, setRating] = useState(
-    entry.rating != null ? Number(entry.rating) : null
+    entry.listenRating != null ? Number(entry.listenRating) : null
   );
   const [review, setReview] = useState(entry.review || "");
   const [saving, setSaving] = useState(false);
@@ -345,6 +350,19 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
                 Rating
               </label>
               <StarRating value={rating} onChange={setRating} size="sm" />
+              {entry.albumRating != null && (
+                <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
+                  This edits the rating of this listen. Monthly Top uses your album
+                  rating ({entry.albumRating}/10) while it exists.{" "}
+                  <Link
+                    href={`/album/${entry.album.id}`}
+                    onClick={onClose}
+                    className="text-[#7cc7e8] hover:underline"
+                  >
+                    Change album rating
+                  </Link>
+                </p>
+              )}
             </div>
 
             <div>
@@ -461,8 +479,12 @@ export default function DiaryView({
           ? {
               ...item,
               listened_at: updated.listened_at ?? item.listened_at,
-              rating:
-                updated.rating !== undefined ? updated.rating : item.rating,
+              listenRating: updated.rating !== undefined
+                ? updated.rating : item.listenRating,
+              rating: resolveDiaryRating(
+                updated.rating !== undefined ? updated.rating : item.listenRating,
+                item.albumRating
+              ),
               review:
                 updated.review !== undefined ? updated.review : item.review,
               albums: updated.albums
