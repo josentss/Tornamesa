@@ -48,9 +48,9 @@ async function authHeadersOptional() {
 }
 
 export const api = {
-  searchAlbums: (query, type = 'album') =>
+  searchAlbums: (query, type = 'album', forceSpotify = false) =>
     fetchApi(
-      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}`,
+      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}${forceSpotify ? '&remote=1' : ''}`,
       { cache: 'no-store' }
     ),
 

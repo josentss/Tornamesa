@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
-import { spotifySharedQuotaConfigured, reserveSpotifyImportSearch } from '@/lib/spotifyQuota';
+import {
+  spotifySharedQuotaConfigured,
+  reserveSpotifyImportSearch,
+  readSpotifyCooldown,
+} from '@/lib/spotifyQuota';
 import { createClient } from '@supabase/supabase-js';
 import {
   parseNotesFile,
@@ -44,6 +48,11 @@ async function getUser(request) {
 
 async function reserveImportRemote(ctx) {
   if (!ctx.remoteEnabled || ctx.skipSpotifySearch) return false;
+  if (await readSpotifyCooldown()) {
+    ctx.skipSpotifySearch = true;
+    ctx.rateLimited = true;
+    return false;
+  }
   if (ctx.remoteAttempts >= MAX_REMOTE_SEARCHES_PER_CHUNK) {
     ctx.remoteBudgetExhausted = true;
     return false;
