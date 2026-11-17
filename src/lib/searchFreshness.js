@@ -39,9 +39,9 @@ function memoryState(key, now) {
  * Reserve at most one remote search attempt per query in a short window.
  * If the last successful Spotify query was recent, automatic searches skip it
  * regardless of whether Supabase has 0, 2 or 200 matching albums.
- * Manual refresh bypasses freshness, NOT attempt throttling.
+ * Every request honors both the freshness window and the attempt throttle.
  */
-export async function reserveAlbumSearch(query, { force = false } = {}) {
+export async function reserveAlbumSearch(query) {
   const key = searchQueryKey(query);
   const client = redisClient();
   const now = Date.now();
@@ -50,7 +50,7 @@ export async function reserveAlbumSearch(query, { force = false } = {}) {
     const freshKey = NS + key + ':fresh';
     const attemptKey = NS + key + ':attempt';
     try {
-      if (!force && Number(await client.exists(freshKey)) > 0) {
+      if (Number(await client.exists(freshKey)) > 0) {
         return { fetchRemote: false, reason: 'recently-refreshed' };
       }
       const got = await client.set(attemptKey, '1', {
@@ -70,7 +70,7 @@ export async function reserveAlbumSearch(query, { force = false } = {}) {
   // No Redis: best-effort per-instance TTL and attempt cap. Outbound budget
   // is separately enforced by spotifyFetch. Redis remains recommended.
   const state = memoryState(key, now);
-  if (!force && state.freshUntil > now) {
+  if (state.freshUntil > now) {
     return { fetchRemote: false, reason: 'recently-refreshed' };
   }
   if (state.attemptUntil > now) {
