@@ -8,6 +8,7 @@ import {
   dedupeAlbums,
 } from '@/lib/albumResolve';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
+import { reserveAlbumSearch, confirmAlbumSearchSuccess } from '@/lib/searchFreshness';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,25 +43,31 @@ export async function GET(request) {
       return NextResponse.json(album ? [album] : []);
     }
 
-    // Supabase first. Do not touch Spotify when the local catalog can
-    // already fill the visible results. Explicit ?remote=1 refreshes search.
+    // Global local catalog first, but never infer freshness from how many
+    // albums it contains. Any query with expired freshness can refresh Spotify.
     const local = await searchLocalAlbums(trimmed, 40);
-    const shouldSearchRemote = searchParams.get('remote') === '1' || local.length < 8;
-    const remoteOutcome = shouldSearchRemote
-      ? (await Promise.allSettled([searchSpotifyAlbums(trimmed, 10)]))[0]
-      : { status: 'fulfilled', value: [] };
+    const decision = await reserveAlbumSearch(trimmed, {
+      force: searchParams.get('remote') === '1',
+    });
 
     let remote = [];
     let rateLimited = false;
     let spotifyErrMsg = null;
+    let searchFreshness = decision.reason || 'local';
 
-    if (remoteOutcome.status === 'fulfilled') {
-      remote = Array.isArray(remoteOutcome.value) ? remoteOutcome.value : [];
-    } else {
-      const err = remoteOutcome.reason;
-      spotifyErrMsg = String(err?.message || err || 'unknown').slice(0, 180);
-      console.error('Spotify search:', spotifyErrMsg, err?.status);
-      if (err?.status === 429) rateLimited = true;
+    if (decision.fetchRemote) {
+      try {
+        // A successful remote query is fresh only after its search results
+        // have been persisted to the catalog, not merely shown in this reply.
+        remote = await searchSpotifyAlbums(trimmed, 10, { strictPersistence: true });
+        await confirmAlbumSearchSuccess(decision);
+        searchFreshness = 'updated';
+      } catch (err) {
+        spotifyErrMsg = String(err?.message || err || 'unknown').slice(0, 180);
+        console.warn('Spotify search:', spotifyErrMsg, err?.status);
+        if (err?.status === 429) rateLimited = true;
+        searchFreshness = 'spotify-unavailable';
+      }
     }
 
     const extras = [];
@@ -118,13 +125,14 @@ export async function GET(request) {
     const clean = dedupeAlbums(out).slice(0, TOTAL);
 
     if (clean.length === 0 && rateLimited) {
-      return NextResponse.json(
-        {
-          error:
-            'Spotify search is rate-limited. Try an album link/id, or search something already in the catalog.',
-        },
-        { status: 429 }
-      );
+      return NextResponse.json({
+        error: 'Spotify temporarily limited. Saved albums are still searchable; try again later.',
+      }, { status: 429 });
+    }
+    if (clean.length === 0 && spotifyErrMsg) {
+      return NextResponse.json({
+        error: 'Spotify search is temporarily unavailable. Please try later.',
+      }, { status: 503 });
     }
 
     const res = NextResponse.json(clean);
@@ -139,7 +147,8 @@ export async function GET(request) {
       res.headers.set('X-Search-Source', 'spotify');
     else res.headers.set('X-Search-Source', 'local');
 
-    if (!shouldSearchRemote) res.headers.set('X-Search-Remote-Skipped', 'catalog-sufficient');
+    res.headers.set('X-Search-Freshness', searchFreshness);
+    if (!decision.fetchRemote) res.headers.set('X-Search-Remote-Skipped', searchFreshness);
 
     if (spotifyErrMsg) {
       res.headers.set('X-Search-Spotify-Error', spotifyErrMsg);

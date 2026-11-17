@@ -307,7 +307,7 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
 }
 
 // spotify search
-export async function searchSpotifyAlbums(query, limit = 15) {
+export async function searchSpotifyAlbums(query, limit = 15, { strictPersistence = false } = {}) {
   const q = String(query || '').trim();
   if (q.length < 1) return [];
 
@@ -357,6 +357,7 @@ export async function searchSpotifyAlbums(query, limit = 15) {
     // Search can still return results, but Import Commit verifies each ID
     // exists locally, and will never fetch an unpersisted ID on commit.
     console.warn('Spotify search catalog persistence:', e.message);
+    if (strictPersistence) throw e;
   }
 
   return mapped
