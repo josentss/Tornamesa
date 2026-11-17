@@ -122,7 +122,7 @@ export async function GET(request, { params }) {
       .from('listens')
       .select(
         `
-        id, rating, review, created_at,
+        id, created_at,
         albums (spotify_id, title, artist, cover_url)
       `
       )
@@ -136,16 +136,33 @@ export async function GET(request, { params }) {
       );
     }
 
-    const listens = (listensData || []).map((item) => ({
-      id: item.id,
-      rating: item.rating,
-      review: item.review,
-      created_at: item.created_at,
-      album_id: item.albums?.spotify_id,
-      album_title: item.albums?.title || 'Unknown Album',
-      artist_name: item.albums?.artist || 'Unknown Artist',
-      album_cover: item.albums?.cover_url || null,
-    }));
+    // Recent activity uses the same album-wide review rating as the diary.
+    const ids = [...new Set((listensData || []).map((l) => l.albums?.spotify_id).filter(Boolean))];
+    let reviewRatings = new Map();
+    if (ids.length) {
+      const { data: reviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select('album_id, rating, review_text')
+        .eq('user_id', base.id)
+        .in('album_id', ids);
+      if (reviewsError) throw reviewsError;
+      reviewRatings = new Map((reviews || []).map((r) => [r.album_id, r]));
+    }
+
+    const listens = (listensData || []).map((item) => {
+      const albumId = item.albums?.spotify_id;
+      const review = reviewRatings.get(albumId);
+      return {
+        id: item.id,
+        rating: review?.rating ?? null,
+        review: review?.review_text ?? null,
+        created_at: item.created_at,
+        album_id: albumId,
+        album_title: item.albums?.title || 'Unknown Album',
+        artist_name: item.albums?.artist || 'Unknown Artist',
+        album_cover: item.albums?.cover_url || null,
+      };
+    });
 
     return NextResponse.json(
       {

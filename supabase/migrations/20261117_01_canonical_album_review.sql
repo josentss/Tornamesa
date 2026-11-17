@@ -100,6 +100,111 @@ GRANT EXECUTE ON FUNCTION public.update_listen_and_album_review(
   uuid, bigint, boolean, timestamptz, boolean, smallint, text
 ) TO service_role;
 
+-- The canonical rating is reviews.rating. Never fall back to individual
+-- listen ratings when rebuilding a monthly/weekly top.
+CREATE OR REPLACE FUNCTION public.rebuild_monthly_top_atomic(
+  p_user_id uuid,
+  p_year integer,
+  p_month integer
+)
+RETURNS SETOF public.monthly_summaries
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_tz text;
+  v_start timestamptz;
+  v_end timestamptz;
+  v_summary_id uuid;
+  v_total integer;
+  v_unique integer;
+BEGIN
+  IF p_user_id IS NULL OR p_year IS NULL OR p_month IS NULL
+     OR p_year NOT BETWEEN 1900 AND 2100 OR p_month NOT BETWEEN 1 AND 12 THEN
+    RAISE EXCEPTION 'Invalid monthly top period' USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM 1 FROM public.profiles AS p WHERE p.id = p_user_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile not found' USING ERRCODE = '22023';
+  END IF;
+
+  -- Use the SAME per-user lock as all invalidation triggers. Without it,
+  -- a concurrent uncommitted listen could be missed and then marked clean.
+  PERFORM pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('monthly_top:' || p_user_id::text, 0::bigint)
+  );
+
+  v_tz := public.monthly_top_timezone(p_user_id);
+  v_start := make_date(p_year, p_month, 1)::timestamp AT TIME ZONE v_tz;
+  v_end := (make_date(p_year, p_month, 1) + interval '1 month')::timestamp AT TIME ZONE v_tz;
+
+  SELECT count(*)::integer, count(DISTINCT l.album_id)::integer
+    INTO v_total, v_unique
+  FROM public.listens AS l
+  WHERE l.user_id = p_user_id
+    AND l.listened_at >= v_start AND l.listened_at < v_end;
+
+  INSERT INTO public.monthly_summaries AS s
+    (user_id, year, month, total_listens, unique_albums, generated_at, is_dirty)
+  VALUES
+    (p_user_id, p_year, p_month, v_total, v_unique, now(), false)
+  ON CONFLICT (user_id, year, month) DO UPDATE SET
+    total_listens = EXCLUDED.total_listens,
+    unique_albums = EXCLUDED.unique_albums,
+    generated_at = EXCLUDED.generated_at,
+    is_dirty = false
+  RETURNING s.id INTO v_summary_id;
+
+  DELETE FROM public.monthly_top_entries AS e
+  WHERE e.summary_id = v_summary_id;
+
+  WITH listened AS MATERIALIZED (
+    SELECT l.album_id, l.listened_at,
+      ceil(extract(DAY FROM (l.listened_at AT TIME ZONE v_tz)) / 7.0)::integer AS week
+    FROM public.listens AS l
+    WHERE l.user_id = p_user_id
+      AND l.listened_at >= v_start AND l.listened_at < v_end
+      AND l.album_id IS NOT NULL
+  ),
+  aggregated AS (
+    SELECT NULL::integer AS week, album_id,
+      count(*)::integer AS listen_count,
+      min(listened_at) AS first_at
+    FROM listened
+    GROUP BY album_id
+    UNION ALL
+    SELECT week, album_id,
+      count(*)::integer AS listen_count,
+      min(listened_at) AS first_at
+    FROM listened
+    GROUP BY week, album_id
+  ),
+  ranked AS (
+    SELECT a.*,
+      row_number() OVER (
+        PARTITION BY a.week
+        ORDER BY a.listen_count DESC, a.first_at ASC, a.album_id ASC
+      )::integer AS rank
+    FROM aggregated AS a
+  )
+  INSERT INTO public.monthly_top_entries
+    (summary_id, week, rank, album_id, listen_count, avg_rating)
+  SELECT v_summary_id, r.week, r.rank, r.album_id, r.listen_count,
+    rv.rating::numeric
+  FROM ranked AS r
+  LEFT JOIN public.reviews AS rv
+    ON rv.user_id = p_user_id AND rv.album_id = r.album_id
+  WHERE (r.week IS NULL AND r.rank <= 500)
+     OR (r.week IS NOT NULL AND r.rank <= 100);
+
+  RETURN QUERY
+    SELECT s.* FROM public.monthly_summaries AS s WHERE s.id = v_summary_id;
+END;
+$$;
+
+-- Reconcile older summaries lazily; no existing top rows are deleted here.
+UPDATE public.monthly_summaries SET is_dirty = true;
+
 COMMIT;
 
 -- Read-only verification (run separately after applying):

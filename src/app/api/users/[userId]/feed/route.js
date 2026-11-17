@@ -52,8 +52,6 @@ export async function GET(request, { params }) {
       .select(
         `
         id,
-        rating,
-        review,
         listened_at,
         created_at,
         album_id,
@@ -113,7 +111,7 @@ export async function GET(request, { params }) {
           album_title: item.albums?.title || 'Unknown album',
           artist_name: item.albums?.artist || '',
           album_cover: item.albums?.cover_url || null,
-          rating: fromReview ?? item.rating ?? null,
+          rating: fromReview ?? null,
           listened_at: listened || created,
           created_at: created,
           activity_at: activityAt,
