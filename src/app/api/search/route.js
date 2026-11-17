@@ -42,18 +42,14 @@ export async function GET(request) {
       return NextResponse.json(album ? [album] : []);
     }
 
-    const [localOutcome, remoteOutcome] = await Promise.allSettled([
-      searchLocalAlbums(trimmed, 40),
-      searchSpotifyAlbums(trimmed, 20),
-    ]);
-
-    const local =
-      localOutcome.status === 'fulfilled' && Array.isArray(localOutcome.value)
-        ? localOutcome.value
-        : [];
-    if (localOutcome.status === 'rejected') {
-      console.warn('local search:', localOutcome.reason?.message);
-    }
+    // Supabase first. Do not touch Spotify when the local catalog can
+    // already fill the visible results. Explicit ?remote=1 refreshes search.
+    const local = await searchLocalAlbums(trimmed, 40);
+    const shouldSearchRemote = searchParams.get('remote') === '1' || local.length < 8;
+    const remoteOutcome = shouldSearchRemote
+      ? await Promise.allSettled([searchSpotifyAlbums(trimmed, 10)])
+          .then(([outcome]) => outcome)
+      : { status: 'fulfilled', value: [] };
 
     let remote = [];
     let rateLimited = false;
@@ -77,7 +73,7 @@ export async function GET(request) {
         ) {
           continue;
         }
-        const album = await getAlbumByIdResolved(id);
+        const album = await getAlbumByIdResolved(id, { allowSpotify: false });
         if (album) extras.push(album);
       }
     } catch (e) {
@@ -143,6 +139,8 @@ export async function GET(request) {
     else if (remoteClean.length > 0)
       res.headers.set('X-Search-Source', 'spotify');
     else res.headers.set('X-Search-Source', 'local');
+
+    if (!shouldSearchRemote) res.headers.set('X-Search-Remote-Skipped', 'catalog-sufficient');
 
     if (spotifyErrMsg) {
       res.headers.set('X-Search-Spotify-Error', spotifyErrMsg);
