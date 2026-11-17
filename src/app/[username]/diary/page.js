@@ -11,7 +11,7 @@ import {
 } from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
-import { resolveDiaryRating } from "@/lib/diaryRating";
+
 
 function DiaryContent() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -148,22 +148,20 @@ function DiaryContent() {
   const handleHistoryPatch = useCallback((updated) => {
     if (!updated?.id) return;
     setHistory((prev) =>
-      prev.map((item) =>
-        item.id === updated.id
-          ? {
-              ...item,
-              listened_at: updated.listened_at ?? item.listened_at,
-              listenRating: updated.rating !== undefined
-                ? updated.rating : item.listenRating,
-              rating: resolveDiaryRating(
-                updated.rating !== undefined ? updated.rating : item.listenRating,
-                item.albumRating
-              ),
-              review:
-                updated.review !== undefined ? updated.review : item.review,
-            }
-          : item
-      )
+      prev.map((item) => {
+        const sameAlbum = (item.albums?.spotify_id || item.album_id) === updated.album_id;
+        if (!sameAlbum) return item;
+        return {
+          ...item,
+          listened_at: item.id === updated.id
+            ? (updated.listened_at ?? item.listened_at)
+            : item.listened_at,
+          rating: updated.rating,
+          albumRating: updated.albumRating,
+          review: updated.review,
+          albumReview: updated.albumReview,
+        };
+      })
     );
   }, []);
 
