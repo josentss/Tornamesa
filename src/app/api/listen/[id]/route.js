@@ -63,11 +63,18 @@ export async function PATCH(request, { params }) {
       );
     }
 
-    const fields = {};
+    let listenedAt = null;
+    let changeDate = false;
     if (body.listened_at != null && body.listened_at !== '') {
       let iso = String(body.listened_at).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      if (/^\\d{4}-\\d{2}-\\d{2}$/.test(iso)) {
         const [y, m, d] = iso.split('-').map(Number);
+        if (new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10) !== iso) {
+          return NextResponse.json(
+            { error: 'Invalid listened_at' },
+            { status: 400, headers: noStoreHeaders }
+          );
+        }
         iso = zonedLocalToUtc(y, m, d, 12, 0, 0, tz).toISOString();
       } else {
         const parsed = new Date(iso);
@@ -79,49 +86,63 @@ export async function PATCH(request, { params }) {
         }
         iso = parsed.toISOString();
       }
-      fields.listened_at = iso;
+      listenedAt = iso;
+      changeDate = true;
     }
 
-    if (body.rating !== undefined) {
-      if (body.rating === null || body.rating === '') {
-        fields.rating = null;
-      } else {
-        const num = Number(body.rating);
-        if (Number.isNaN(num) || num < 1 || num > 10) {
+    const changeReview = body.rating !== undefined || body.review !== undefined;
+    let rating = null;
+    let reviewText = null;
+    if (changeReview) {
+      // These fields are ONE global album review, not values for this listen.
+      // An explicit rating is required to avoid silently deleting a review
+      // when an older client sends only per-listen notes.
+      if (!Object.prototype.hasOwnProperty.call(body, 'rating')) {
+        return NextResponse.json(
+          { error: 'Album rating is required to update an album review' },
+          { status: 400, headers: noStoreHeaders }
+        );
+      }
+      if (body.rating !== null && body.rating !== '') {
+        rating = Number(body.rating);
+        if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
           return NextResponse.json(
-            { error: 'Rating must be between 1 and 10' },
+            { error: 'Rating must be an integer between 1 and 10' },
             { status: 400, headers: noStoreHeaders }
           );
         }
-        fields.rating = num;
+      }
+      reviewText = body.review == null ? null : sanitizeString(body.review);
+      if (rating === null && reviewText) {
+        return NextResponse.json(
+          { error: 'An album review requires a rating' },
+          { status: 400, headers: noStoreHeaders }
+        );
       }
     }
 
-    if (body.review !== undefined) {
-      fields.review =
-        body.review === null || body.review === ''
-          ? null
-          : sanitizeString(body.review);
-    }
-
-    if (Object.keys(fields).length === 0) {
+    if (!changeDate && !changeReview) {
       return NextResponse.json(
         { error: 'No fields to update' },
         { status: 400, headers: noStoreHeaders }
       );
     }
 
+    // Keep date edits and the canonical review write in ONE DB transaction.
+    // The existing review trigger marks every affected month dirty.
     const { data: updated, error: updateErr } = await supabase
-      .from('listens')
-      .update(fields)
-      .eq('id', id)
-      .select()
-      .single();
-
+      .rpc('update_listen_and_album_review', {
+        p_user_id: authUser.id,
+        p_listen_id: Number(id),
+        p_change_date: changeDate,
+        p_listened_at: listenedAt,
+        p_change_review: changeReview,
+        p_rating: rating,
+        p_review_text: reviewText,
+      });
     if (updateErr) throw updateErr;
+    if (!updated?.id) throw new Error('Album review update returned no listen');
 
-    // SQL trigger invalidates affected user-local months (old and new)
-    // within this UPDATE; readers rebuild the dirty summaries on demand.
     return NextResponse.json(
       { success: true, data: updated },
       { headers: noStoreHeaders }
