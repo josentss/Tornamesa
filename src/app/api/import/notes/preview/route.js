@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
+import { spotifySharedQuotaConfigured } from '@/lib/spotifyQuota';
 import { createClient } from '@supabase/supabase-js';
 import {
   parseNotesFile,
@@ -21,7 +23,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const ROWS_PER_CHUNK = 10;
-const SLEEP_MS = 180;
+// Even with remote mode selected, the same file may only request 3 Spotify searches per hour.
+const MAX_REMOTE_SEARCHES_PER_CHUNK = 2;
 
 async function getUser(request) {
   const authHeader = request.headers.get('authorization');
@@ -39,8 +42,25 @@ async function getUser(request) {
   return user;
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+async function reserveImportRemote(ctx) {
+  if (!ctx.remoteEnabled || ctx.skipSpotifySearch) return false;
+  if (ctx.remoteAttempts >= MAX_REMOTE_SEARCHES_PER_CHUNK) {
+    ctx.remoteBudgetExhausted = true;
+    return false;
+  }
+  // The Redis-backed limiter is global across preview chunks and Vercel
+  // instances. Remote mode is disabled if Redis is unavailable.
+  const permit = await rateLimit(`spotify-import:${ctx.userId}:${ctx.fileHash}`, {
+    limit: 3,
+    windowMs: 60 * 60_000,
+    name: 'spotify-import-unique-file-v1',
+  });
+  if (!permit.ok) {
+    ctx.remoteBudgetExhausted = true;
+    return false;
+  }
+  ctx.remoteAttempts += 1;
+  return true;
 }
 
 function toScoreable(album) {
@@ -185,7 +205,7 @@ async function resolveRow(row, ctx) {
     extractSpotifyAlbumId(row.raw || '');
 
   if (directId) {
-    const album = await getAlbumByIdResolved(directId);
+    const album = await getAlbumByIdResolved(directId, { allowSpotify: false });
     if (album) {
       return {
         ...row,
@@ -202,7 +222,7 @@ async function resolveRow(row, ctx) {
 
   const extra = matchCatalogExtra(row);
   if (extra?.id) {
-    const album = await getAlbumByIdResolved(extra.id);
+    const album = await getAlbumByIdResolved(extra.id, { allowSpotify: false });
     if (album) {
       return {
         ...row,
@@ -232,7 +252,7 @@ async function resolveRow(row, ctx) {
     }
   }
 
-  if (ctx.skipSpotifySearch) {
+  if (ctx.skipSpotifySearch || !ctx.remoteEnabled || !(await reserveImportRemote(ctx))) {
     if (local.length) return { ...row, ...rank(row, local, 'local_db') };
     return {
       ...row,
@@ -244,35 +264,17 @@ async function resolveRow(row, ctx) {
   }
 
   try {
-    const queries = [
-      `"${row.title}" artist:${row.artist}`,
-      `"${row.title}" ${row.artist}`,
-      `album:${row.title} artist:${row.artist}`,
-    ];
-
-    const byId = new Map();
-    for (const q of queries) {
-      try {
-        const batch = await searchSpotifyAlbums(q);
-        await sleep(SLEEP_MS);
-        for (const a of batch || []) {
-          if (a?.id) byId.set(a.id, a);
-        }
-        const clean = [...byId.values()].filter((a) => !isSuspiciousAlbum(a));
-        if (clean.length >= 3) break;
-      } catch (e) {
-        if (e.status === 429) throw e;
-      }
-    }
-
-    const remote = [...byId.values()];
+    // Exactly one remote search for an unresolved entry. No hidden retries,
+    // secondary spellings or bursts of 3 queries per single album.
+    const q = `"${row.title}" artist:${row.artist}`;
+    const remote = await searchSpotifyAlbums(q, 10);
     if (!remote.length) {
       if (local.length) return { ...row, ...rank(row, local, 'local_db') };
       return { ...row, status: 'unmatched', score: 0, candidates: [] };
     }
 
-    const pool = [...local, ...remote];
-    return { ...row, ...rank(row, pool, 'spotify_search') };
+    return { ...row, ...rank(row, [...local, ...remote], 'spotify_search') };
+
   } catch (e) {
     if (e.status === 429) {
       ctx.skipSpotifySearch = true;
@@ -330,12 +332,16 @@ export async function POST(request) {
     }
 
     const parsed = parseNotesFile(content, name);
+    const remoteRequested = body.spotifyMode === 'limited';
+    const remoteEnabled = remoteRequested && spotifySharedQuotaConfigured();
+    const fileHash = createHash('sha256')
+      .update(name).update('\\0').update(content).digest('hex');
     const parseErrors =
       offset === 0
         ? parsed.parseErrors.map((e) => ({ ...e, file: name }))
         : [];
 
-    if (!parsed.year || !parsed.month) {
+    if (!parsed.year || !Number.isInteger(parsed.month) || parsed.month < 1 || parsed.month > 12) {
       return NextResponse.json(
         {
           error: 'filename_must_be_YYYY-MM.txt',
@@ -350,7 +356,15 @@ export async function POST(request) {
     const totalRows = parsed.rows.length;
     const slice = parsed.rows.slice(offset, offset + limit);
 
-    const ctx = { skipSpotifySearch: false, rateLimited: false };
+    const ctx = {
+      userId: user.id,
+      fileHash,
+      remoteEnabled,
+      skipSpotifySearch: false,
+      rateLimited: false,
+      remoteAttempts: 0,
+      remoteBudgetExhausted: false,
+    };
     const resolved = [];
 
     for (const row of slice) {
@@ -375,6 +389,10 @@ export async function POST(request) {
       unmatched: sortByNotesOrder(unmatched),
       parseErrors,
       rateLimited: ctx.rateLimited,
+      remoteSearchUsed: ctx.remoteAttempts,
+      remoteBudgetExhausted: ctx.remoteBudgetExhausted,
+      remoteDisabled: remoteRequested && !remoteEnabled,
+      spotifyMode: remoteEnabled ? 'limited' : 'local',
       chunk: {
         offset,
         limit,
