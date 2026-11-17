@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { clientTimeZone, localDateKey } from "@/lib/timezone";
-import { resolveDiaryRating } from "@/lib/diaryRating";
+
 
 function formatDate(isoDay) {
   if (!isoDay || isoDay === "Unknown") return "Unknown date";
@@ -155,8 +155,9 @@ function groupListens(history, timeZone) {
         day,
         count: 0,
         rating: null,
-        listenRating: null,
         albumRating: item.albumRating ?? null,
+        albumReview: item.albumReview ?? null,
+        legacyNote: item.legacyNote ?? null,
         review: null,
         listened_at: item.listened_at,
         listenId: item.id,
@@ -177,10 +178,11 @@ function groupListens(history, timeZone) {
     ) {
       map[key].listened_at = item.listened_at;
       map[key].listenId = item.id;
-      if (item.rating != null) map[key].rating = item.rating;
-      map[key].listenRating = item.listenRating ?? null;
+      map[key].rating = item.rating ?? null;
       map[key].albumRating = item.albumRating ?? null;
-      if (item.review) map[key].review = item.review;
+      map[key].albumReview = item.albumReview ?? null;
+      map[key].legacyNote = item.legacyNote ?? null;
+      map[key].review = item.review ?? null;
     } else {
       if (item.rating != null && map[key].rating == null) {
         map[key].rating = item.rating;
@@ -224,9 +226,9 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
   const initialDate = toDateInputValue(entry.listened_at);
   const [date, setDate] = useState(initialDate);
   const [rating, setRating] = useState(
-    entry.listenRating != null ? Number(entry.listenRating) : null
+    entry.albumRating != null ? Number(entry.albumRating) : null
   );
-  const [review, setReview] = useState(entry.review || "");
+  const [review, setReview] = useState(entry.albumReview || "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -235,16 +237,31 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!entry.listenId) return;
+    const dateChanged = date !== initialDate;
+    const reviewText = review.trim();
+    const reviewChanged =
+      rating !== (entry.albumRating ?? null) ||
+      reviewText !== (entry.albumReview || "").trim();
+
+    if (reviewChanged && rating == null) {
+      setError("Choose an album rating before saving the review.");
+      return;
+    }
+    if (!dateChanged && !reviewChanged) {
+      onClose();
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setConfirmDelete(false);
     try {
       const res = await api.updateListen(entry.listenId, {
-        // Do not rewrite the original timestamp for a rating-only edit.
-        // The date field is intentionally user-local, not the UTC date key.
-        ...(date !== initialDate ? { listened_at: date } : {}),
-        rating: rating == null ? null : Number(rating),
-        review: review.trim() || null,
+        // Only send edited fields. Rating and review are global for this album.
+        ...(dateChanged ? { listened_at: date } : {}),
+        ...(reviewChanged
+          ? { ratingScope: "album", rating: Number(rating), review: reviewText || null }
+          : {}),
       });
       onSaved?.(res.data, entry);
       onClose();
@@ -349,27 +366,17 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
 
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-2 text-center sm:text-left">
-                Rating
+                Album rating
               </label>
               <StarRating value={rating} onChange={setRating} size="sm" />
-              {entry.albumRating != null && (
-                <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
-                  This edits the rating of this listen. Monthly Top uses your album
-                  rating ({entry.albumRating}/10) while it exists.{" "}
-                  <Link
-                    href={`/album/${entry.album.id}`}
-                    onClick={onClose}
-                    className="text-[#7cc7e8] hover:underline"
-                  >
-                    Change album rating
-                  </Link>
-                </p>
-              )}
+              <p className="mt-2 text-[11px] text-stone-500">
+                Shared across every listen of this album, your album page and Monthly Top.
+              </p>
             </div>
 
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-stone-500 mb-1.5">
-                Review
+                Album review
               </label>
               <textarea
                 value={review}
@@ -380,6 +387,11 @@ function EditLogModal({ entry, onClose, onSaved, onDeleted }) {
               />
             </div>
 
+            {entry.legacyNote && (
+              <p className="text-[11px] text-stone-500">
+                Older listen note (kept in your history): {entry.legacyNote}
+              </p>
+            )}
             {error && <p className="text-xs text-red-400">{error}</p>}
 
             <div className="flex flex-col gap-2 pt-1">
@@ -475,26 +487,23 @@ export default function DiaryView({
 
   const applyPatch = (updated) => {
     if (!updated?.id) return;
+    // The review belongs to the album, not this particular listen.
+    // Keep every loaded date for the album in sync immediately after Save.
     setItems((prev) =>
-      prev.map((item) =>
-        item.id === updated.id
-          ? {
-              ...item,
-              listened_at: updated.listened_at ?? item.listened_at,
-              listenRating: updated.rating !== undefined
-                ? updated.rating : item.listenRating,
-              rating: resolveDiaryRating(
-                updated.rating !== undefined ? updated.rating : item.listenRating,
-                item.albumRating
-              ),
-              review:
-                updated.review !== undefined ? updated.review : item.review,
-              albums: updated.albums
-                ? { ...item.albums, ...updated.albums }
-                : item.albums,
-            }
-          : item
-      )
+      prev.map((item) => {
+        const sameAlbum = (item.albums?.spotify_id || item.album_id) === updated.album_id;
+        if (!sameAlbum) return item;
+        return {
+          ...item,
+          listened_at: item.id === updated.id
+            ? (updated.listened_at ?? item.listened_at)
+            : item.listened_at,
+          rating: updated.rating,
+          albumRating: updated.albumRating,
+          review: updated.review,
+          albumReview: updated.albumReview,
+        };
+      })
     );
     onHistoryPatch?.(updated);
   };

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { spotifyFetch } from '@/lib/spotify';
-import { sanitizeString } from '@/lib/validators';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 import { getRequestUser, unauthorized } from '@/lib/apiAuth';
 import { normalizeTimeZone } from '@/lib/timezone';
@@ -28,14 +27,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing albumId' }, { status: 400 });
     }
 
-    if (rating !== undefined && rating !== null && rating !== '') {
-      const num = Number(rating);
-      if (Number.isNaN(num) || num < 1 || num > 10) {
-        return NextResponse.json(
-          { error: 'Rating must be between 1 and 10' },
-          { status: 400 }
-        );
-      }
+    // New listens describe events only. Global ratings/reviews are stored
+    // exclusively in public.reviews via the album review endpoints.
+    if ((rating != null && rating !== '') ||
+        (review != null && String(review).trim() !== '')) {
+      return NextResponse.json(
+        { error: 'Rate or review the album using the album review editor' },
+        { status: 400 }
+      );
     }
 
     const supabase = createSupabaseServer();
@@ -73,11 +72,6 @@ export async function POST(request) {
       );
     }
 
-    const ratingValue =
-      rating !== undefined && rating !== null && rating !== ''
-        ? Number(rating)
-        : null;
-
     // Do not silently overwrite an established profile timezone when the
     // client omits it. The database uses the stored zone for month boundaries.
     const tz = timezone ? normalizeTimeZone(timezone) : null;
@@ -89,8 +83,6 @@ export async function POST(request) {
         {
           user_id: userId,
           album_id: albumId,
-          rating: ratingValue,
-          review: review ? sanitizeString(review) : null,
           listened_at: listenedAt,
         },
       ])

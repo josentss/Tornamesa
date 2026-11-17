@@ -76,7 +76,6 @@ export async function GET(request, { params }) {
           `
           id,
           listened_at,
-          rating,
           album_id,
           albums (
             spotify_id,
@@ -101,11 +100,12 @@ export async function GET(request, { params }) {
       ];
       const reviewMap = {};
       if (albumIds.length) {
-        const { data: reviews } = await supabase
+        const { data: reviews, error: reviewsError } = await supabase
           .from('reviews')
           .select('album_id, rating')
           .eq('user_id', userId)
           .in('album_id', albumIds);
+        if (reviewsError) throw reviewsError;
         (reviews || []).forEach((r) => {
           if (r.rating != null) reviewMap[r.album_id] = r.rating;
         });
@@ -118,7 +118,7 @@ export async function GET(request, { params }) {
         byAlbum.set(aid, {
           listenId: row.id,
           listened_at: row.listened_at,
-          rating: reviewMap[aid] ?? row.rating ?? null,
+          rating: reviewMap[aid] ?? null,
           album: {
             id: aid,
             title: row.albums?.title || 'Unknown album',

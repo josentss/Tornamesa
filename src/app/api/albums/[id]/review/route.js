@@ -27,9 +27,20 @@ export async function POST(request, { params }) {
     const { rating, review_text } = body;
     const numericRating = Number(rating);
 
-    if (!rating || Number.isNaN(numericRating) || numericRating < 1 || numericRating > 10) {
+    if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 10) {
       return NextResponse.json(
         { error: 'Invalid rating (1-10)' },
+        { status: 400 }
+      );
+    }
+
+    if (review_text != null && typeof review_text !== 'string') {
+      return NextResponse.json({ error: 'Album review must be text' }, { status: 400 });
+    }
+    const reviewText = typeof review_text === 'string' ? review_text.trim() : null;
+    if (reviewText && reviewText.length > 10000) {
+      return NextResponse.json(
+        { error: 'Album review is too long (maximum 10000 characters)' },
         { status: 400 }
       );
     }
@@ -50,7 +61,7 @@ export async function POST(request, { params }) {
         .from('reviews')
         .update({
           rating: numericRating,
-          review_text: review_text || null,
+          review_text: reviewText || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
@@ -66,7 +77,7 @@ export async function POST(request, { params }) {
           user_id: user.id,
           album_id: albumId,
           rating: numericRating,
-          review_text: review_text || null,
+          review_text: reviewText || null,
         })
         .select()
         .single();

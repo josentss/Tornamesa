@@ -52,8 +52,6 @@ export async function GET(request, { params }) {
       .select(
         `
         id,
-        rating,
-        review,
         listened_at,
         created_at,
         album_id,
@@ -83,11 +81,12 @@ export async function GET(request, { params }) {
       const userIds = [...new Set(pairKeys.map((p) => p.user_id))];
       const albumIds = [...new Set(pairKeys.map((p) => p.album_id))];
 
-      const { data: reviews } = await supabase
+      const { data: reviews, error: reviewsError } = await supabase
         .from('reviews')
         .select('user_id, album_id, rating')
         .in('user_id', userIds)
         .in('album_id', albumIds);
+      if (reviewsError) throw reviewsError;
 
       (reviews || []).forEach((r) => {
         if (r.rating != null) {
@@ -113,7 +112,7 @@ export async function GET(request, { params }) {
           album_title: item.albums?.title || 'Unknown album',
           artist_name: item.albums?.artist || '',
           album_cover: item.albums?.cover_url || null,
-          rating: fromReview ?? item.rating ?? null,
+          rating: fromReview ?? null,
           listened_at: listened || created,
           created_at: created,
           activity_at: activityAt,

@@ -1,31 +1,36 @@
 /**
- * A listen and an album review are separate records. Keep the raw listen
- * rating available for editing; only fall back to the album review when a
- * listen has no rating of its own.
- *
- * Monthly Top deliberately uses the album-review rating first, independently
- * of how an individual diary entry is displayed.
+ * Canonical user/album rating comes ONLY from public.reviews.
+ * Legacy listens.rating / listens.review remain stored as historical data.
+ * A log never overrides its album's rating or creates a new review on read.
  */
-export function resolveDiaryRating(listenRating, albumRating) {
-  return listenRating ?? albumRating ?? null;
+export function resolveDiaryRating(albumRating) {
+  return albumRating ?? null;
 }
 
-export function enrichDiaryRatings(history, reviews = []) {
-  const reviewRatings = new Map(
+export function enrichDiaryRatings(history, reviews = [], { includeLegacy = false } = {}) {
+  const byAlbum = new Map(
     (reviews || [])
-      .filter((review) => review.album_id && review.rating != null)
-      .map((review) => [review.album_id, review.rating])
+      .filter((r) => r.album_id && r.rating != null)
+      .map((r) => [r.album_id, r])
   );
 
   return (history || []).map((item) => {
-    const albumId = item.albums?.spotify_id || item.album_id;
-    const albumRating = reviewRatings.get(albumId) ?? null;
-    const listenRating = item.rating ?? null;
+    const id = item.albums?.spotify_id || item.album_id;
+    const review = byAlbum.get(id);
+    const albumRating = resolveDiaryRating(review?.rating);
+    const albumReview = review?.review_text ?? null;
+    const { rating: legacyRating, review: oldListenNote, ...rest } = item;
+
     return {
-      ...item,
-      listenRating,
+      ...rest,
+      rating: albumRating,
+      review: albumReview,
       albumRating,
-      rating: resolveDiaryRating(listenRating, albumRating),
+      albumReview,
+      // Only the account owner's endpoint exposes archival notes/ratings.
+      ...(includeLegacy
+        ? { listenRating: legacyRating ?? null, legacyNote: oldListenNote ?? null }
+        : {}),
     };
   });
 }

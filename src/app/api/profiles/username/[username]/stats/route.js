@@ -101,15 +101,16 @@ export async function GET(request, { params }) {
       monthlyTop = [];
     }
 
-    // Ratings: reviews + listens
+    // Ratings: exactly one canonical review per user/album
     const ratingDistribution = {};
     for (let i = 1; i <= 10; i++) ratingDistribution[i] = 0;
     const ratingMap = {};
 
-    const { data: userReviews } = await supabase
+    const { data: userReviews, error: reviewsError } = await supabase
       .from('reviews')
       .select('album_id, rating')
       .eq('user_id', userId);
+    if (reviewsError) throw reviewsError;
 
     (userReviews || []).forEach((r) => {
       if (r.rating >= 1 && r.rating <= 10) {
@@ -118,24 +119,11 @@ export async function GET(request, { params }) {
       }
     });
 
-    const { data: ratedListens } = await supabase
-      .from('listens')
-      .select('album_id, rating')
-      .eq('user_id', userId)
-      .not('rating', 'is', null);
-
-    (ratedListens || []).forEach((l) => {
-      if (l.rating >= 1 && l.rating <= 10 && ratingMap[l.album_id] == null) {
-        ratingDistribution[l.rating]++;
-        ratingMap[l.album_id] = l.rating;
-      }
-    });
-
     // Recent activity
     const { data: recentListens, error: recentError } = await supabase
       .from('listens')
       .select(
-        'album_id, listened_at, rating, albums(spotify_id, title, artist, cover_url)'
+        'album_id, listened_at, albums(spotify_id, title, artist, cover_url)'
       )
       .eq('user_id', userId)
       .order('listened_at', { ascending: false })
@@ -159,15 +147,12 @@ export async function GET(request, { params }) {
             title: album.title,
             artist: album.artist,
             cover: album.cover_url,
-            rating: ratingMap[album.spotify_id] ?? item.rating ?? null,
+            rating: ratingMap[album.spotify_id] ?? null,
           },
           count: 0,
         };
       }
       grouped[key].count++;
-      if (item.rating != null) {
-        grouped[key].album.rating = item.rating;
-      }
     });
 
     const recentActivity = Object.values(grouped)
