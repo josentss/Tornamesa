@@ -25,8 +25,12 @@ function toFlat(rows, reviewMap) {
       album_id: albumId,
       title: r.albums?.title || '',
       artist: r.albums?.artist || '',
-      rating: rev?.rating ?? r.rating ?? null,
-      review: rev?.review_text ?? r.review ?? null,
+      rating: rev?.rating ?? null,
+      review: rev?.review_text ?? null,
+      // Historical per-listen values remain available only to the owner
+      // through detailed export; they never override the album review.
+      legacy_listen_rating: r.rating ?? null,
+      legacy_listen_review: r.review ?? null,
     };
   });
 }
@@ -147,10 +151,7 @@ export async function GET(request, { params }) {
         .eq('user_id', userId)
         .in('album_id', chunk);
 
-      if (revErr) {
-        console.warn('export reviews:', revErr.message);
-        continue;
-      }
+      if (revErr) throw revErr;
       (reviews || []).forEach((r) => {
         if (r.album_id) reviewMap[r.album_id] = r;
       });
@@ -199,6 +200,8 @@ export async function GET(request, { params }) {
           'artist',
           'rating',
           'review',
+          'legacy_listen_rating',
+          'legacy_listen_review',
         ];
         lines = [header.join(',')];
         for (const row of payloadRows) {
@@ -211,6 +214,8 @@ export async function GET(request, { params }) {
               csvEscape(row.artist),
               row.rating ?? '',
               csvEscape(row.review),
+              row.legacy_listen_rating ?? '',
+              csvEscape(row.legacy_listen_review),
             ].join(',')
           );
         }
