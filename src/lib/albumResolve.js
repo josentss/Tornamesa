@@ -306,6 +306,27 @@ export async function searchLocalByTitleArtist(title, artist, limit = 15) {
   }
 }
 
+/**
+ * Retrieve the last remote search hits without hitting Spotify again.
+ * Ordered IDs are short-lived; catalog rows are loaded locally.
+ */
+export async function getLocalAlbumsByIds(ids) {
+  const safe = [...new Set((ids || []).filter((id) => /^[A-Za-z0-9]{22}$/.test(id)))].slice(0, 10);
+  if (!safe.length) return [];
+  try {
+    const supabase = createSupabaseServer();
+    const { data, error } = await supabase.from('albums')
+      .select('spotify_id, title, artist, cover_url')
+      .in('spotify_id', safe);
+    if (error) throw error;
+    const byId = new Map((data || []).map((album) => [album.spotify_id, album]));
+    return safe.map((id) => mapDbRow(byId.get(id))).filter(Boolean);
+  } catch (e) {
+    console.warn('getLocalAlbumsByIds:', e.message);
+    return [];
+  }
+}
+
 // spotify search
 export async function searchSpotifyAlbums(query, limit = 15, { strictPersistence = false } = {}) {
   const q = String(query || '').trim();
