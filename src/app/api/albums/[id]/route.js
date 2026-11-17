@@ -89,7 +89,8 @@ export async function GET(request, { params }) {
       next = typeof data.next === 'string' ? data.next : null;
     }
 
-    const complete = !next && (!Number.isFinite(total) || tracks.length >= total);
+    const complete = Array.isArray(trackPage.items) && !next &&
+      (Number.isFinite(total) ? tracks.length >= total : tracks.length > 0);
     const totalMs = tracks.reduce((sum, t) => sum + (Number(t.duration_ms) || 0), 0);
     // Never show a partial duration as if it were complete.
     const durationMs = complete && totalMs > 0 ? totalMs : (local?.duration_ms || 0);
