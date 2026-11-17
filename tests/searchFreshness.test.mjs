@@ -40,26 +40,16 @@ test('first-ever query searches Spotify regardless of local catalog count', asyn
   });
 });
 
-test('manual refresh is allowed after the short attempt window, not every click', async () => {
+test('repeated searches do not bypass freshness or cause extra Spotify requests', async () => {
   await withoutRedis(async () => {
-    const originalNow = Date.now;
-    let t = originalNow();
-    Date.now = () => t;
-    try {
-      const q = 'manual-artist-query-2026';
-      const reservation = await cache.reserveAlbumSearch(q);
-      assert.equal(reservation.fetchRemote, true);
-      await cache.confirmAlbumSearchSuccess(reservation, [dummyId]);
-
-      const throttled = await cache.reserveAlbumSearch(q, { force: true });
-      assert.equal(throttled.fetchRemote, false);
-      assert.equal(throttled.reason, 'recent-attempt');
-
-      t += (cache.SEARCH_ATTEMPT_SECONDS + 1) * 1000;
-      assert.equal((await cache.reserveAlbumSearch(q)).fetchRemote, false); // still fresh
-      assert.equal((await cache.reserveAlbumSearch(q, { force: true })).fetchRemote, true);
-    } finally {
-      Date.now = originalNow;
+    const q = 'automatically-protected-artist-2026';
+    const first = await cache.reserveAlbumSearch(q);
+    assert.equal(first.fetchRemote, true);
+    await cache.confirmAlbumSearchSuccess(first, [dummyId]);
+    for (let i = 0; i < 4; i++) {
+      const repeat = await cache.reserveAlbumSearch(q);
+      assert.equal(repeat.fetchRemote, false);
+      assert.equal(repeat.reason, 'recently-refreshed');
     }
   });
 });
@@ -105,12 +95,16 @@ test('search API no longer uses arbitrary local hit counts to suppress freshness
   assert.match(album, /if \(strictPersistence\) throw e/);
 });
 
-test('search page preserves array consumers while reporting freshness', () => {
+test('search UI has no manual Spotify button or technical status', () => {
   const api = read('../src/lib/api.js');
   const page = read('../src/app/search/page.js');
-  assert.match(api, /searchAlbumsWithStatus:/);
-  assert.match(api, /X-Search-Freshness/);
-  assert.match(page, /Search Spotify|Check Spotify for newer albums/);
-  assert.match(page, /recently-refreshed/);
-  assert.match(page, /Spotify temporarily unavailable/);
+  const route = read('../src/app/api/search/route.js');
+  assert.match(api, /searchAlbums: \(query, type = 'album'\)/);
+  assert.doesNotMatch(api, /searchAlbumsWithStatus|forceSpotify/);
+  assert.match(page, /api\.searchAlbums\(trimmed, "album"\)/);
+  assert.doesNotMatch(page, /Check Spotify for newer albums|Catalog checked with Spotify/);
+  assert.doesNotMatch(page, /Showing recently refreshed|recently-refreshed|remoteSearched|freshness/);
+  assert.match(route, /reserveAlbumSearch\(trimmed\)/);
+  assert.doesNotMatch(route, /searchParams\.get\('remote'\)/);
+  assert.match(route, /X-Search-Freshness/); // monitoring header only
 });

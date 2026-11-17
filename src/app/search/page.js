@@ -49,10 +49,9 @@ export default function SearchPage() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [freshness, setFreshness] = useState(null);
   const [error, setError] = useState(null);
 
-  const performSearch = useCallback(async (q, forceSpotify = false) => {
+  const performSearch = useCallback(async (q) => {
     const trimmed = q.trim();
     if (trimmed.length < 2) {
       setError("Type at least 2 characters");
@@ -62,18 +61,15 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     setSearched(true);
-    setFreshness(null);
 
     try {
-      const data = await api.searchAlbumsWithStatus(trimmed, "album", forceSpotify);
-      setResults(Array.isArray(data.albums) ? data.albums : []);
-      setFreshness(data.freshness || null);
+      const albums = await api.searchAlbums(trimmed, "album");
+      setResults(Array.isArray(albums) ? albums : []);
     } catch (err) {
       console.error("Search error:", err);
       setError(err.message || "Search failed");
       setResults([]);
-      setFreshness(null);
-    } finally {
+      } finally {
       setLoading(false);
     }
   }, []);
@@ -88,7 +84,7 @@ export default function SearchPage() {
       <Header user={user} />
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-        <div className="max-w-lg mx-auto mb-10 sm:mb-12 text-center">
+        <div className="max-w-lg mx-auto mb-7 sm:mb-9 text-center">
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-[#f0f9ff] mb-5">
             Search albums
           </h1>
@@ -122,33 +118,6 @@ export default function SearchPage() {
               </div>
             ))}
           </div>
-        )}
-
-        {!loading && searched && (
-          <div className="text-center mb-5">
-            <button
-              type="button"
-              onClick={() => performSearch(query, true)}
-              className="text-xs text-[#87ceeb] hover:underline"
-            >
-              Check Spotify for newer albums
-            </button>
-          </div>
-        )}
-
-        {!loading && searched && freshness && (
-          <p className="text-[11px] text-stone-500 mb-4 text-center">
-            {freshness === "updated"
-              ? "Catalog checked with Spotify"
-              : freshness === "recently-refreshed"
-                ? "Showing recently refreshed catalog results"
-                : freshness === "recent-attempt"
-                  ? "Spotify was checked recently. Try again shortly."
-                  : freshness === "spotify-unavailable" ||
-                      freshness === "coordination-unavailable"
-                    ? "Spotify temporarily unavailable · showing saved albums"
-                    : "Showing saved catalog results"}
-          </p>
         )}
 
         {!loading && searched && results.length > 0 && (

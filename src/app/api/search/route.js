@@ -51,9 +51,7 @@ export async function GET(request) {
     // Global local catalog first, but never infer freshness from how many
     // albums it contains. Any query with expired freshness can refresh Spotify.
     const local = await searchLocalAlbums(trimmed, 40);
-    const decision = await reserveAlbumSearch(trimmed, {
-      force: searchParams.get('remote') === '1',
-    });
+    const decision = await reserveAlbumSearch(trimmed);
 
     let remote = [];
     let rateLimited = false;

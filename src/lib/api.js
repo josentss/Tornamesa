@@ -48,26 +48,11 @@ async function authHeadersOptional() {
 }
 
 export const api = {
-  searchAlbums: (query, type = 'album', forceSpotify = false) =>
+  searchAlbums: (query, type = 'album') =>
     fetchApi(
-      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}${forceSpotify ? '&remote=1' : ''}`,
+      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}`,
       { cache: 'no-store' }
     ),
-
-  /**
-   * Search page also displays whether Spotify was refreshed or locally served.
-   * Keep searchAlbums's array contract for existing clients.
-   */
-  searchAlbumsWithStatus: async (query, type = 'album', forceSpotify = false) => {
-    const url = `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}${forceSpotify ? '&remote=1' : ''}`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const albums = await handleResponse(response);
-    return {
-      albums,
-      freshness: response.headers.get('X-Search-Freshness'),
-      source: response.headers.get('X-Search-Source'),
-    };
-  },
 
   getAlbumDetails: (id) => fetchApi(`/api/albums/${id}`),
 
