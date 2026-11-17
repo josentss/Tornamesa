@@ -1,3 +1,4 @@
+import { reserveSpotifyRequest, recordSpotify429 } from '@/lib/spotifyQuota';
 let cachedToken = null;
 let tokenExpiry = 0;
 let tokenPromise = null;
@@ -69,49 +70,39 @@ export function clearSpotifyToken() {
   tokenExpiry = 0;
 }
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+/**
+ * One outbound Spotify call per logical operation. Never automatically
+ * retry a 429: the shared gate observes Retry-After / QUOTA_EXCEEDED.
+ */
+export async function spotifyFetch(url, options = {}) {
+  const gate = await reserveSpotifyRequest();
+  if (!gate.allowed) {
+    return new Response(JSON.stringify({
+      error: { status: 429, reason: gate.reason, message: 'Spotify temporarily unavailable' },
+    }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json', 'Retry-After': String(gate.retryAfter), 'X-Tornamesa-Gate': '1' },
+    });
+  }
 
-export async function spotifyFetch(url, options = {}, maxRetries = 2) {
   let token = await getSpotifyToken();
-
   const doFetch = (accessToken) =>
     fetch(url, {
       ...options,
       cache: 'no-store',
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers: { ...(options.headers || {}), Authorization: `Bearer ${accessToken}` },
     });
 
   let response = await doFetch(token);
-
   if (response.status === 401) {
-    console.warn('Spotify 401 – refreshing token and retrying');
     clearSpotifyToken();
     token = await getSpotifyToken(true);
     response = await doFetch(token);
   }
 
-  let attempt = 0;
-  while (response.status === 429 && attempt < maxRetries) {
-    const retryAfter = response.headers.get('Retry-After');
-    const waitSec = retryAfter ? parseInt(retryAfter, 10) : null;
-    const waitMs =
-      (Number.isFinite(waitSec) && waitSec > 0
-        ? waitSec
-        : Math.min(8, 1 + attempt * 2)) * 1000;
-
-    console.warn(
-      `Spotify 429 – waiting ${waitMs}ms before retry (${attempt + 1}/${maxRetries})`
-    );
-    await sleep(waitMs);
-    attempt += 1;
-    response = await doFetch(token);
+  if (response.status === 429) {
+    await recordSpotify429(response);
   }
-
   return response;
 }
 
