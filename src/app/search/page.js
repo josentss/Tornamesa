@@ -49,7 +49,7 @@ export default function SearchPage() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [remoteSearched, setRemoteSearched] = useState(false);
+  const [freshness, setFreshness] = useState(null);
   const [error, setError] = useState(null);
 
   const performSearch = useCallback(async (q, forceSpotify = false) => {
@@ -62,16 +62,17 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     setSearched(true);
-    setRemoteSearched(forceSpotify);
+    setFreshness(null);
 
     try {
-      const data = await api.searchAlbums(trimmed, "album", forceSpotify);
-      const list = Array.isArray(data) ? data : [];
-      setResults(list);
+      const data = await api.searchAlbumsWithStatus(trimmed, "album", forceSpotify);
+      setResults(Array.isArray(data.albums) ? data.albums : []);
+      setFreshness(data.freshness || null);
     } catch (err) {
       console.error("Search error:", err);
       setError(err.message || "Search failed");
       setResults([]);
+      setFreshness(null);
     } finally {
       setLoading(false);
     }
@@ -123,16 +124,31 @@ export default function SearchPage() {
           </div>
         )}
 
-        {!loading && searched && !remoteSearched && (
+        {!loading && searched && (
           <div className="text-center mb-5">
             <button
               type="button"
               onClick={() => performSearch(query, true)}
               className="text-xs text-[#87ceeb] hover:underline"
             >
-              Search Spotify for additional albums
+              Check Spotify for newer albums
             </button>
           </div>
+        )}
+
+        {!loading && searched && freshness && (
+          <p className="text-[11px] text-stone-500 mb-4 text-center">
+            {freshness === "updated"
+              ? "Catalog checked with Spotify"
+              : freshness === "recently-refreshed"
+                ? "Showing recently refreshed catalog results"
+                : freshness === "recent-attempt"
+                  ? "Spotify was checked recently. Try again shortly."
+                  : freshness === "spotify-unavailable" ||
+                      freshness === "coordination-unavailable"
+                    ? "Spotify temporarily unavailable · showing saved albums"
+                    : "Showing saved catalog results"}
+          </p>
         )}
 
         {!loading && searched && results.length > 0 && (
