@@ -106,10 +106,11 @@ export async function GET(request, { params }) {
     for (let i = 1; i <= 10; i++) ratingDistribution[i] = 0;
     const ratingMap = {};
 
-    const { data: userReviews } = await supabase
+    const { data: userReviews, error: reviewsError } = await supabase
       .from('reviews')
       .select('album_id, rating')
       .eq('user_id', userId);
+    if (reviewsError) throw reviewsError;
 
     (userReviews || []).forEach((r) => {
       if (r.rating >= 1 && r.rating <= 10) {

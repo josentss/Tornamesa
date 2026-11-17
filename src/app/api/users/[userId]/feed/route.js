@@ -81,11 +81,12 @@ export async function GET(request, { params }) {
       const userIds = [...new Set(pairKeys.map((p) => p.user_id))];
       const albumIds = [...new Set(pairKeys.map((p) => p.album_id))];
 
-      const { data: reviews } = await supabase
+      const { data: reviews, error: reviewsError } = await supabase
         .from('reviews')
         .select('user_id, album_id, rating')
         .in('user_id', userIds)
         .in('album_id', albumIds);
+      if (reviewsError) throw reviewsError;
 
       (reviews || []).forEach((r) => {
         if (r.rating != null) {
