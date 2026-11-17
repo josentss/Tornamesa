@@ -5,10 +5,15 @@ import {
   getAlbumByIdResolved,
   searchLocalAlbums,
   searchSpotifyAlbums,
+  getLocalAlbumsByIds,
   dedupeAlbums,
 } from '@/lib/albumResolve';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
-import { reserveAlbumSearch, confirmAlbumSearchSuccess } from '@/lib/searchFreshness';
+import {
+  reserveAlbumSearch,
+  confirmAlbumSearchSuccess,
+  getRecentAlbumSearchIds,
+} from '@/lib/searchFreshness';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +65,7 @@ export async function GET(request) {
         // A successful remote query is fresh only after its search results
         // have been persisted to the catalog, not merely shown in this reply.
         remote = await searchSpotifyAlbums(trimmed, 10, { strictPersistence: true });
-        await confirmAlbumSearchSuccess(decision);
+        await confirmAlbumSearchSuccess(decision, remote.map((album) => album.id));
         searchFreshness = 'updated';
       } catch (err) {
         spotifyErrMsg = String(err?.message || err || 'unknown').slice(0, 180);
@@ -68,6 +73,10 @@ export async function GET(request) {
         if (err?.status === 429) rateLimited = true;
         searchFreshness = 'spotify-unavailable';
       }
+    } else {
+      // A recent Spotify search should not disappear from the list on reload.
+      // Recover its ordered IDs from short-lived cache, then read Supabase.
+      remote = await getLocalAlbumsByIds(await getRecentAlbumSearchIds(trimmed));
     }
 
     const extras = [];
