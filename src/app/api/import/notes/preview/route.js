@@ -256,7 +256,13 @@ async function resolveRow(row, ctx) {
       status: 'unmatched',
       score: 0,
       candidates: [],
-      matchSource: 'skipped_rate_limit',
+      matchSource: ctx.rateLimited
+        ? 'spotify_paused'
+        : !ctx.remoteEnabled
+          ? 'local_only'
+          : ctx.remoteBudgetExhausted
+            ? 'remote_budget_exhausted'
+            : 'spotify_unavailable',
     };
   }
 

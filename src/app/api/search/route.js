@@ -47,8 +47,7 @@ export async function GET(request) {
     const local = await searchLocalAlbums(trimmed, 40);
     const shouldSearchRemote = searchParams.get('remote') === '1' || local.length < 8;
     const remoteOutcome = shouldSearchRemote
-      ? await Promise.allSettled([searchSpotifyAlbums(trimmed, 10)])
-          .then(([outcome]) => outcome)
+      ? (await Promise.allSettled([searchSpotifyAlbums(trimmed, 10)]))[0]
       : { status: 'fulfilled', value: [] };
 
     let remote = [];
