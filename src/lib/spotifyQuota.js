@@ -103,3 +103,21 @@ export async function recordSpotify429(response) {
   await holdSpotifyRequests(seconds);
   return { quotaExceeded, retryAfter: seconds };
 }
+
+/**
+ * Fail closed when Upstash is unavailable: import previews always have
+ * offline mode, but remote discovery must share a real cross-instance budget.
+ */
+export async function reserveSpotifyImportSearch(userId, fileHash) {
+  const client = getRedis();
+  if (!client) return { allowed: false, unavailable: true };
+  const key = 'tornamesa:spotify:import-file:v1:' + userId + ':' + fileHash;
+  try {
+    const attempts = Number(await client.incr(key));
+    if (attempts === 1) await client.expire(key, 3600);
+    return { allowed: attempts <= 3, unavailable: false };
+  } catch (e) {
+    console.warn('Spotify import budget Redis:', e.message);
+    return { allowed: false, unavailable: true };
+  }
+}

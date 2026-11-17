@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
-import { spotifySharedQuotaConfigured } from '@/lib/spotifyQuota';
+import { spotifySharedQuotaConfigured, reserveSpotifyImportSearch } from '@/lib/spotifyQuota';
 import { createClient } from '@supabase/supabase-js';
 import {
   parseNotesFile,
@@ -50,13 +50,10 @@ async function reserveImportRemote(ctx) {
   }
   // The Redis-backed limiter is global across preview chunks and Vercel
   // instances. Remote mode is disabled if Redis is unavailable.
-  const permit = await rateLimit(`spotify-import:${ctx.userId}:${ctx.fileHash}`, {
-    limit: 3,
-    windowMs: 60 * 60_000,
-    name: 'spotify-import-unique-file-v1',
-  });
-  if (!permit.ok) {
-    ctx.remoteBudgetExhausted = true;
+  const permit = await reserveSpotifyImportSearch(ctx.userId, ctx.fileHash);
+  if (!permit.allowed) {
+    if (permit.unavailable) ctx.remoteUnavailable = true;
+    else ctx.remoteBudgetExhausted = true;
     return false;
   }
   ctx.remoteAttempts += 1;
@@ -335,7 +332,7 @@ export async function POST(request) {
     const remoteRequested = body.spotifyMode === 'limited';
     const remoteEnabled = remoteRequested && spotifySharedQuotaConfigured();
     const fileHash = createHash('sha256')
-      .update(name).update('\\0').update(content).digest('hex');
+      .update(name).update('\0').update(content).digest('hex');
     const parseErrors =
       offset === 0
         ? parsed.parseErrors.map((e) => ({ ...e, file: name }))
@@ -364,6 +361,7 @@ export async function POST(request) {
       rateLimited: false,
       remoteAttempts: 0,
       remoteBudgetExhausted: false,
+      remoteUnavailable: false,
     };
     const resolved = [];
 
@@ -391,7 +389,7 @@ export async function POST(request) {
       rateLimited: ctx.rateLimited,
       remoteSearchUsed: ctx.remoteAttempts,
       remoteBudgetExhausted: ctx.remoteBudgetExhausted,
-      remoteDisabled: remoteRequested && !remoteEnabled,
+      remoteDisabled: (remoteRequested && !remoteEnabled) || ctx.remoteUnavailable,
       spotifyMode: remoteEnabled ? 'limited' : 'local',
       chunk: {
         offset,
