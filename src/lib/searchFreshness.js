@@ -83,10 +83,46 @@ export async function reserveAlbumSearch(query, { force = false } = {}) {
   return { fetchRemote: true, key, shared: false };
 }
 
-export async function confirmAlbumSearchSuccess(reservation) {
+function safeIds(value) {
+  const items = typeof value === 'string'
+    ? (() => { try { return JSON.parse(value); } catch { return []; } })()
+    : value;
+  return Array.isArray(items)
+    ? items.filter((id) => /^[A-Za-z0-9]{22}$/.test(id)).slice(0, 10)
+    : [];
+}
+
+/**
+ * The last ordered Spotify match IDs are held temporarily. Rehydrate their
+ * display fields from Supabase so cached local pages keep the same result
+ * ordering (new releases do not vanish after a refresh).
+ */
+export async function getRecentAlbumSearchIds(query) {
+  const key = searchQueryKey(query);
+  const client = redisClient();
+  if (client) {
+    try {
+      return safeIds(await client.get(NS + key + ':ids'));
+    } catch (error) {
+      console.warn('Spotify search recent IDs Redis read:', error.message);
+      return [];
+    }
+  }
+  const state = memoryState(key, Date.now());
+  return state.freshUntil > Date.now() ? safeIds(state.ids) : [];
+}
+
+export async function confirmAlbumSearchSuccess(reservation, albumIds = []) {
   if (!reservation?.fetchRemote) return;
   if (reservation.shared) {
     try {
+      // Write ordered IDs before freshness to avoid readers seeing a fresh
+      // stamp without its associated remote search results.
+      await reservation.client.set(
+        reservation.freshKey.replace(/:fresh$/, ':ids'),
+        safeIds(albumIds),
+        { ex: SEARCH_FRESH_SECONDS }
+      );
       await reservation.client.set(reservation.freshKey, '1', { ex: SEARCH_FRESH_SECONDS });
     } catch (error) {
       console.warn('Spotify search freshness write failed:', error.message);
@@ -98,5 +134,6 @@ export async function confirmAlbumSearchSuccess(reservation) {
   memory.set(reservation.key, {
     ...state,
     freshUntil: now + SEARCH_FRESH_SECONDS * 1000,
+    ids: safeIds(albumIds),
   });
 }
