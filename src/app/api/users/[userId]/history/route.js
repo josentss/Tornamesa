@@ -58,14 +58,14 @@ export async function GET(request, { params }) {
     if (albumIds.length > 0) {
       const { data, error: reviewsError } = await supabase
         .from('reviews')
-        .select('album_id, rating')
+        .select('album_id, rating, review_text')
         .eq('user_id', userId)
         .in('album_id', albumIds);
       if (reviewsError) throw reviewsError;
       reviews = data || [];
     }
 
-    const enriched = enrichDiaryRatings(history, reviews);
+    const enriched = enrichDiaryRatings(history, reviews, { includeLegacy: true });
 
     const totalMinutes =
       enriched.reduce((acc, item) => acc + (item.albums?.duration_ms || 0), 0) /

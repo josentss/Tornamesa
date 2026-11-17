@@ -86,7 +86,7 @@ export async function GET(request, { params }) {
     if (albumIds.length > 0) {
       const { data, error: reviewsError } = await supabase
         .from('reviews')
-        .select('album_id, rating')
+        .select('album_id, rating, review_text')
         .eq('user_id', base.id)
         .in('album_id', albumIds);
       if (reviewsError) throw reviewsError;
