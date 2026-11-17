@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseServer } from '@/lib/supabase-server';
 import { getRequestUser, unauthorized, forbidden } from '@/lib/apiAuth';
+import { enrichDiaryRatings } from '@/lib/diaryRating';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -53,27 +54,18 @@ export async function GET(request, { params }) {
       ),
     ];
 
-    const reviewMap = {};
+    let reviews = [];
     if (albumIds.length > 0) {
-      const { data: reviews } = await supabase
+      const { data, error: reviewsError } = await supabase
         .from('reviews')
         .select('album_id, rating')
         .eq('user_id', userId)
         .in('album_id', albumIds);
-
-      (reviews || []).forEach((r) => {
-        if (r.rating != null) reviewMap[r.album_id] = r.rating;
-      });
+      if (reviewsError) throw reviewsError;
+      reviews = data || [];
     }
 
-    const enriched = (history || []).map((item) => {
-      const albumId = item.albums?.spotify_id || item.album_id;
-      const ratingFromReview = albumId != null ? reviewMap[albumId] : null;
-      return {
-        ...item,
-        rating: ratingFromReview ?? item.rating ?? null,
-      };
-    });
+    const enriched = enrichDiaryRatings(history, reviews);
 
     const totalMinutes =
       enriched.reduce((acc, item) => acc + (item.albums?.duration_ms || 0), 0) /

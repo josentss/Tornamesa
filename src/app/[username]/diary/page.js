@@ -11,6 +11,7 @@ import {
 } from "@/components/shared";
 import { api } from "@/lib/api";
 import DiaryView from "@/components/profile/DiaryView";
+import { resolveDiaryRating } from "@/lib/diaryRating";
 
 function DiaryContent() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -152,8 +153,12 @@ function DiaryContent() {
           ? {
               ...item,
               listened_at: updated.listened_at ?? item.listened_at,
-              rating:
-                updated.rating !== undefined ? updated.rating : item.rating,
+              listenRating: updated.rating !== undefined
+                ? updated.rating : item.listenRating,
+              rating: resolveDiaryRating(
+                updated.rating !== undefined ? updated.rating : item.listenRating,
+                item.albumRating
+              ),
               review:
                 updated.review !== undefined ? updated.review : item.review,
             }
