@@ -1,186 +1,143 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import { createSupabaseServer } from '@/lib/supabase-server';
-import { spotifyFetch } from '@/lib/spotify';
+import { getRequestUser } from '@/lib/apiAuth';
+import { buildListenTimestamps, parseNotesFile } from '@/lib/notesImport';
 import { recomputeMonthsForDates } from '@/lib/monthlyTop';
 import { normalizeTimeZone } from '@/lib/timezone';
-import { buildListenTimestamps } from '@/lib/notesImport';
 import { rateLimit, clientKey, rateLimitResponse } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const MAX_ITEMS = 150;
-const MAX_COUNT_PER_ITEM = 30;
-const MAX_TOTAL_LISTENS = 400;
+const MAX_LISTENS = 400;
+const MAX_COUNT = 50;
+const ALBUM_ID = /^[a-zA-Z0-9]{22}$/;
+const SOURCE_NAME = /^20\d{2}-(0[1-9]|1[0-2])\.txt$/i;
 
-async function getUser(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  const token = authHeader.slice(7);
-  const client = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-  const {
-    data: { user },
-    error,
-  } = await client.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
+function bad(message, status = 400) {
+  return NextResponse.json({ error: message }, { status });
 }
 
-async function ensureAlbum(supabase, albumId) {
-  const { data: existing } = await supabase
-    .from('albums')
-    .select('spotify_id')
-    .eq('spotify_id', albumId)
-    .maybeSingle();
-
-  if (existing) return true;
-
-  const res = await spotifyFetch(
-    `https://api.spotify.com/v1/albums/${albumId}`
-  );
-  if (!res.ok) return false;
-  const albumData = await res.json();
-  const totalDuration = (albumData.tracks?.items || []).reduce(
-    (acc, t) => acc + (t.duration_ms || 0),
-    0
-  );
-
-  const { error } = await supabase.from('albums').insert([
-    {
-      spotify_id: albumData.id,
-      title: albumData.name,
-      artist: albumData.artists?.[0]?.name || 'Unknown',
-      cover_url: albumData.images?.[0]?.url || null,
-      duration_ms: totalDuration,
-    },
-  ]);
-
-  if (error && !String(error.message || '').includes('duplicate')) {
-    console.error('ensureAlbum:', error);
-    return false;
-  }
-  return true;
-}
-
+/**
+ * No Spotify requests during commit: an unresolved album remains in preview.
+ * One RPC transaction owns the import ledger and all its listen inserts.
+ */
 export async function POST(request) {
   try {
-    const user = await getUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = await getRequestUser(request);
+    if (!user) return bad('Unauthorized', 401);
 
     const rl = await rateLimit(clientKey(request, 'import-commit', user.id), {
-      limit: 5,
-      windowMs: 5 * 60_000,
-      name: 'import-commit',
+      limit: 5, windowMs: 5 * 60_000, name: 'import-commit',
     });
     if (!rl.ok) return rateLimitResponse(rl.retryAfterSec);
 
     const body = await request.json();
-    const items = body.items;
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        { error: 'Provide items to import' },
-        { status: 400 }
-      );
+    const file = body?.file;
+    const items = body?.items;
+    if (!file || typeof file !== 'object' ||
+        !SOURCE_NAME.test(file.name || '') ||
+        typeof file.content !== 'string' || file.content.length > 200_000) {
+      return bad('Original YYYY-MM.txt source file is required');
     }
-    if (items.length > MAX_ITEMS) {
-      return NextResponse.json(
-        {
-          error: `Too many items (max ${MAX_ITEMS}). Split the import into smaller batches.`,
-        },
-        { status: 400 }
-      );
+    if (!Array.isArray(items) || items.length === 0 || items.length > MAX_ITEMS) {
+      return bad(`Select 1–${MAX_ITEMS} resolved album lines`);
     }
 
-    let projectedListens = 0;
-    for (const item of items) {
-      const c = Math.min(
-        MAX_COUNT_PER_ITEM,
-        Math.max(1, Number(item.count) || 1)
-      );
-      projectedListens += c;
+    const parsed = parseNotesFile(file.content, file.name);
+    if (!parsed.year || parsed.month < 1 || parsed.month > 12) {
+      return bad('Invalid source month');
     }
-    if (projectedListens > MAX_TOTAL_LISTENS) {
-      return NextResponse.json(
-        {
-          error: `Too many total listens in one request (max ${MAX_TOTAL_LISTENS}). Import fewer rows or lower counts.`,
-        },
-        { status: 400 }
-      );
-    }
+    const byLine = new Map(parsed.rows.map((row) => [row.lineIndex, row]));
+    const lineIndices = new Set();
+    const uniqueIds = new Set();
+    let total = 0;
 
     const supabase = createSupabaseServer();
     const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('timezone')
-      .eq('id', user.id)
-      .single();
+      .from('profiles').select('timezone').eq('id', user.id).single();
     if (profileError) throw profileError;
     const tz = normalizeTimeZone(profile?.timezone || 'UTC');
-    const insertedDates = [];
-    let inserted = 0;
-    const failures = [];
+    const prepared = [];
+    const dates = [];
 
     for (const item of items) {
-      const albumId = item.albumId;
-      const count = Math.min(
-        MAX_COUNT_PER_ITEM,
-        Math.max(1, Number(item.count) || 1)
+      const lineIndex = Number(item?.lineIndex);
+      const albumId = String(item?.albumId || '');
+      const sourceRow = byLine.get(lineIndex);
+      const count = Number(item?.count);
+      if (!Number.isInteger(lineIndex) || lineIndices.has(lineIndex) ||
+          !sourceRow || !ALBUM_ID.test(albumId) ||
+          !Number.isInteger(count) || count < 1 || count > MAX_COUNT ||
+          count !== sourceRow.count ||
+          Number(item.year) !== parsed.year ||
+          Number(item.month) !== parsed.month) {
+        return bad('Invalid or duplicated source line; restart the preview');
+      }
+      lineIndices.add(lineIndex);
+      uniqueIds.add(albumId);
+      total += count;
+      if (total > MAX_LISTENS) return bad(`Import limit: ${MAX_LISTENS} listens`);
+
+      const stamps = buildListenTimestamps(
+        parsed.year, parsed.month, count, lineIndex, tz
       );
-      const year = Number(item.year);
-      const month = Number(item.month);
-      const lineIndex = Number(item.lineIndex) || 0;
-
-      if (!albumId || !year || month < 1 || month > 12) {
-        failures.push({ item, reason: 'invalid_fields' });
-        continue;
-      }
-
-      const ok = await ensureAlbum(supabase, albumId);
-      if (!ok) {
-        failures.push({ item, reason: 'album_not_found' });
-        continue;
-      }
-
-      const timestamps = buildListenTimestamps(year, month, count, lineIndex, tz);
-      const rows = timestamps.map((listened_at) => ({
-        user_id: user.id,
-        album_id: albumId,
-        rating: null,
-        review: null,
-        listened_at,
-      }));
-
-      const { error } = await supabase.from('listens').insert(rows);
-      if (error) {
-        failures.push({ item, reason: error.message });
-        continue;
-      }
-
-      inserted += rows.length;
-      insertedDates.push(...timestamps);
+      prepared.push({
+        albumId,
+        lineIndex,
+        year: parsed.year,
+        month: parsed.month,
+        timestamps: stamps,
+      });
+      dates.push(...stamps);
     }
 
-    // One rebuild per affected user-local month after the full import.
-    // Failures remain dirty and are reported, never mislabeled as recomputed.
-    const { monthsRecomputed, monthsFailed } =
-      await recomputeMonthsForDates(user.id, insertedDates);
+    const { data: existing, error: catalogError } = await supabase
+      .from('albums').select('spotify_id').in('spotify_id', [...uniqueIds]);
+    if (catalogError) throw catalogError;
+    const known = new Set((existing || []).map((a) => a.spotify_id));
+    const missing = [...uniqueIds].filter((id) => !known.has(id));
+    if (missing.length) {
+      return NextResponse.json(
+        {
+          error: 'Some albums are not in the local catalog. Resolve them in Preview before import.',
+          unresolvedAlbumIds: missing,
+        },
+        { status: 409 }
+      );
+    }
+
+    const fileHash = createHash('sha256')
+      .update(file.name).update('\0').update(file.content).digest('hex');
+
+    const { data, error } = await supabase.rpc('commit_note_import_atomic', {
+      p_user_id: user.id,
+      p_file_sha256: fileHash,
+      p_items: prepared,
+    });
+    if (error) {
+      console.error('import atomic RPC:', error);
+      return bad('Import transaction failed. No new rows from this request were committed.', 500);
+    }
+
+    const inserted = Number(data?.inserted) || 0;
+    const recomputation = inserted > 0
+      ? await recomputeMonthsForDates(user.id, dates)
+      : { monthsRecomputed: [], monthsFailed: [] };
 
     return NextResponse.json({
       success: true,
       inserted,
-      failures,
-      monthsRecomputed,
-      monthsFailed,
+      linesImported: Number(data?.linesImported) || 0,
+      linesAlreadyImported: Number(data?.linesAlreadyImported) || 0,
+      idempotent: true,
+      monthsRecomputed: recomputation.monthsRecomputed || [],
+      monthsFailed: recomputation.monthsFailed || [],
     });
   } catch (error) {
     console.error('import commit:', error);
-    return NextResponse.json({ error: 'Import failed' }, { status: 500 });
+    return bad('Import failed before completion', 500);
   }
 }

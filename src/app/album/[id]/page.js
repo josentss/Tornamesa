@@ -504,6 +504,16 @@ export default function AlbumPage({ params }) {
               <h3 className="text-[11px] font-bold text-stone-500 uppercase tracking-widest mb-3 sm:mb-4 pb-2 border-b border-[#2a3645]">
                 Tracklist
               </h3>
+              {(!album.tracks || album.tracks.length === 0) && (
+                <p className="text-xs text-stone-500 py-3">
+                  Tracklist temporarily unavailable. Basic album details are shown.
+                </p>
+              )}
+              {album.metadataStatus === "partial" && (
+                <p className="text-xs text-stone-500 pb-2">
+                  Partial tracklist · additional songs may be unavailable right now.
+                </p>
+              )}
               <div className="space-y-0.5">
                 {album.tracks?.map((track, index) => (
                   <div

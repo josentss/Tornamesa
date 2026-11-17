@@ -49,9 +49,10 @@ export default function SearchPage() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [remoteSearched, setRemoteSearched] = useState(false);
   const [error, setError] = useState(null);
 
-  const performSearch = useCallback(async (q) => {
+  const performSearch = useCallback(async (q, forceSpotify = false) => {
     const trimmed = q.trim();
     if (trimmed.length < 2) {
       setError("Type at least 2 characters");
@@ -61,9 +62,10 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     setSearched(true);
+    setRemoteSearched(forceSpotify);
 
     try {
-      const data = await api.searchAlbums(trimmed, "album");
+      const data = await api.searchAlbums(trimmed, "album", forceSpotify);
       const list = Array.isArray(data) ? data : [];
       setResults(list);
     } catch (err) {
@@ -118,6 +120,18 @@ export default function SearchPage() {
                 <div className="h-2.5 w-1/2 bg-[#1a2433] rounded mt-1.5" />
               </div>
             ))}
+          </div>
+        )}
+
+        {!loading && searched && !remoteSearched && (
+          <div className="text-center mb-5">
+            <button
+              type="button"
+              onClick={() => performSearch(query, true)}
+              className="text-xs text-[#87ceeb] hover:underline"
+            >
+              Search Spotify for additional albums
+            </button>
           </div>
         )}
 

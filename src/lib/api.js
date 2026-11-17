@@ -48,9 +48,9 @@ async function authHeadersOptional() {
 }
 
 export const api = {
-  searchAlbums: (query, type = 'album') =>
+  searchAlbums: (query, type = 'album', forceSpotify = false) =>
     fetchApi(
-      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}`,
+      `/api/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type || 'album')}${forceSpotify ? '&remote=1' : ''}`,
       { cache: 'no-store' }
     ),
 
@@ -313,18 +313,18 @@ export const api = {
     );
   },
 
-  previewNotesImport: async (files, { offset = 0, limit = 10 } = {}) =>
+  previewNotesImport: async (files, { offset = 0, limit = 10, spotifyMode = 'local' } = {}) =>
     fetchApi('/api/import/notes/preview', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ files, offset, limit }),
+      body: JSON.stringify({ files, offset, limit, spotifyMode }),
     }),
 
-  commitNotesImport: async (items) =>
+  commitNotesImport: async (items, file) =>
     fetchApi('/api/import/notes/commit', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, file }),
     }),
 
     exportListens: async (userId, format = 'json', mode = 'detailed') => {

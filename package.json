@@ -4,8 +4,9 @@
   "description": "Tornamesa Frontend",
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build": "npm test && next build",
     "start": "next start -p 3001",
+    "test": "node --test tests/*.test.mjs",
     "lint": "next lint"
   },
   "dependencies": {
