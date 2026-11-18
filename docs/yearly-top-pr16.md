@@ -85,6 +85,11 @@ mutuo a privados sigue las políticas actualmente desplegadas; un
    Esperado: \`true / false / false / true\`.
 5. Comparar resumen real de \`devtest\`:
    \`\`\`sql
+   WITH reporte AS (
+     SELECT public.yearly_top_stats(p.id, 2026) AS s
+     FROM public.profiles p
+     WHERE lower(p.username) = 'devtest'
+   )
    SELECT
      (s->>'totalListens')::bigint AS escuchas,
      (s->>'uniqueAlbums')::bigint AS albumes,
@@ -94,9 +99,7 @@ mutuo a privados sigue las políticas actualmente desplegadas; un
      (SELECT sum((m->>'listens')::bigint)
       FROM jsonb_array_elements(s->'monthly') AS m) AS suma_meses,
      jsonb_array_length(s->'topArtists') AS artistas_destacados
-   FROM public.profiles p
-   CROSS JOIN LATERAL public.yearly_top_stats(p.id, 2026) AS s
-   WHERE lower(p.username)='devtest';
+   FROM reporte;
    \`\`\`
    Como comprobación orientativa, en el diagnóstico del PR #15 se
    observaron 12 escuchas, 7 álbumes únicos y 5 reescuchas anuales.
