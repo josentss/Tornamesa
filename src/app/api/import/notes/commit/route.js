@@ -50,6 +50,18 @@ export async function POST(request) {
     if (!parsed.year || parsed.month < 1 || parsed.month > 12) {
       return bad('Invalid source month');
     }
+    // Do not silently import a partial file if the caller did not explicitly
+    // acknowledge *this source file's* rejected lines.
+    if (parsed.parseErrors.length > 0 &&
+        body.confirmedInvalidLines !== parsed.parseErrors.length) {
+      return NextResponse.json(
+        {
+          error: 'Invalid lines require confirmation before partial import',
+          invalidLines: parsed.parseErrors.length,
+        },
+        { status: 409 }
+      );
+    }
     const byLine = new Map(parsed.rows.map((row) => [row.lineIndex, row]));
     const lineIndices = new Set();
     const uniqueIds = new Set();
