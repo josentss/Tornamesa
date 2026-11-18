@@ -734,6 +734,14 @@ function MonthlyTopContent({ username: usernameProp }) {
         </div>
       </div>
 
+      <nav aria-label="Top periods" className="mt-5 flex gap-1 border-b border-[#2a3645] text-xs font-semibold">
+        <span aria-current="page" className="border-b-2 border-[#7cc7e8] px-4 py-3 text-[#7cc7e8]">Monthly</span>
+        <Link href={`/${encodeURIComponent(usernameProp)}/yearly-top?year=${year}`}
+          className="px-4 py-3 text-stone-400 transition-colors hover:text-white">
+          Yearly
+        </Link>
+      </nav>
+
       <div className="mt-6 flex flex-wrap gap-4 sm:gap-6 text-sm">
         <div>
           <span className="text-white font-semibold">

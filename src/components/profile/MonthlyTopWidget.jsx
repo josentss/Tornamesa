@@ -7,12 +7,16 @@ export default function MonthlyTopWidget({ albums, username }) {
       <div className="text-center py-6">
         <p className="text-xs text-stone-500">No data this month</p>
         {username && (
-          <Link
-            href={`/${username}/monthly-top`}
-            className="text-xs text-[#7cc7e8] hover:underline mt-2 inline-block"
-          >
-            View full top
-          </Link>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+            <Link href={`/${encodeURIComponent(username)}/monthly-top`}
+              className="text-xs text-[#7cc7e8] hover:underline">
+              View monthly top
+            </Link>
+            <Link href={`/${encodeURIComponent(username)}/yearly-top`}
+              className="text-xs text-[#7cc7e8] hover:underline">
+              Yearly top
+            </Link>
+          </div>
         )}
       </div>
     );
@@ -50,12 +54,16 @@ export default function MonthlyTopWidget({ albums, username }) {
         </Link>
       ))}
       {username && (
-        <Link
-          href={`/${username}/monthly-top`}
-          className="text-xs text-[#7cc7e8] hover:underline mt-2 inline-block"
-        >
-          View full top
-        </Link>
+        <div className="mt-2 flex flex-wrap gap-3">
+          <Link href={`/${encodeURIComponent(username)}/monthly-top`}
+            className="text-xs text-[#7cc7e8] hover:underline">
+            View monthly top
+          </Link>
+          <Link href={`/${encodeURIComponent(username)}/yearly-top`}
+            className="text-xs text-[#7cc7e8] hover:underline">
+            Yearly top
+          </Link>
+        </div>
       )}
     </div>
   );
