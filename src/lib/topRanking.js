@@ -1,5 +1,11 @@
 export const TOP_SORTS = Object.freeze(['listens', 'rating', 'repeats']);
 
+/** Repeats excludes single-play albums: it is not a duplicate "listens" view. */
+export function eligibleForTopSort(row, sort = 'listens') {
+  if (!TOP_SORTS.includes(sort)) throw new RangeError('Invalid top sort');
+  return sort !== 'repeats' || Number(row?.listenCount) > 1;
+}
+
 function numberOrNull(value) {
   return value == null || value === '' ? null : Number(value);
 }
@@ -46,5 +52,8 @@ export function compareTopAlbums(a, b, sort = 'listens') {
   const timeComparison = new Date(a.firstListenedAt).getTime() -
     new Date(b.firstListenedAt).getTime();
   if (timeComparison !== 0) return timeComparison;
-  return String(a.albumId).localeCompare(String(b.albumId), 'en');
+  // IDs are ASCII Spotify identifiers. Match PostgreSQL COLLATE "C".
+  const left = String(a.albumId);
+  const right = String(b.albumId);
+  return left < right ? -1 : left > right ? 1 : 0;
 }
