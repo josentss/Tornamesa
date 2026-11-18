@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { describeImportParseError, hasImportParseErrors } from "@/lib/importParseErrors";
 import { api } from "@/lib/api";
 
 const MAX_FILES_PER_RUN = 1;
@@ -28,6 +29,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
   const [selectedAmbiguous, setSelectedAmbiguous] = useState({});
   const [commitResult, setCommitResult] = useState(null);
   const [sourceFile, setSourceFile] = useState(null);
+  const [confirmedInvalidLines, setConfirmedInvalidLines] = useState(false);
 
   if (!open) return null;
 
@@ -40,6 +42,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     setSelectedAmbiguous({});
     setCommitResult(null);
     setSourceFile(null);
+    setConfirmedInvalidLines(false);
   };
 
   const handleClose = () => {
@@ -83,6 +86,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
     const payload = [file];
     setLoading(true);
     setError(null);
+    setConfirmedInvalidLines(false);
     setProgress({ done: 0, total: 0 });
 
     try {
@@ -212,6 +216,10 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
       setError("Nothing to import");
       return;
     }
+    if (hasImportParseErrors(preview) && !confirmedInvalidLines) {
+      setError("Confirm the skipped invalid lines before importing.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -227,7 +235,11 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
         })
       );
       if (!sourceFile) throw new Error("Original .txt file is no longer available");
-      const res = await api.commitNotesImport(payload, sourceFile);
+      const res = await api.commitNotesImport(
+        payload,
+        sourceFile,
+        confirmedInvalidLines ? (preview?.parseErrors?.length || 0) : 0
+      );
       setCommitResult(res);
       setStep("done");
       onImported?.(res);
@@ -358,6 +370,49 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 </p>
               )}
 
+              {hasImportParseErrors(preview) && (
+                <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-300">
+                    {preview.parseErrors.length} invalid {preview.parseErrors.length === 1 ? "line" : "lines"} excluded
+                  </p>
+                  <details className="text-xs text-stone-300" open>
+                    <summary className="cursor-pointer text-stone-300">
+                      View rejected lines and reasons
+                    </summary>
+                    <ul className="mt-2 space-y-2 max-h-36 overflow-y-auto">
+                      {preview.parseErrors.slice(0, 20).map((entry, index) => (
+                        <li key={`${entry.lineIndex}-${index}`} className="border-l-2 border-amber-400/30 pl-2">
+                          <p className="break-words">
+                            {entry.lineIndex ? `Entry ${entry.lineIndex}: ` : ""}
+                            {entry.line || "Unknown line"}
+                          </p>
+                          <p className="text-stone-500">
+                            {describeImportParseError(entry.reason)}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                    {preview.parseErrors.length > 20 && (
+                      <p className="mt-1 text-stone-500">
+                        +{preview.parseErrors.length - 20} more invalid lines
+                      </p>
+                    )}
+                  </details>
+                  <label className="flex items-start gap-2 text-xs text-stone-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={confirmedInvalidLines}
+                      onChange={(event) => {
+                        setConfirmedInvalidLines(event.target.checked);
+                        setError(null);
+                      }}
+                      className="mt-0.5 accent-[#7cc7e8]"
+                    />
+                    <span>I understand that these invalid lines will not be imported.</span>
+                  </label>
+                </div>
+              )}
+
               {(preview.ambiguous || []).length > 0 && (
                 <div>
                   <h3 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-2">
@@ -426,6 +481,7 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                   onClick={() => {
                     setStep("upload");
                     setPreview(null);
+                    setConfirmedInvalidLines(false);
                   }}
                   className="flex-1 py-2.5 rounded-lg border border-[#2a3645] text-sm text-stone-300"
                 >
@@ -433,7 +489,11 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 </button>
                 <button
                   type="button"
-                  disabled={loading || itemsToImport().length === 0}
+                  disabled={
+                    loading ||
+                    itemsToImport().length === 0 ||
+                    (hasImportParseErrors(preview) && !confirmedInvalidLines)
+                  }
                   onClick={handleCommit}
                   className="flex-1 py-2.5 rounded-lg bg-[#7cc7e8] text-[#0a121c] text-sm font-semibold disabled:opacity-50"
                 >
@@ -455,6 +515,12 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 </span>{" "}
                 listens. Monthly tops for affected months were updated when needed.
               </p>
+              {(commitResult?.invalidLinesSkipped || 0) > 0 && (
+                <p className="text-xs text-amber-300">
+                  {commitResult.invalidLinesSkipped} invalid{" "}
+                  {commitResult.invalidLinesSkipped === 1 ? "line was" : "lines were"} skipped as confirmed.
+                </p>
+              )}
               {(commitResult?.linesAlreadyImported || 0) > 0 && (
                 <p className="text-xs text-stone-400">
                   {commitResult.linesAlreadyImported} line(s) already imported and safely skipped.
