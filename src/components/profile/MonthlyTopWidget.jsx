@@ -7,17 +7,17 @@ export default function MonthlyTopWidget({ albums, username }) {
       <div className="text-center py-6">
         <p className="text-xs text-stone-500">No data this month</p>
         {username && (
-          <Link
-            href={`/${username}/monthly-top`}
-            className="text-xs text-[#7cc7e8] hover:underline mt-2 inline-block"
-          >
+        <div className="mt-2 flex flex-wrap gap-3">
+          <Link href={`/${encodeURIComponent(username)}/monthly-top`}
+            className="text-xs text-[#7cc7e8] hover:underline">
             View monthly top
           </Link>
           <Link href={`/${encodeURIComponent(username)}/yearly-top`}
-            className="ml-3 inline-block text-xs text-[#7cc7e8] hover:underline">
+            className="text-xs text-[#7cc7e8] hover:underline">
             Yearly top
           </Link>
-        )}
+        </div>
+      )}
       </div>
     );
   }
