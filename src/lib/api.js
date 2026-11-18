@@ -320,11 +320,11 @@ export const api = {
       body: JSON.stringify({ files, offset, limit, spotifyMode }),
     }),
 
-  commitNotesImport: async (items, file, confirmedInvalidLines = 0) =>
+  commitNotesImport: async (items, file) =>
     fetchApi('/api/import/notes/commit', {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ items, file, confirmedInvalidLines }),
+      body: JSON.stringify({ items, file }),
     }),
 
     exportListens: async (userId, format = 'json', mode = 'detailed') => {
