@@ -11,7 +11,11 @@ export default function MonthlyTopWidget({ albums, username }) {
             href={`/${username}/monthly-top`}
             className="text-xs text-[#7cc7e8] hover:underline mt-2 inline-block"
           >
-            View full top
+            View monthly top
+          </Link>
+          <Link href={`/${encodeURIComponent(username)}/yearly-top`}
+            className="ml-3 inline-block text-xs text-[#7cc7e8] hover:underline">
+            Yearly top
           </Link>
         )}
       </div>

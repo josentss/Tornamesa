@@ -313,6 +313,15 @@ export const api = {
     );
   },
 
+  getYearlyTop: async (username, { year } = {}) => {
+    const params = new URLSearchParams();
+    if (year != null) params.set('year', String(year));
+    return fetchApi(
+      `/api/profiles/username/${encodeURIComponent(username)}/yearly-top?${params}`,
+      { cache: 'no-store', headers: await authHeadersOptional() }
+    );
+  },
+
   previewNotesImport: async (files, { offset = 0, limit = 10, spotifyMode = 'local' } = {}) =>
     fetchApi('/api/import/notes/preview', {
       method: 'POST',
