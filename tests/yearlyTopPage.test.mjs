@@ -40,7 +40,7 @@ test('yearly summary database function reads complete data with canonical review
   assert.match(sql, /FROM PUBLIC, anon, authenticated/);
   assert.match(sql, /TO service_role/);
   assert.match(sql, /FROM public\.listens AS l/);
-  assert.match(sql, /FROM public\.reviews AS rv/);
+  assert.match(sql, /JOIN public\.reviews AS rv/);
   assert.match(sql, /monthly_top_timezone\(p_user_id\)/);
   assert.match(sql, /generate_series\(1,12\)/);
   assert.match(sql, /NOT EXISTS \(/);
