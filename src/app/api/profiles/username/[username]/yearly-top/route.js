@@ -41,7 +41,13 @@ export async function GET(request, { params }) {
 
     const { searchParams } = new URL(request.url);
     const requestedYear = searchParams.get('year');
-    if (requestedYear !== null && !/^\d{4}$/.test(requestedYear)) {
+    // Validate both format and range before authentication or profile access.
+    // This makes all invalid years return 400, even on private profiles.
+    if (requestedYear !== null && (
+      !/^\d{4}$/.test(requestedYear) ||
+      Number(requestedYear) < 1900 ||
+      Number(requestedYear) > 2100
+    )) {
       return json({ error: 'Invalid year' }, 400);
     }
 

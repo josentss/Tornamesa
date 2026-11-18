@@ -21,6 +21,10 @@ test('annual API authorizes before rate limiting and before any RPC', () => {
   assert.match(api, /clientKey\(request, 'yearly-top', viewer\?\.id\)/);
   assert.match(api, /return json\(\{ error: 'This top is private' \}, 403\)/);
   assert.match(api, /return json\(\{ error: 'Invalid year' \}, 400\)/);
+  const validation = api.indexOf('Number(requestedYear) > 2100');
+  const login = api.indexOf('await getRequestUser(request)');
+  assert.ok(validation !== -1 && validation < login,
+    'The entire year range must be validated before authentication and profile access');
 });
 
 test('annual API is read-only, has bounded responses and never falls back to listen ratings', () => {
