@@ -8,14 +8,14 @@ export default function MonthlyTopWidget({ albums, username }) {
         <p className="text-xs text-stone-500">No data this month</p>
         {username && (
           <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-          <Link href={`/${encodeURIComponent(username)}/monthly-top`}
-            className="text-xs text-[#7cc7e8] hover:underline">
-            View monthly top
-          </Link>
-          <Link href={`/${encodeURIComponent(username)}/yearly-top`}
-            className="text-xs text-[#7cc7e8] hover:underline">
-            Yearly top
-          </Link>
+            <Link href={`/${encodeURIComponent(username)}/monthly-top`}
+              className="text-xs text-[#7cc7e8] hover:underline">
+              View monthly top
+            </Link>
+            <Link href={`/${encodeURIComponent(username)}/yearly-top`}
+              className="text-xs text-[#7cc7e8] hover:underline">
+              Yearly top
+            </Link>
           </div>
         )}
       </div>
