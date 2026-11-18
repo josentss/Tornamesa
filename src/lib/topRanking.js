@@ -52,7 +52,7 @@ export function compareTopAlbums(a, b, sort = 'listens') {
   const timeComparison = new Date(a.firstListenedAt).getTime() -
     new Date(b.firstListenedAt).getTime();
   if (timeComparison !== 0) return timeComparison;
-  // IDs are ASCII Spotify identifiers. Match PostgreSQL COLLATE "C".
+  // Spotify IDs are ASCII; deterministic lexical fallback for local tests.
   const left = String(a.albumId);
   const right = String(b.albumId);
   return left < right ? -1 : left > right ? 1 : 0;

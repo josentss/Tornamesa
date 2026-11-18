@@ -53,7 +53,7 @@ interfaces y la API llegan en los PR siguientes, tras probar esta base.
 - Usa `EXISTS` contra los rangos para que una escucha jamás se sume dos
   veces. Agrupa en Postgres sin descargar cientos de filas al servidor.
 - Orden por escuchas, rating, reescuchas; desempate estable por total,
-  primera escucha y Spotify ID COLLATE "C".
+  primera escucha y Spotify ID (misma collation que Monthly Top).
 - Validación server-side adicional en los PR #16/17: períodos,
   filtros, permisos y rateLimit de lectura.
 - Sin índices nuevos: necesitamos diagnosticar primero los índices reales

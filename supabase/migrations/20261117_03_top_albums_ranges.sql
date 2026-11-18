@@ -132,7 +132,7 @@ BEGIN
             END DESC NULLS LAST,
           e.listen_count DESC,
           e.first_listened_at ASC,
-          e.album_id COLLATE "C" ASC
+          e.album_id ASC
       )::integer AS position,
       e.*
     FROM eligible AS e

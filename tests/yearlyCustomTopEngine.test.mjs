@@ -103,7 +103,7 @@ test('SQL uses canonical reviews.rating and safe filters, not historic listen ra
   assert.doesNotMatch(sql, /listen_avg|avg\(l\.rating|l\.rating/);
   assert.match(sql, /p_sort <> 'repeats' OR a\.listen_count > 1/);
   assert.match(sql, /lower\(album\.artist\) = lower\(btrim\(p_artist\)\)/);
-  assert.match(sql, /e\.album_id COLLATE "C" ASC/);
+  assert.match(sql, /e\.album_id ASC/);
   assert.match(sql, /p_limit NOT BETWEEN 1 AND 100/);
   assert.match(sql, /Overlapping months are not allowed/);
 });
