@@ -72,7 +72,7 @@ test('ambiguous albums require an explicit selection', () => {
   assert.match(ui, /const chosen = selectedAmbiguous\[key\]/);
   assert.match(ui, /<option value="">Select the correct album/);
   assert.doesNotMatch(ui, /selectedAmbiguous\[key\] \|\| r\.albumId/);
-  assert.match(ui, /api\.commitNotesImport\(\s*payload,\s*sourceFile,/);
+  assert.match(ui, /api\.commitNotesImport\(payload, sourceFile\)/);
 });
 
 test('search metadata writes are awaited and do not replace existing durations', () => {
