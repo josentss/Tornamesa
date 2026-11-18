@@ -515,6 +515,12 @@ export default function ImportLogsModal({ open, onClose, onImported }) {
                 </span>{" "}
                 listens. Monthly tops for affected months were updated when needed.
               </p>
+              {(commitResult?.invalidLinesSkipped || 0) > 0 && (
+                <p className="text-xs text-amber-300">
+                  {commitResult.invalidLinesSkipped} invalid{" "}
+                  {commitResult.invalidLinesSkipped === 1 ? "line was" : "lines were"} skipped as confirmed.
+                </p>
+              )}
               {(commitResult?.linesAlreadyImported || 0) > 0 && (
                 <p className="text-xs text-stone-400">
                   {commitResult.linesAlreadyImported} line(s) already imported and safely skipped.

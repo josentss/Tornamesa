@@ -71,6 +71,8 @@ test('commit refuses partial imports if source parse errors lack exact acknowled
   assert.match(api, /parsed\.parseErrors\.length > 0/);
   assert.match(api, /body\.confirmedInvalidLines !== parsed\.parseErrors\.length/);
   assert.match(api, /status: 409/);
+  assert.match(api, /invalidLinesSkipped: parsed\.parseErrors\.length/);
+  assert.match(ui, /commitResult\.invalidLinesSkipped/);
   assert.match(client, /JSON\.stringify\(\{ items, file, confirmedInvalidLines \}\)/);
   assert.match(ui, /api\.commitNotesImport\(/);
   assert.match(ui, /confirmedInvalidLines \? \(preview\?\.parseErrors\?\.length \|\| 0\) : 0/);

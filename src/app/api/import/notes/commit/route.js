@@ -144,6 +144,7 @@ export async function POST(request) {
       inserted,
       linesImported: Number(data?.linesImported) || 0,
       linesAlreadyImported: Number(data?.linesAlreadyImported) || 0,
+      invalidLinesSkipped: parsed.parseErrors.length,
       idempotent: true,
       monthsRecomputed: recomputation.monthsRecomputed || [],
       monthsFailed: recomputation.monthsFailed || [],
