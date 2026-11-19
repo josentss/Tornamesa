@@ -9,20 +9,21 @@ import { api } from "@/lib/api";
 import { Header, Footer, LoadingSpinner, ErrorMessage } from "@/components/shared";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fmt = (value) => new Intl.NumberFormat("en").format(value || 0);
 const root = (username) => "/" + encodeURIComponent(username);
 
 function AlbumRow({ album, featured = false, numbered = true }) {
   return (
     <Link href={"/album/" + encodeURIComponent(album.albumId)}
-      className={"group flex min-w-0 items-center gap-3 rounded-xl border p-3 transition-colors " +
+      className={"group flex min-w-0 items-center gap-3 rounded-xl border p-3 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] " +
         (featured ? "border-[#7cc7e8]/40 bg-[#131e2c]" :
           "border-[#2a3645] bg-[#131e2c]/60 hover:border-[#3d5068]")}>
       {numbered && <span className={"w-6 shrink-0 text-center font-semibold tabular-nums " +
         (featured ? "text-lg text-[#7cc7e8]" : "text-sm text-stone-500")}>{album.rank}</span>}
       <div className={"relative shrink-0 overflow-hidden rounded-lg bg-[#1f2b3a] " +
         (featured ? "h-14 w-14" : "h-12 w-12")}>
-        {album.cover && <Image src={album.cover} alt={album.title} fill
+        {album.cover && <Image src={album.cover} alt="" fill
           sizes={featured ? "56px" : "48px"} className="object-cover" />}
       </div>
       <div className="min-w-0 flex-1">
@@ -51,23 +52,26 @@ function Activity({ monthly }) {
           <h2 className="text-sm font-semibold text-white">Listening through the year</h2>
           <p className="mt-1 text-xs text-stone-500">Album listens by month</p>
         </div>
-        {peak && <p className="text-xs text-stone-400">Most active: {MONTHS[peak.month - 1]}</p>}
+        {peak && <p className="text-xs text-stone-400">Most active: {MONTHS[peak.month - 1]} · {fmt(peak.listens)} listens</p>}
       </div>
-      <div className="mt-5 grid grid-cols-12 items-end gap-1.5 sm:gap-3">
+      <div className="mt-5 grid grid-cols-12 items-end gap-1 sm:gap-3" aria-hidden="true">
         {months.map((m) => (
-          <div key={m.month} title={MONTHS[m.month - 1] + ": " + m.listens + " listens"}
-            aria-label={MONTHS[m.month - 1] + ": " + m.listens + " listens"}
+          <div key={m.month} title={MONTH_NAMES[m.month - 1] + ": " + fmt(m.listens) + " album listens"}
             className="flex min-w-0 flex-col items-center gap-2">
             <div className="flex h-28 w-full items-end justify-center bg-[#0a121c]/50">
               <div className={"w-full max-w-[30px] rounded-t-sm " +
                 (m.listens === max && m.listens > 0 ? "bg-[#7cc7e8]" : "bg-[#3a6078]")}
                 style={{ height: m.listens ? Math.max(5, m.listens / max * 100) + "%" : "2px" }} />
             </div>
-            <span className="hidden text-[10px] text-stone-500 sm:block">{MONTHS[m.month - 1]}</span>
-            <span className="text-[10px] text-stone-500 sm:hidden">{MONTHS[m.month - 1][0]}</span>
+            <span className="text-[9px] text-stone-500 sm:text-[10px]">{MONTHS[m.month - 1]}</span>
           </div>
         ))}
       </div>
+      <ol className="sr-only" aria-label="Monthly listening totals">
+        {months.map((m) => <li key={m.month}>
+          {MONTH_NAMES[m.month - 1]}: {fmt(m.listens)} album listens
+        </li>)}
+      </ol>
     </section>
   );
 }
@@ -156,11 +160,11 @@ function YearlyContent() {
           <label htmlFor="year-top-year" className="sr-only">Choose year</label>
           <select id="year-top-year" value={data.year} onChange={(event) => router.push(
             root(data.username) + "/yearly-top?year=" + event.target.value)}
-            className="rounded-lg border border-[#2a3645] bg-[#1f2b3a] px-3 py-2 text-xs font-semibold text-white outline-none focus:border-[#7cc7e8]">
+            className="rounded-lg border border-[#2a3645] bg-[#1f2b3a] px-3 py-2 text-xs font-semibold text-white outline-none focus:border-[#7cc7e8] focus-visible:ring-2 focus-visible:ring-[#7cc7e8]">
             {years.map((year) => <option value={year} key={year}>{year}</option>)}
           </select>
           <button type="button" onClick={share}
-            className="rounded-lg border border-[#2a3645] bg-[#1f2b3a] px-3 py-2 text-xs font-semibold text-[#7cc7e8] hover:border-[#7cc7e8]/40">
+            className="rounded-lg border border-[#2a3645] bg-[#1f2b3a] px-3 py-2 text-xs font-semibold text-[#7cc7e8] hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8]">
             Share link
           </button>
         </div>
@@ -168,7 +172,7 @@ function YearlyContent() {
       {shareMessage && <p role="status" className="mt-2 text-right text-xs text-[#7cc7e8]">{shareMessage}</p>}
       <nav aria-label="Top periods" className="mt-6 flex gap-1 border-b border-[#2a3645] text-xs font-semibold">
         <Link href={root(data.username) + "/monthly-top"}
-          className="px-4 py-3 text-stone-400 hover:text-white">Monthly</Link>
+          className="px-4 py-3 text-stone-400 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8]">Monthly</Link>
         <span aria-current="page" className="border-b-2 border-[#7cc7e8] px-4 py-3 text-[#7cc7e8]">Yearly</span>
       </nav>
 
@@ -194,16 +198,16 @@ function YearlyContent() {
           <section className="min-w-0" aria-labelledby="yearly-albums">
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h2 id="yearly-albums" className="text-base font-semibold">Most listened albums</h2>
-              <span className="text-xs text-stone-500">Top {albums.length}</span>
+              <span className="text-xs text-stone-500">Top {albums.length} of {fmt(s?.uniqueAlbums)} albums</span>
             </div>
-            <div className="space-y-2">
+            <div id="yearly-album-list" className="space-y-2">
               {(allAlbums ? albums : albums.slice(0, 10)).map((album) =>
                 <AlbumRow key={album.albumId} album={album} featured={album.rank === 1} />)}
             </div>
-            {albums.length > 10 && <button type="button"
+            {albums.length > 10 && <button type="button" aria-controls="yearly-album-list" aria-expanded={allAlbums}
               onClick={() => setAllAlbums((value) => !value)}
-              className="mt-4 w-full rounded-lg border border-[#2a3645] py-2.5 text-xs font-semibold text-stone-300 hover:border-[#7cc7e8]/40">
-              {allAlbums ? "Show less" : "Show all " + albums.length + " albums"}
+              className="mt-4 w-full rounded-lg border border-[#2a3645] py-2.5 text-xs font-semibold text-stone-300 hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8]">
+              {allAlbums ? "Show less" : "Show top " + albums.length + " albums"}
             </button>}
           </section>
           <div className="min-w-0 space-y-7">
