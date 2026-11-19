@@ -34,7 +34,7 @@ Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza l
 
 | Orden | Tarea | Estado | Cierre / comprobación |
 |---|---|---|---|
-| 1 | **Yearly Top — ajuste discreto de móvil, accesibilidad y ranking** ([PR #17](https://github.com/josentss/Tornamesa/pulls)) | **En curso** | 12 meses distinguibles; lector de pantalla con totales; controles por teclado; ranking limitado a 50 explicado; PR sin alteraciones de SQL ni privacidad; revisar Preview. |
+| 1 | **Yearly Top — ajuste discreto de móvil, accesibilidad y ranking** ([PR #17](https://github.com/josentss/Tornamesa/pull/17)) | **En curso** | 12 meses distinguibles; lector de pantalla con totales; controles por teclado; ranking limitado a 50 explicado; PR sin alteraciones de SQL ni privacidad; revisar Preview. |
 | 2 | **QA de Yearly Top con datos corregidos** | **Verificar** | Cuenta principal 2025 = **561 / 226**; agosto 107, septiembre 68; 12 meses suman 561; perfiles privados y diario OFF no filtran datos; 2026 y años vacíos intactos. |
 | 3 | **Imagen anual compartible** | **Pendiente** | Confirmar uso real de `/api/og/wrapped`; respetar visibilidad, permisos, año, móvil y exportación; generar usando las cifras del mismo motor, sin divergencias ni caché pública de datos privados. |
 | 4 | **Top Personalizado v1** | **Pendiente** | API/UI con `top_albums`: meses no consecutivos hasta 24, atajos, mínimo y orden por escuchas/rating/reescuchas, filtros en URL; mismo resultado que el anual al seleccionar 12 meses equivalentes. |
