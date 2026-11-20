@@ -37,13 +37,15 @@ Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza l
 |---|---|---|---|
 | 1 | **Yearly Top — ajuste discreto de móvil, accesibilidad y ranking** ([PR #17](https://github.com/josentss/Tornamesa/pull/17)) | **Hecho** | PR fusionado (2026-11-20 UTC), Vercel success; el propietario comprobó en capturas desktop/móvil el diseño y las cifras 561/226 del año 2025. |
 | 2 | **QA de Yearly Top con datos corregidos** | **Verificar** | Cuenta principal 2025 = **561 / 226**; agosto 107, septiembre 68; 12 meses suman 561; perfiles privados y diario OFF no filtran datos; 2026 y años vacíos intactos. |
-| 3 | **Imagen anual compartible** ([PR #18](https://github.com/josentss/Tornamesa/pull/18)) | **En curso** | PNG 1080×1350; top 5/portada destacada, 561/226 para 2025, descargas y Web Share con fallback; RPC originales; seguridad igual que Yearly Top; pruebas y Preview obligatorios. Ver [plan del PR #18](yearly-share-pr18.md). |
+| 3 | **Imagen anual compartible** ([PR #18](https://github.com/josentss/Tornamesa/pull/18)) | **Verificar** | PR fusionado: PNG 1080×1350, top 5, descarga y Web Share. Producción reportó error de Satori al renderizar cifras + etiquetas; hotfix [#19](https://github.com/josentss/Tornamesa/pull/19) en curso. No afirmar que el PNG funciona hasta probar el endpoint real. |
 | 4 | **Top Personalizado v1** | **Pendiente** | API/UI con `top_albums`: meses no consecutivos hasta 24, atajos, mínimo y orden por escuchas/rating/reescuchas, filtros en URL; mismo resultado que el anual al seleccionar 12 meses equivalentes. |
 | 5 | **Guardar selección del Top como lista** | **Pendiente** | Definir UX y permisos, no asumir escritura silenciosa ni duplicar elementos. |
 
 **No perseguir métricas falsas:** no derivar minutos de reproducción ni rachas diarias exactas de importaciones históricas con fechas artificiales. El ranking de artistas usa `albums.artist` (artista principal) y no representa todas las colaboraciones.
 
 ### PR #18 — alcance acordado para Wrapped Image
+
+**Incidencia posterior a la fusión (2026-11-20 UTC):** Vercel mostró `failed to pipe response` con causa `Expected <div> to have explicit "display: flex" or "display: none" if it has more than one child node` en `src/app/api/og/yearly/route.js`. Los contenedores de métricas `uniqueAlbums` y `uniqueArtists` tienen texto + `span` sin `display`. PR #19 corrige la estructura y añade prueba estática de regresión. **Verificación pendiente:** descarga real PNG de 2025, 561/226, otros años y permisos. La compilación no prueba necesariamente la ejecución de Satori.
 
 - Imagen PNG vertical **1080 × 1350** reutilizando `next/og` del Wrapped Mensual sin nuevas dependencias. Estilo oscuro/cian de Tornamesa: portada del primer álbum protagonista, top 5, total de escuchas, álbumes/artistas únicos, artista más escuchado y mes más activo. No usar métricas de minutos ni datos inferidos.
 - **Compartir imagen** desde Web Share API si admite archivos, con descarga PNG como fallback; **Descargar PNG** independiente. Conservar `Share link` anterior y evitar saturar la cabecera móvil.
@@ -93,6 +95,7 @@ No prometer posiciones de Google ni cifras de tráfico sin medición. El objetiv
 | 2026-11-19 | Historial 2025 corregido con migraciones manuales y reversibles | Integridad de esc. históricas; conservar backups. |
 | 2026-11-19 | Priorizar cierre de Yearly Top y documento mantenible; SEO después | Evitar PR mezclados, regresiones y trabajo sin plan. |
 | 2026-11-20 (UTC) | PR #17 fusionado; Wrapped anual 1080×1350 como PR #18 | Confirmación visual del propietario y Vercel success; compartir PNG sin duplicar lógica de datos ni mezclar SEO. |
+| 2026-11-20 (UTC) | PR #18 fusionado, error de Satori detectado al descargar imagen; corrección dirigida en PR #19 | `next/og` requiere `display: flex`/`none` para contenedores `div` con múltiples hijos; QA PNG real obligatorio antes de cerrar. |
 
 ## Plantilla de actualización por PR
 
