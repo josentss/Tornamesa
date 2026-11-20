@@ -322,9 +322,11 @@ export const api = {
     );
   },
 
-  getYearlyTopImage: async (username, { year } = {}) => {
+  getYearlyTopImage: async (username, { year, card = 'summary', theme = 'night' } = {}) => {
     const params = new URLSearchParams({ username: String(username || '') });
     if (year != null) params.set('year', String(year));
+    params.set('card', card);
+    params.set('theme', theme);
     const response = await fetch('/api/og/yearly?' + params, {
       cache: 'no-store',
       headers: await authHeadersOptional(),
