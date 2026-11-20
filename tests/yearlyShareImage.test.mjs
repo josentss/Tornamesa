@@ -71,7 +71,8 @@ test('annual image actions coexist with the existing share link', () => {
   assert.match(page, /aria-label="Yearly image actions"/);
   assert.match(page, /disabled=\{imageBusy\}/);
   assert.match(page, /aria-live="polite"/);
-  assert.match(page, /api\.getYearlyTopImage\(data\.username, \{ year: data\.year \}\)/);
+  assert.match(page, /api\.getYearlyTopImage\(data\.username, \{/);
+  assert.match(page, /year: data\.year, card: wrappedCard, theme: wrappedColor/);
   assert.match(page, /navigator\.canShare\?\.\(\{ files: \[file\] \}\)/);
   assert.match(page, /anchor\.download = name/);
   assert.match(page, /shareError\?\.name === "AbortError"/);
