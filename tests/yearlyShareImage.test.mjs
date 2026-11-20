@@ -74,6 +74,8 @@ test('annual image actions coexist with the existing share link', () => {
   assert.match(page, /api\.getYearlyTopImage\(data\.username, \{ year: data\.year \}\)/);
   assert.match(page, /navigator\.canShare\?\.\(\{ files: \[file\] \}\)/);
   assert.match(page, /anchor\.download = name/);
+  assert.match(page, /shareError\?\.name === "AbortError"/);
+  assert.match(page, /Native file sharing is not available/);
   assert.match(page, /URL\.revokeObjectURL\(objectUrl\)/);
 });
 
