@@ -67,3 +67,21 @@ test('yearly page uses Tornamesa palette, responsive layout, and accessible navi
   assert.match(monthlyPage, /yearly-top\?year=/);
   assert.match(profileWidget, /yearly-top/);
 });
+
+test('monthly activity shows distinct readable month labels and accessible totals', () => {
+  assert.match(page, /const MONTH_NAMES = \[/);
+  assert.match(page, /aria-label="Monthly listening totals"/);
+  assert.match(page, /aria-hidden="true"/);
+  assert.match(page, /MONTH_NAMES\[m\.month - 1\]/);
+  assert.match(page, /text-\[9px\].*sm:text-\[10px\]/);
+  assert.doesNotMatch(page, /MONTHS\[m\.month - 1\]\[0\]/);
+});
+
+test('annual ranking communicates the 50-album cap and keyboard controls', () => {
+  assert.match(page, /Top \{albums\.length\} of \{fmt\(s\?\.uniqueAlbums\)\} albums/);
+  assert.match(page, /id="yearly-album-list"/);
+  assert.match(page, /aria-controls="yearly-album-list" aria-expanded=\{allAlbums\}/);
+  assert.match(page, /"Show top " \+ albums\.length \+ " albums"/);
+  assert.match(page, /focus-visible:outline/);
+  assert.match(page, /focus-visible:ring-2/);
+});
