@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const route = readFileSync(new URL('../src/app/api/og/yearly/route.js', import.meta.url), 'utf8');
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+// Tiny, locally generated 2×2 PNG; exercises the real <img> branch without network access.
+const COVER_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGMU6bnDwMDAxMDAwMDAAAARMgGAsGEFiQAAAABJRU5ErkJggg==';
 
 test('all yearly OG divs declare Satori-compatible layout, including expression-only text', () => {
   const openingTags = [...route.matchAll(/<div\b(?:(?!>).)*>/gs)];
@@ -53,7 +55,7 @@ function compileFixture({ filled }) {
     ? {
         totalListens: 561, uniqueAlbums: 226, uniqueArtists: 145,
         albums: [
-          { title: 'A Very Long Album Title That Needs Truncation', artist: 'An Artist', count: 31, cover: null },
+          { title: 'A Very Long Album Title That Needs Truncation', artist: 'An Artist', count: 31, cover: COVER_DATA_URL },
           { title: 'Album Two', artist: 'Artist Two', count: 17, cover: null },
           { title: 'Album Three', artist: 'Artist Three', count: 12, cover: null },
           { title: 'Album Four', artist: 'Artist Four', count: 9, cover: null },
