@@ -93,3 +93,18 @@ test('monthly Wrapped is retained unchanged as a separate route', () => {
   assert.match(monthlyWrapped, /rebuild|ensureMonthlyTop/);
   assert.match(route, /YEARLY TOP/);
 });
+
+test('OG yearly metrics use explicit flex layout for text and span children', () => {
+  // Satori rejects a div with multiple children unless display is flex or none.
+  // Numeric totals and their labels are separate JSX children.
+  for (const metric of ['uniqueAlbums', 'uniqueArtists']) {
+    const matcher = new RegExp(
+      '<div style=\\{\\{([^}]+)\\}\\}>\\s*\\{fmt\\(summary\\.' +
+      metric + '\\)\\}\\s*<span'
+    );
+    const match = route.match(matcher);
+    assert.ok(match, metric + ' must render with an adjacent label span');
+    assert.match(match[1], /display: 'flex'/, metric + ' requires explicit flex');
+    assert.match(match[1], /alignItems: 'baseline'/);
+  }
+});
