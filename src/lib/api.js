@@ -322,6 +322,25 @@ export const api = {
     );
   },
 
+  getYearlyTopImage: async (username, { year } = {}) => {
+    const params = new URLSearchParams({ username: String(username || '') });
+    if (year != null) params.set('year', String(year));
+    const response = await fetch('/api/og/yearly?' + params, {
+      cache: 'no-store',
+      headers: await authHeadersOptional(),
+    });
+    if (!response.ok) {
+      if (response.status === 403) throw new Error('This yearly top is private');
+      if (response.status === 429) throw new Error('Too many images requested. Try again shortly.');
+      throw new Error('Could not generate the yearly image');
+    }
+    const blob = await response.blob();
+    if (blob.type !== 'image/png' || blob.size === 0) {
+      throw new Error('The yearly image was not returned as a PNG');
+    }
+    return blob;
+  },
+
   previewNotesImport: async (files, { offset = 0, limit = 10, spotifyMode = 'local' } = {}) =>
     fetchApi('/api/import/notes/preview', {
       method: 'POST',

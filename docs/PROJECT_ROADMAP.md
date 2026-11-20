@@ -1,6 +1,6 @@
 # Tornamesa — hoja de ruta viva
 
-**Actualizado:** 2026-11-19 · **Estado del proyecto:** Fase 2B (Tops) · **Fuente de verdad de ejecución:** GitHub `main` + Supabase desplegado y verificado.
+**Actualizado:** 2026-11-20 (UTC) · **Estado del proyecto:** Fase 2B (Tops) · **Fuente de verdad de ejecución:** GitHub `main` + Supabase desplegado y verificado.
 
 Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza las listas de tareas informales. Los PDF «Tornamesa: prompt de desarrollo» y «Tornamesa: guía de mejoras y nuevas funcionalidades» (15-11-2026) conservan el contexto histórico; cuando una decisión posterior y validada difiere de los PDF, se documenta aquí. El código y las migraciones realmente aplicadas prevalecen sobre suposiciones.
 
@@ -27,20 +27,28 @@ Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza l
 | Líneas inválidas de Import | [#13](https://github.com/josentss/Tornamesa/pull/13), [#14](https://github.com/josentss/Tornamesa/pull/14) | **Hecho**: descartes visibles y discretos; validación de fuente en Commit. |
 | Motor anual y personalizado | [#15](https://github.com/josentss/Tornamesa/pull/15) | **Hecho**: `top_albums` read-only, rangos de meses sin duplicados ni cap de 1000 filas. |
 | Primer Yearly Top | [#16](https://github.com/josentss/Tornamesa/pull/16) | **Hecho**: API con autorización, estadística anual, página y enlaces. |
+| Pulido Yearly Top y hoja de ruta | [#17](https://github.com/josentss/Tornamesa/pull/17) | **Hecho**: 12 meses legibles, teclado/lector de pantalla, ranking y guía viva. Fusionado 2026-11-20 UTC; Vercel success. |
 
-**Datos históricos, tarea operativa (fuera de PR):** se corrigieron por SQL con respaldo las asignaciones de Epistolares, Charlie Parker, Madlib y King Crimson; se excluyó voluntariamente el registro de vídeo «The King of Limbs (FTB)». Última cifra **esperada**: 561 escuchas / 226 álbumes únicos para 2025. **Verificar** contra SQL actual y API del Top Anual antes de dar por finalizadas todas las pruebas. No reimportar los .txt de 2025: el ledger del PR #10 no registró imports anteriores.
+**Datos históricos, tarea operativa (fuera de PR):** se corrigieron por SQL con respaldo las asignaciones de Epistolares, Charlie Parker, Madlib y King Crimson; se excluyó voluntariamente el registro de vídeo «The King of Limbs (FTB)». Cifras **confirmadas visualmente en Yearly Top 2025**: 561 escuchas y 226 álbumes únicos (capturas de escritorio y móvil, 2026-11-19). La verificación exhaustiva del endpoint y los escenarios privados permanece en QA; no confundir visualización correcta con todas las pruebas de regresión superadas. No reimportar los .txt de 2025: el ledger del PR #10 no registró imports anteriores.
 
 ## Prioridad inmediata — Fase 2B
 
 | Orden | Tarea | Estado | Cierre / comprobación |
 |---|---|---|---|
-| 1 | **Yearly Top — ajuste discreto de móvil, accesibilidad y ranking** ([PR #17](https://github.com/josentss/Tornamesa/pull/17)) | **En curso** | 12 meses distinguibles; lector de pantalla con totales; controles por teclado; ranking limitado a 50 explicado; PR sin alteraciones de SQL ni privacidad; revisar Preview. |
+| 1 | **Yearly Top — ajuste discreto de móvil, accesibilidad y ranking** ([PR #17](https://github.com/josentss/Tornamesa/pull/17)) | **Hecho** | PR fusionado (2026-11-20 UTC), Vercel success; el propietario comprobó en capturas desktop/móvil el diseño y las cifras 561/226 del año 2025. |
 | 2 | **QA de Yearly Top con datos corregidos** | **Verificar** | Cuenta principal 2025 = **561 / 226**; agosto 107, septiembre 68; 12 meses suman 561; perfiles privados y diario OFF no filtran datos; 2026 y años vacíos intactos. |
-| 3 | **Imagen anual compartible** | **Pendiente** | Confirmar uso real de `/api/og/wrapped`; respetar visibilidad, permisos, año, móvil y exportación; generar usando las cifras del mismo motor, sin divergencias ni caché pública de datos privados. |
+| 3 | **Imagen anual compartible** ([PR #18](https://github.com/josentss/Tornamesa/pull/18)) | **En curso** | PNG 1080×1350; top 5/portada destacada, 561/226 para 2025, descargas y Web Share con fallback; RPC originales; seguridad igual que Yearly Top; pruebas y Preview obligatorios. Ver [plan del PR #18](yearly-share-pr18.md). |
 | 4 | **Top Personalizado v1** | **Pendiente** | API/UI con `top_albums`: meses no consecutivos hasta 24, atajos, mínimo y orden por escuchas/rating/reescuchas, filtros en URL; mismo resultado que el anual al seleccionar 12 meses equivalentes. |
 | 5 | **Guardar selección del Top como lista** | **Pendiente** | Definir UX y permisos, no asumir escritura silenciosa ni duplicar elementos. |
 
 **No perseguir métricas falsas:** no derivar minutos de reproducción ni rachas diarias exactas de importaciones históricas con fechas artificiales. El ranking de artistas usa `albums.artist` (artista principal) y no representa todas las colaboraciones.
+
+### PR #18 — alcance acordado para Wrapped Image
+
+- Imagen PNG vertical **1080 × 1350** reutilizando `next/og` del Wrapped Mensual sin nuevas dependencias. Estilo oscuro/cian de Tornamesa: portada del primer álbum protagonista, top 5, total de escuchas, álbumes/artistas únicos, artista más escuchado y mes más activo. No usar métricas de minutos ni datos inferidos.
+- **Compartir imagen** desde Web Share API si admite archivos, con descarga PNG como fallback; **Descargar PNG** independiente. Conservar `Share link` anterior y evitar saturar la cabecera móvil.
+- Generar con el mismo motor `top_albums`/`yearly_top_stats` y los mismos filtros que el Yearly Top (no mantener un contador separado). Autorizar `canViewWithFollows('top')` antes de leer datos y nunca exponer resúmenes privados en cachés públicas. Sin SQL ni cambios a Import logs, búsqueda o Monthly Wrapped.
+- QA: 2025 validado, 2026, vacío, menos de cinco álbumes, nombres largos, carátulas faltantes, móvil/desktop y Web Share/fallback; público, privado/mutuo/diario apagado; errores de año y rate limits. El PR solo se fusiona tras CI y Preview.
 
 ## Integridad, Import logs y catálogo — backlog acotado
 
@@ -84,6 +92,7 @@ No prometer posiciones de Google ni cifras de tráfico sin medición. El objetiv
 | 2026-11-18 | Año y meses agregados por SQL, sin cache anual persistente prematura | PR #15/#16; medir antes de introducir tablas de resumen. |
 | 2026-11-19 | Historial 2025 corregido con migraciones manuales y reversibles | Integridad de esc. históricas; conservar backups. |
 | 2026-11-19 | Priorizar cierre de Yearly Top y documento mantenible; SEO después | Evitar PR mezclados, regresiones y trabajo sin plan. |
+| 2026-11-20 (UTC) | PR #17 fusionado; Wrapped anual 1080×1350 como PR #18 | Confirmación visual del propietario y Vercel success; compartir PNG sin duplicar lógica de datos ni mezclar SEO. |
 
 ## Plantilla de actualización por PR
 
