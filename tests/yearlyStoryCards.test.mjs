@@ -82,6 +82,10 @@ test('the yearly image chooser keeps share link and can reuse PNG for preview/do
   assert.match(page, /aria-label="Customize yearly image"/);
   assert.match(page, /aria-pressed=\{wrappedColor === color\.id\}/);
   assert.match(page, /role="dialog" aria-modal="true"/);
+  assert.match(page, /event\.key === "Escape"/);
+  assert.match(page, /previewCloseRef\.current\?\.focus\(\)/);
+  assert.match(page, /previewButtonRef\.current\?\.focus\(\)/);
+  assert.match(page, /disabled=\{imageBusy\} onChange=\{\(event\) => router\.push/);
   assert.match(page, /imageCache\.current\?\.key === key/);
   assert.match(page, /URL\.revokeObjectURL\(imageCache\.current\.url\)/);
   assert.match(api, /params\.set\('card', card\)/);
