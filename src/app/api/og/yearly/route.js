@@ -5,6 +5,7 @@ import { canViewWithFollows } from '@/lib/visibilityAccess';
 import { localDateKey, normalizeTimeZone } from '@/lib/timezone';
 import { buildYearTopRanges, toTopRpcRanges } from '@/lib/topRanges';
 import { clientKey, rateLimit, rateLimitResponse } from '@/lib/rateLimit';
+import { YEARLY_CARDS, YEARLY_THEMES, YearlyWrappedCard } from '@/components/yearly/YearlyWrappedCards';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,13 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const username = searchParams.get('username');
   const requestedYear = searchParams.get('year');
+  const card = searchParams.get('card') || 'summary';
+  const themeName = searchParams.get('theme') || 'night';
+
+  // Validate style parameters before resolving the viewer or owner profile.
+  if (!Object.hasOwn(YEARLY_CARDS, card) || !Object.hasOwn(YEARLY_THEMES, themeName)) {
+    return errorResponse('Invalid yearly card or theme', 400);
+  }
 
   if (!username || username.length > 100) return errorResponse('Invalid username', 400);
   if (requestedYear !== null &&
@@ -160,13 +168,29 @@ export async function GET(request) {
     const topArtist = Array.isArray(summary.topArtists) ? summary.topArtists[0] : null;
     const winner = items[0];
     const others = items.slice(1);
+    const palette = YEARLY_THEMES[themeName];
+    if (card !== 'summary') {
+      const story = new ImageResponse(
+        <YearlyWrappedCard
+          card={card} theme={themeName} username={profile.username} year={year}
+          summary={summary} items={items} topArtists={summary.topArtists || []}
+          monthly={monthly}
+        />,
+        { width: 1080, height: 1350, headers: NO_STORE }
+      );
+      // Validate with Satori fully before sending bytes, exactly as in summary.
+      const storyPng = await story.arrayBuffer();
+      return new Response(storyPng, {
+        status: 200, headers: { ...NO_STORE, 'Content-Type': 'image/png' },
+      });
+    }
 
     // Force PNG rendering inside this try/catch; a streamed ImageResponse
     // otherwise raises Satori errors after the route has returned a 200.
     const image = new ImageResponse(
       <div style={{
         display: 'flex', flexDirection: 'column', width: '100%', height: '100%',
-        background: '#0a0f16', color: '#f0f9ff', padding: 56,
+        background: palette.bg, color: '#f0f9ff', padding: 56,
         fontFamily: 'sans-serif',
       }}>
         <div style={{
@@ -174,51 +198,51 @@ export async function GET(request) {
           marginBottom: 32,
         }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex',  fontSize: 19, color: '#7cc7e8', letterSpacing: 3, fontWeight: 700 }}>
+            <div style={{ display: 'flex',  fontSize: 19, color: palette.accent, letterSpacing: 3, fontWeight: 700 }}>
               YEARLY TOP
             </div>
             <div style={{ display: 'flex',  fontSize: 56, fontWeight: 800, marginTop: 6 }}>{year}</div>
-            <div style={{ display: 'flex',  fontSize: 22, color: '#9bacbd' }}>
+            <div style={{ display: 'flex',  fontSize: 22, color: palette.muted }}>
               {'@' + clipped(profile.username, 30)}
             </div>
           </div>
-          <div style={{ display: 'flex', fontSize: 25, fontWeight: 700, color: '#7cc7e8' }}>
+          <div style={{ display: 'flex', fontSize: 25, fontWeight: 700, color: palette.accent }}>
             Tornamesa
           </div>
         </div>
 
         <div style={{
           display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-          background: '#131e2c', border: '1px solid #2a3645', borderRadius: 22,
+          background: palette.surface, border: '1px solid #2a3645', borderRadius: 22,
           padding: '28px 32px', marginBottom: 30,
         }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex',  color: '#91a4b8', fontSize: 20 }}>Your year in albums</div>
+            <div style={{ display: 'flex',  color: palette.muted, fontSize: 20 }}>Your year in albums</div>
             <div style={{ display: 'flex',  fontSize: 88, fontWeight: 800, lineHeight: 1.1 }}>
               {fmt(summary.totalListens)}
             </div>
-            <div style={{ display: 'flex',  color: '#9bacbd', fontSize: 20 }}>album listens</div>
+            <div style={{ display: 'flex',  color: palette.muted, fontSize: 20 }}>album listens</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16,
             alignItems: 'flex-end', paddingBottom: 8 }}>
             {/* Every div declares a layout; Satori splits even mixed text/expression nodes. */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 24, fontWeight: 700 }}>
-              {fmt(summary.uniqueAlbums)} <span style={{ color: '#91a4b8', fontSize: 17, fontWeight: 400 }}>albums</span>
+              {fmt(summary.uniqueAlbums)} <span style={{ color: palette.muted, fontSize: 17, fontWeight: 400 }}>albums</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 24, fontWeight: 700 }}>
-              {fmt(summary.uniqueArtists)} <span style={{ color: '#91a4b8', fontSize: 17, fontWeight: 400 }}>artists</span>
+              {fmt(summary.uniqueArtists)} <span style={{ color: palette.muted, fontSize: 17, fontWeight: 400 }}>artists</span>
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <div style={{ display: 'flex',  color: '#7cc7e8', fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+          <div style={{ display: 'flex',  color: palette.accent, fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
             YOUR #1 ALBUM
           </div>
           {winner ? (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 24,
-              borderRadius: 20, padding: 22, background: '#131e2c',
+              borderRadius: 20, padding: 22, background: palette.surface,
               border: '1px solid #3a6078', marginBottom: 24,
             }}>
               <AlbumCover item={winner} size={174} />
@@ -226,22 +250,22 @@ export async function GET(request) {
                 <div style={{ display: 'flex',  fontSize: 31, fontWeight: 700 }}>
                   {clipped(winner.title, 32)}
                 </div>
-                <div style={{ display: 'flex',  fontSize: 20, color: '#9bacbd' }}>
+                <div style={{ display: 'flex',  fontSize: 20, color: palette.muted }}>
                   {clipped(winner.artist, 37)}
                 </div>
-                <div style={{ display: 'flex',  fontSize: 22, fontWeight: 700, color: '#7cc7e8' }}>
+                <div style={{ display: 'flex',  fontSize: 22, fontWeight: 700, color: palette.accent }}>
                   {'×' + fmt(winner.count) + ' listens'}
                 </div>
               </div>
             </div>
           ) : (
             <div style={{
-              display: 'flex', padding: 42, background: '#131e2c',
-              borderRadius: 20, color: '#9bacbd', marginBottom: 24,
+              display: 'flex', padding: 42, background: palette.surface,
+              borderRadius: 20, color: palette.muted, marginBottom: 24,
               fontSize: 22,
             }}>No albums logged this year</div>
           )}
-          <div style={{ display: 'flex',  color: '#91a4b8', fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+          <div style={{ display: 'flex',  color: palette.muted, fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
             TOP ALBUMS
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
@@ -250,7 +274,7 @@ export async function GET(request) {
                 display: 'flex', alignItems: 'center', gap: 16, height: 79,
                 padding: '6px 14px', borderBottom: '1px solid #243449',
               }}>
-                <div style={{ display: 'flex',  width: 32, fontSize: 25, color: '#7cc7e8', fontWeight: 700 }}>
+                <div style={{ display: 'flex',  width: 32, fontSize: 25, color: palette.accent, fontWeight: 700 }}>
                   {i + 2}
                 </div>
                 <AlbumCover item={item} size={62} />
@@ -258,11 +282,11 @@ export async function GET(request) {
                   <div style={{ display: 'flex',  fontSize: 20, fontWeight: 700 }}>
                     {clipped(item.title, 48)}
                   </div>
-                  <div style={{ display: 'flex',  fontSize: 16, color: '#9bacbd' }}>
+                  <div style={{ display: 'flex',  fontSize: 16, color: palette.muted }}>
                     {clipped(item.artist, 52)}
                   </div>
                 </div>
-                <div style={{ display: 'flex',  fontSize: 19, color: '#7cc7e8', fontWeight: 700 }}>
+                <div style={{ display: 'flex',  fontSize: 19, color: palette.accent, fontWeight: 700 }}>
                   {'×' + fmt(item.count)}
                 </div>
               </div>
@@ -275,13 +299,13 @@ export async function GET(request) {
           borderTop: '1px solid #2a3645', paddingTop: 22, marginTop: 28,
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-            <div style={{ display: 'flex',  fontSize: 15, color: '#91a4b8' }}>TOP ARTIST</div>
+            <div style={{ display: 'flex',  fontSize: 15, color: palette.muted }}>TOP ARTIST</div>
             <div style={{ display: 'flex',  fontSize: 21, fontWeight: 700 }}>
               {clipped(topArtist?.name || '—', 30)}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-            <div style={{ display: 'flex',  fontSize: 15, color: '#91a4b8' }}>MOST ACTIVE MONTH</div>
+            <div style={{ display: 'flex',  fontSize: 15, color: palette.muted }}>MOST ACTIVE MONTH</div>
             <div style={{ display: 'flex',  fontSize: 21, fontWeight: 700 }}>
               {peak && Number(peak.listens) > 0
                 ? MONTHS[Number(peak.month) - 1] + ' · ' + fmt(peak.listens)
@@ -291,7 +315,7 @@ export async function GET(request) {
         </div>
         <div style={{
           display: 'flex', justifyContent: 'flex-end', marginTop: 26,
-          color: '#586b80', fontSize: 15,
+          color: palette.muted, fontSize: 15,
         }}>tornamesa.app</div>
       </div>,
       { width: 1080, height: 1350, headers: NO_STORE }
