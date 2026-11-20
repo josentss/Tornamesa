@@ -37,7 +37,8 @@ Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza l
 |---|---|---|---|
 | 1 | **Yearly Top — ajuste discreto de móvil, accesibilidad y ranking** ([PR #17](https://github.com/josentss/Tornamesa/pull/17)) | **Hecho** | PR fusionado (2026-11-20 UTC), Vercel success; el propietario comprobó en capturas desktop/móvil el diseño y las cifras 561/226 del año 2025. |
 | 2 | **QA de Yearly Top con datos corregidos** | **Verificar** | Cuenta principal 2025 = **561 / 226**; agosto 107, septiembre 68; 12 meses suman 561; perfiles privados y diario OFF no filtran datos; 2026 y años vacíos intactos. |
-| 3 | **Imagen anual compartible** ([PR #18](https://github.com/josentss/Tornamesa/pull/18)) | **Verificar** | PR fusionado: PNG 1080×1350, top 5, descarga y Web Share. Producción reportó error de Satori al renderizar cifras + etiquetas; hotfix [#19](https://github.com/josentss/Tornamesa/pull/19) fue fusionado pero no resolvió todos los nodos; corrección completa en [#20](https://github.com/josentss/Tornamesa/pull/20). No afirmar que el PNG funciona hasta probar el endpoint real. |
+| 3 | **Wrapped Anual básico** ([PR #18](https://github.com/josentss/Tornamesa/pull/18), [#20](https://github.com/josentss/Tornamesa/pull/20)) | **Hecho** | El usuario confirmó un PNG real y compartir exitoso de 2025 (561/226, top 5 y agosto 107). Render PNG cubierto por pruebas reales en PR #20. |
+| 3b | **Wrapped stories y cinco colores** ([PR #21](https://github.com/josentss/Tornamesa/pull/21)) | **En curso** | 5 tarjetas, 5 paletas, vista previa, descargar/compartir PNG; source de datos unchanged. Ver [alcance y QA](yearly-wrapped-story-pr21.md). |
 | 4 | **Top Personalizado v1** | **Pendiente** | API/UI con `top_albums`: meses no consecutivos hasta 24, atajos, mínimo y orden por escuchas/rating/reescuchas, filtros en URL; mismo resultado que el anual al seleccionar 12 meses equivalentes. |
 | 5 | **Guardar selección del Top como lista** | **Pendiente** | Definir UX y permisos, no asumir escritura silenciosa ni duplicar elementos. |
 
@@ -51,6 +52,10 @@ Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza l
 - **Compartir imagen** desde Web Share API si admite archivos, con descarga PNG como fallback; **Descargar PNG** independiente. Conservar `Share link` anterior y evitar saturar la cabecera móvil.
 - Generar con el mismo motor `top_albums`/`yearly_top_stats` y los mismos filtros que el Yearly Top (no mantener un contador separado). Autorizar `canViewWithFollows('top')` antes de leer datos y nunca exponer resúmenes privados en cachés públicas. Sin SQL ni cambios a Import logs, búsqueda o Monthly Wrapped.
 - QA: 2025 validado, 2026, vacío, menos de cinco álbumes, nombres largos, carátulas faltantes, móvil/desktop y Web Share/fallback; público, privado/mutuo/diario apagado; errores de año y rate limits. El PR solo se fusiona tras CI y Preview.
+
+### PR #21 — historias visuales y personalización
+
+El PNG básico está validado con la cuenta principal y el usuario aportó referencias visuales 2024/2025. Se adoptan **principios editoriales**, no las composiciones ni las métricas de Spotify. Cinco tarjetas (resumen, álbum #1, top 5 álbumes, top 5 artistas y año en números), cinco paletas (Night, Ocean, Violet, Ember, Forest), vista previa bajo demanda y reutilización temporal del PNG. No se inventan minutos, canciones, porcentaje global ni fotos de artistas. [Plan y pruebas](yearly-wrapped-story-pr21.md).
 
 ## Integridad, Import logs y catálogo — backlog acotado
 
