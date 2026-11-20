@@ -105,6 +105,8 @@ function YearlyContent() {
   const [wrappedColor, setWrappedColor] = useState("night");
   const [previewOpen, setPreviewOpen] = useState(false);
   const imageCache = useRef(null);
+  const previewButtonRef = useRef(null);
+  const previewCloseRef = useRef(null);
 
   useEffect(() => {
     if (!username) return;
@@ -139,6 +141,19 @@ function YearlyContent() {
     if (imageCache.current?.url) URL.revokeObjectURL(imageCache.current.url);
     imageCache.current = null;
   }, []);
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    previewCloseRef.current?.focus();
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setPreviewOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      previewButtonRef.current?.focus();
+    };
+  }, [previewOpen]);
 
   const s = data?.summary;
   const albums = data?.albums || [];
@@ -259,7 +274,7 @@ function YearlyContent() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="year-top-year" className="sr-only">Choose year</label>
-          <select id="year-top-year" value={data.year} onChange={(event) => router.push(
+          <select id="year-top-year" value={data.year} disabled={imageBusy} onChange={(event) => router.push(
             root(data.username) + "/yearly-top?year=" + event.target.value)}
             className="rounded-lg border border-[#2a3645] bg-[#1f2b3a] px-3 py-2 text-xs font-semibold text-white outline-none focus:border-[#7cc7e8] focus-visible:ring-2 focus-visible:ring-[#7cc7e8]">
             {years.map((year) => <option value={year} key={year}>{year}</option>)}
@@ -293,6 +308,8 @@ function YearlyContent() {
         </div>
       </section>
       <section aria-label="Customize yearly image" className="mt-3 rounded-xl border border-[#2a3645] bg-[#131e2c]/60 p-3 sm:p-4">
+        <h2 className="mb-1 text-sm font-semibold text-white">Share your year</h2>
+        <p className="mb-3 text-xs text-stone-400">Choose a story and color, then preview your image.</p>
         <div className="flex flex-wrap items-end gap-4">
           <div className="min-w-[160px] flex-1 sm:flex-none">
             <label htmlFor="wrapped-card" className="mb-1 block text-xs text-stone-400">Card</label>
@@ -319,7 +336,7 @@ function YearlyContent() {
           </fieldset>
         </div>
         <div className="mt-3 flex flex-wrap justify-end gap-2" aria-label="Yearly image actions">
-          <button type="button" disabled={imageBusy}
+          <button type="button" ref={previewButtonRef} disabled={imageBusy}
             onClick={previewImage}
             className="rounded-lg border border-[#2a3645] px-3 py-2.5 text-xs font-semibold text-stone-300 hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] disabled:opacity-60">
             Preview image
@@ -343,7 +360,7 @@ function YearlyContent() {
         <div className="flex max-h-[95vh] w-full max-w-sm flex-col gap-3 rounded-xl bg-[#131e2c] p-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-white">Yearly image preview</p>
-            <button type="button" onClick={() => setPreviewOpen(false)}
+            <button type="button" ref={previewCloseRef} onClick={() => setPreviewOpen(false)}
               className="rounded-lg border border-[#2a3645] px-3 py-1.5 text-xs text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7cc7e8]">Close</button>
           </div>
           <img src={imageCache.current.url} alt={WRAPPED_CARDS.find(([id]) => id === wrappedCard)?.[1] || "Yearly image"}
