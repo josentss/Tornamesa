@@ -154,9 +154,15 @@ function YearlyContent() {
       if (preferShare && typeof File !== "undefined" && typeof navigator.share === "function") {
         const file = new File([image], name, { type: "image/png" });
         if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: "Tornamesa · " + data.year + " Yearly Top" });
-          setImageMessage("Image shared");
-          return;
+          try {
+            await navigator.share({ files: [file], title: "Tornamesa · " + data.year + " Yearly Top" });
+            setImageMessage("Image shared");
+            return;
+          } catch (shareError) {
+            // A cancelled share should stay cancelled; activation failures
+            // and unsupported share surfaces fall back to downloading the PNG.
+            if (shareError?.name === "AbortError") return;
+          }
         }
       }
 
