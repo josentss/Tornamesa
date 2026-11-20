@@ -75,6 +75,7 @@ function compileFixture({ filled }) {
     cover,
     "const profile = { username: 'test-account' };",
     'const year = 2025;',
+    "const palette = { bg: '#0a0f16', surface: '#131e2c', border: '#2a3645', accent: '#7cc7e8', muted: '#9bacbd' };",
     'const payload = ' + JSON.stringify(fixture) + ';',
     'const summary = payload;',
     'const items = payload.albums;',
