@@ -87,6 +87,8 @@ function YearlyContent() {
   const [error, setError] = useState(null);
   const [allAlbums, setAllAlbums] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageMessage, setImageMessage] = useState("");
 
   useEffect(() => {
     if (!username) return;
@@ -96,6 +98,7 @@ function YearlyContent() {
     setData(null);
     setAllAlbums(false);
     setShareMessage("");
+    setImageMessage("");
     api.getYearlyTop(username, { year: requestedYear ?? undefined })
       .then((result) => {
         if (cancelled) return;
@@ -136,6 +139,43 @@ function YearlyContent() {
       }
     } catch (err) {
       if (err?.name !== "AbortError") setShareMessage("Could not share link");
+    }
+  }
+
+  async function exportImage(preferShare = false) {
+    if (!data || imageBusy) return;
+    setImageBusy(true);
+    setImageMessage("");
+    try {
+      const image = await api.getYearlyTopImage(data.username, { year: data.year });
+      const safeUsername = String(data.username).replace(/[^a-z0-9_-]/gi, "_");
+      const name = "tornamesa-" + safeUsername + "-" + data.year + ".png";
+
+      if (preferShare && typeof File !== "undefined" && typeof navigator.share === "function") {
+        const file = new File([image], name, { type: "image/png" });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: "Tornamesa · " + data.year + " Yearly Top" });
+          setImageMessage("Image shared");
+          return;
+        }
+      }
+
+      // Native file sharing is not available in every desktop/mobile browser.
+      const objectUrl = URL.createObjectURL(image);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+      setImageMessage(preferShare ? "Image downloaded — file sharing is unavailable here" : "PNG downloaded");
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        setImageMessage(err?.message || "Could not generate the image");
+      }
+    } finally {
+      setImageBusy(false);
     }
   }
 
@@ -191,6 +231,20 @@ function YearlyContent() {
           </div>)}
         </div>
       </section>
+      <div className="mt-3 flex flex-wrap justify-end gap-2" aria-label="Yearly image actions">
+        <button type="button" disabled={imageBusy}
+          onClick={() => exportImage(true)}
+          className="rounded-lg border border-[#2a3645] bg-[#131e2c] px-3 py-2.5 text-xs font-semibold text-[#7cc7e8] hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] disabled:cursor-wait disabled:opacity-60">
+          {imageBusy ? "Preparing PNG..." : "Share image"}
+        </button>
+        <button type="button" disabled={imageBusy}
+          onClick={() => exportImage(false)}
+          className="rounded-lg border border-[#2a3645] bg-[#131e2c] px-3 py-2.5 text-xs font-semibold text-stone-300 hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] disabled:cursor-wait disabled:opacity-60">
+          Download PNG
+        </button>
+      </div>
+      {imageMessage && <p role="status" aria-live="polite"
+        className="mt-2 text-right text-xs text-stone-400">{imageMessage}</p>}
 
       {s?.totalListens > 0 ? <>
         <div className="mt-5"><Activity monthly={data.monthly || []} /></div>
