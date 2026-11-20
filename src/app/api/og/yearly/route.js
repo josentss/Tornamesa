@@ -199,10 +199,11 @@ export async function GET(request) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16,
             alignItems: 'flex-end', paddingBottom: 8 }}>
-            <div style={{ fontSize: 24, fontWeight: 700 }}>
+            {/* Satori requires explicit flex/none for divs with text + span children. */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 24, fontWeight: 700 }}>
               {fmt(summary.uniqueAlbums)} <span style={{ color: '#91a4b8', fontSize: 17, fontWeight: 400 }}>albums</span>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 700 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 24, fontWeight: 700 }}>
               {fmt(summary.uniqueArtists)} <span style={{ color: '#91a4b8', fontSize: 17, fontWeight: 400 }}>artists</span>
             </div>
           </div>
