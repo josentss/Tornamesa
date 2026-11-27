@@ -31,12 +31,14 @@ const numSize = value => fmt(value).length > 6 ? 112 : fmt(value).length > 4 ? 1
 // Explicit dimensions, line boxes and no shrinking: the old summary overflowed
 // because it tried to squeeze the entire top five into a flex:1 column.
 function Text({ children, size = 32, color, weight = 400, width, lines = 1, align = 'left' }) {
-  return <div style={{ display: 'flex', flexShrink: 0, width, height: Math.ceil(size * 1.24 * lines),
-    fontSize: size, lineHeight: 1.24, fontWeight: weight, color, overflow: 'hidden',
+  // Satori's CSS parser does not accept undefined style values.
+  const style = { display: 'flex', flexShrink: 0, height: Math.ceil(size * 1.24 * lines),
+    fontSize: size, lineHeight: 1.24, fontWeight: weight, overflow: 'hidden',
     textAlign: align, justifyContent: align === 'center' ? 'center' : 'flex-start',
-    textOverflow: 'ellipsis', whiteSpace: lines === 1 ? 'nowrap' : 'normal', lineClamp: lines }}>
-    {children}
-  </div>;
+    textOverflow: 'ellipsis', whiteSpace: lines === 1 ? 'nowrap' : 'normal', lineClamp: lines };
+  if (width != null) style.width = width;
+  if (color != null) style.color = color;
+  return <div style={{ display: 'flex', ...style }}>{children}</div>;
 }
 function Cover({ item, size, theme }) {
   return item?.cover ? (
