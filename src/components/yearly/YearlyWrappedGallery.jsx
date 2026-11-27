@@ -10,10 +10,9 @@ const CARDS = [
 ];
 const COLORS = [
   { id: "night", label: "Night", color: "#7cc7e8", background: "#0a0f16" },
-  { id: "ocean", label: "Ocean", color: "#78e1d4", background: "#0b1521" },
-  { id: "violet", label: "Violet", color: "#bba4ff", background: "#12101e" },
-  { id: "ember", label: "Ember", color: "#ffa48b", background: "#1b1013" },
-  { id: "forest", label: "Forest", color: "#b8e18e", background: "#101810" },
+  { id: "ocean", label: "Ocean", color: "#81cfc6", background: "#0b1520" },
+  { id: "violet", label: "Violet", color: "#b7b1e8", background: "#131322" },
+  { id: "moss", label: "Moss", color: "#a8c6a4", background: "#0d1715" },
 ];
 
 const focus = " focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8]";
@@ -27,6 +26,7 @@ export default function YearlyWrappedGallery({ username, year, onClose }) {
   const settleTimer = useRef(null);
   const cache = useRef(new Map());
   const indexRef = useRef(0);
+  const previousByCard = useRef(new Map());
   const mounted = useRef(false);
   const shareLock = useRef(false);
   const [index, setIndex] = useState(0);
@@ -56,6 +56,7 @@ export default function YearlyWrappedGallery({ username, year, onClose }) {
       document.body.style.overflow = originalOverflow;
       for (const entry of cache.current.values()) URL.revokeObjectURL(entry.url);
       cache.current.clear();
+      previousByCard.current.clear();
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
     };
   }, []);
@@ -77,6 +78,7 @@ export default function YearlyWrappedGallery({ username, year, onClose }) {
     if (scrolling) return;
     const cached = cache.current.get(key);
     if (cached) {
+      previousByCard.current.set(card, cached);
       setResult(cached);
       return;
     }
@@ -90,12 +92,13 @@ export default function YearlyWrappedGallery({ username, year, onClose }) {
         if (controller.signal.aborted || !mounted.current) return;
         const entry = { key, blob, url: URL.createObjectURL(blob) };
         cache.current.set(key, entry);
+        previousByCard.current.set(card, entry);
         setResult(entry);
       } catch (error) {
         if (controller.signal.aborted || !mounted.current) return;
         setResult({ key, error: error?.message || "Could not generate the yearly image" });
       }
-    }, 180);
+    }, 90);
     return () => {
       clearTimeout(timer);
       controller.abort();
@@ -186,7 +189,7 @@ export default function YearlyWrappedGallery({ username, year, onClose }) {
     <dialog ref={dialog} aria-labelledby="wrapped-gallery-title"
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       className="fixed inset-0 m-auto max-h-[100dvh] w-full max-w-[500px] overflow-y-auto border-0 bg-[#0a0f16] p-0 text-[#f0f9ff] backdrop:bg-black/85 sm:max-h-[95dvh] sm:rounded-2xl sm:border sm:border-[#2a3645]">
-      <div className="flex min-h-[100dvh] flex-col justify-center gap-3 px-3 py-3 sm:min-h-0 sm:px-5 sm:py-4">
+      <div className="flex min-h-[100dvh] flex-col justify-center gap-2 px-3 py-2 sm:min-h-0 sm:px-4 sm:py-3">
         <header className="flex shrink-0 items-center justify-between gap-2">
           <h2 id="wrapped-gallery-title" className="text-sm font-semibold">Your {year} Wrapped</h2>
           <button ref={closeButton} type="button" onClick={onClose}
@@ -204,15 +207,22 @@ export default function YearlyWrappedGallery({ username, year, onClose }) {
               {CARDS.map(([id, label], i) => {
                 const active = i === index;
                 const entry = active && current?.url ? current : cache.current.get(cacheKey(id, color));
+                const fallback = active && !entry?.url && !current?.error ? previousByCard.current.get(id) : null;
                 return (
                   <div key={id} role="group" aria-roledescription="slide"
                     aria-label={(i + 1) + " of " + CARDS.length + ": " + label}
                     aria-hidden={!active} className="flex w-full shrink-0 snap-center snap-always justify-center">
-                    <div className="relative flex aspect-[4/5] w-full max-w-[400px] items-center justify-center overflow-hidden rounded-xl border border-[#2a3645] bg-[#131e2c]"
-                      style={{ width: "min(100%, 400px, max(180px, calc((100dvh - 248px) * 0.8)))" }}>
+                    <div className="relative flex aspect-[9/16] w-full max-w-[360px] items-center justify-center overflow-hidden rounded-xl border border-[#2a3645] bg-[#131e2c]"
+                      style={{ width: "min(100%, 360px, max(135px, calc((100dvh - 290px) * 0.5625)))" }}>
                       {entry?.url ? (
                         <img src={entry.url} alt={label + " — " + year} draggable={false}
                           className="h-full w-full select-none object-contain" />
+                      ) : fallback?.url ? (
+                        <>
+                          <img src={fallback.url} alt={label + " — previous color"} draggable={false}
+                            className="h-full w-full select-none object-contain opacity-70" />
+                          <span role="status" className="absolute bottom-3 rounded-full bg-[#0a0f16]/90 px-3 py-1 text-xs text-white">Updating color…</span>
+                        </>
                       ) : active && current?.error ? (
                         <div className="flex flex-col items-center gap-3 px-5 text-center">
                           <p role="alert" className="text-sm text-stone-300">{current.error}</p>

@@ -43,9 +43,9 @@ test('annual image ranks using exactly the same stable SQL engine as Yearly Top'
   assert.match(route, /MONTHS\[Number\(peak\.month\) - 1\]/);
 });
 
-test('image uses a fixed 1080 x 1350 PNG without inventing history', () => {
+test('image uses a fixed 1080 x 1920 PNG without inventing history', () => {
   assert.match(route, /new ImageResponse\(/);
-  assert.match(route, /width: 1080, height: 1350, headers: NO_STORE/);
+  assert.match(route, /width: 1080, height: 1920, headers: NO_STORE/);
   assert.match(route, /fmt\(summary\.totalListens\)/);
   assert.match(route, /fmt\(summary\.uniqueAlbums\)/);
   assert.match(route, /fmt\(summary\.uniqueArtists\)/);
@@ -112,4 +112,22 @@ test('OG yearly metrics use explicit flex layout for text and span children', ()
     assert.match(match[1], /display: 'flex'/, metric + ' requires explicit flex');
     assert.match(match[1], /alignItems: 'baseline'/);
   }
+});
+
+test('avoid catalog and artwork work for non-album stories', () => {
+  assert.match(route, /const needsAlbums = card === 'summary' \|\| card === 'album' \|\| card === 'albums'/);
+  assert.match(route, /needsAlbums \? supabase\.rpc\('top_albums'/);
+  assert.match(route, /slice\(0, card === 'album' \? 1 : 5\)/);
+  assert.match(route, /Promise\.all\(selectedAlbums\.map/);
+});
+
+test('warm artwork reuse is limited to immutable public Spotify CDN paths', () => {
+  const fn = route.slice(route.indexOf('function publicArtworkKey'), route.indexOf('// Album art is optional.'));
+  assert.match(fn, /parsed\.hostname === 'i\.scdn\.co'/);
+  assert.match(fn, /!parsed\.search/);
+  assert.doesNotMatch(fn, /cloudinary/);
+  assert.match(route, /const ARTWORK_LIMIT = 12/);
+  assert.match(route, /const ARTWORK_TTL = 5 \* 60_000/);
+  assert.match(route, /publicArtwork\.delete\(publicArtwork\.keys\(\)\.next\(\)\.value\)/);
+  assert.match(route, /if \(cached && cached\.expires > Date\.now\(\)\) return cached\.data/);
 });

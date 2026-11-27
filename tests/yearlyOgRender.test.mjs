@@ -41,7 +41,7 @@ function compileFixture({ filled }) {
   const coverEnd = route.indexOf('export async function GET(', coverStart);
   const renderStartToken = 'const image = new ImageResponse(';
   const renderStart = route.indexOf(renderStartToken);
-  const renderEnd = route.indexOf('\n      { width: 1080, height: 1350, headers: NO_STORE }', renderStart);
+  const renderEnd = route.indexOf('\n      { width: 1080, height: 1920, headers: NO_STORE }', renderStart);
   assert.ok(helpersStart >= 0 && helpersEnd > helpersStart);
   assert.ok(coverStart >= 0 && coverEnd > coverStart);
   assert.ok(renderStart >= 0 && renderEnd > renderStart);
@@ -86,7 +86,7 @@ function compileFixture({ filled }) {
     'module.exports = async function renderFixture() {',
     'const image = new ImageResponse(',
     jsxWithComma,
-    ' { width: 1080, height: 1350, headers: NO_STORE });',
+    ' { width: 1080, height: 1920, headers: NO_STORE });',
     'return Buffer.from(await image.arrayBuffer());',
     '};',
   ].join('\n');
@@ -116,6 +116,6 @@ test('real next/og renders yearly PNG for five albums and the empty state', asyn
     assert.ok(png.subarray(0, 8).equals(PNG_SIGNATURE),
       'Real renderer must return valid PNG magic bytes');
     assert.equal(png.readUInt32BE(16), 1080, 'Image width');
-    assert.equal(png.readUInt32BE(20), 1350, 'Image height');
+    assert.equal(png.readUInt32BE(20), 1920, 'Image height');
   }
 });

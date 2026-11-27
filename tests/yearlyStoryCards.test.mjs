@@ -69,8 +69,8 @@ test('the image endpoint validates card and color before owner data and preserve
   assert.match(route, /'Cache-Control': 'private, no-store'/);
 });
 
-test('five named themes and exactly five story types are available', () => {
-  assert.deepEqual(Object.keys(YEARLY_THEMES), ['night','ocean','violet','ember','forest']);
+test('four named themes and exactly five story types are available', () => {
+  assert.deepEqual(Object.keys(YEARLY_THEMES), ['night','ocean','violet','moss']);
   assert.deepEqual(Object.keys(YEARLY_CARDS), ['summary','album','albums','artists','insights']);
   assert.ok(Object.values(YEARLY_THEMES).every((theme) =>
     /^#[a-f0-9]{6}$/i.test(theme.bg) && /^#[a-f0-9]{6}$/i.test(theme.accent)));
@@ -116,18 +116,18 @@ test('preview requests are scoped to the active card and color and never repeate
   assert.match(api, /Retry-After/);
 });
 
-test('the actual story templates render valid 1080×1350 PNGs with five albums', async () => {
+test('the actual story templates render valid 1080×1920 PNGs with five albums', async () => {
   for (const card of ['album', 'albums', 'artists', 'insights']) {
     const element = React.createElement(YearlyWrappedCard, {
       card, theme: 'night', year: 2025, username: 'josents',
       summary, items: albums, topArtists: artists, monthly,
     });
-    const response = new ImageResponse(element, { width: 1080, height: 1350 });
+    const response = new ImageResponse(element, { width: 1080, height: 1920 });
     const png = Buffer.from(await response.arrayBuffer());
     assert.ok(png.length > 2000, card + ' PNG is not empty');
     assert.ok(png.subarray(0, 8).equals(PNG_SIGNATURE), card + ' has valid PNG header');
     assert.equal(png.readUInt32BE(16), 1080);
-    assert.equal(png.readUInt32BE(20), 1350);
+    assert.equal(png.readUInt32BE(20), 1920);
   }
 });
 
@@ -139,6 +139,32 @@ test('a different palette and an empty year render without synthetic records', a
     items: [], topArtists: [], monthly: [],
   });
   const png = Buffer.from(await new ImageResponse(element,
-    { width: 1080, height: 1350 }).arrayBuffer());
+    { width: 1080, height: 1920 }).arrayBuffer());
   assert.ok(png.subarray(0, 8).equals(PNG_SIGNATURE));
+});
+
+test('story preview stays vertical and prevents exporting stale colors', () => {
+  assert.match(gallery, /aspect-\[9\/16\]/);
+  assert.match(gallery, /previousByCard\.current\.get\(id\)/);
+  assert.match(gallery, /const ready = !!current\?\.url && !scrolling && !sharing/);
+  assert.match(gallery, /disabled=\{!ready\}/);
+  assert.doesNotMatch(gallery, /id: "ember"|id: "forest"/);
+});
+
+test('all four themes and each empty story render real 9:16 PNGs', async () => {
+  for (const [card, theme] of [
+    ['album', 'ocean'], ['albums', 'violet'], ['artists', 'moss'], ['insights', 'ocean'],
+    ['albums', 'night'], ['artists', 'night'], ['insights', 'night'],
+  ]) {
+    const filled = theme !== 'night';
+    const element = React.createElement(YearlyWrappedCard, {
+      card, theme, year: 2025, username: 'test-account',
+      summary: filled ? summary : { totalListens: 0, uniqueAlbums: 0, uniqueArtists: 0, discoveries: 0, repeatListens: 0 },
+      items: filled ? albums : [], topArtists: filled ? artists : [], monthly: filled ? monthly : [],
+    });
+    const png = Buffer.from(await new ImageResponse(element, { width: 1080, height: 1920 }).arrayBuffer());
+    assert.ok(png.subarray(0, 8).equals(PNG_SIGNATURE));
+    assert.equal(png.readUInt32BE(16), 1080);
+    assert.equal(png.readUInt32BE(20), 1920);
+  }
 });
