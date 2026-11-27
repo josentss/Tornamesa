@@ -33,9 +33,9 @@ const numSize = value => fmt(value).length > 6 ? 112 : fmt(value).length > 4 ? 1
 function Text({ children, size = 32, color, weight = 400, width, lines = 1, align = 'left' }) {
   return <div style={{ display: 'flex', flexShrink: 0, width, height: Math.ceil(size * 1.24 * lines),
     fontSize: size, lineHeight: 1.24, fontWeight: weight, color, overflow: 'hidden',
-    textAlign: align, justifyContent: align === 'center' ? 'center' : 'flex-start' }}>
-    <div style={{ display: 'flex', width: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
-      whiteSpace: lines === 1 ? 'nowrap' : 'normal', lineClamp: lines, textAlign: align }}>{children}</div>
+    textAlign: align, justifyContent: align === 'center' ? 'center' : 'flex-start',
+    textOverflow: 'ellipsis', whiteSpace: lines === 1 ? 'nowrap' : 'normal', lineClamp: lines }}>
+    {children}
   </div>;
 }
 function Cover({ item, size, theme }) {
