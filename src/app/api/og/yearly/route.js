@@ -121,8 +121,9 @@ export async function GET(request) {
 
     // Same ranking and statistics RPCs as Yearly Top; only the display limit is five.
     const ranges = toTopRpcRanges(buildYearTopRanges(year, tz));
+    const needsAlbums = card === 'summary' || card === 'album' || card === 'albums';
     const [top, stats] = await Promise.all([
-      supabase.rpc('top_albums', {
+      needsAlbums ? supabase.rpc('top_albums', {
         p_user_id: profile.id,
         p_ranges: ranges,
         p_sort: 'listens',
@@ -130,7 +131,7 @@ export async function GET(request) {
         p_min_rating: null,
         p_limit: 5,
         p_artist: null,
-      }),
+      }) : Promise.resolve({ data: [], error: null }),
       supabase.rpc('yearly_top_stats', {
         p_user_id: profile.id, p_year: year,
       }),
@@ -139,7 +140,8 @@ export async function GET(request) {
       throw top.error || stats.error || new Error('Invalid yearly stats');
     }
 
-    const ids = (top.data || []).map((item) => item.album_id);
+    const selectedAlbums = (top.data || []).slice(0, card === 'album' ? 1 : 5);
+    const ids = selectedAlbums.map((item) => item.album_id);
     const metadata = {};
     if (ids.length > 0) {
       const { data: albums, error: albumError } = await supabase
@@ -150,7 +152,7 @@ export async function GET(request) {
       for (const album of albums || []) metadata[album.spotify_id] = album;
     }
 
-    const items = await Promise.all((top.data || []).map(async (item) => {
+    const items = await Promise.all(selectedAlbums.map(async (item) => {
       const album = metadata[item.album_id];
       return {
         title: clipped(album?.title || 'Unknown album', 46),
@@ -176,7 +178,7 @@ export async function GET(request) {
           summary={summary} items={items} topArtists={summary.topArtists || []}
           monthly={monthly}
         />,
-        { width: 1080, height: 1350, headers: NO_STORE }
+        { width: 1080, height: 1920, headers: NO_STORE }
       );
       // Validate with Satori fully before sending bytes, exactly as in summary.
       const storyPng = await story.arrayBuffer();
@@ -190,23 +192,23 @@ export async function GET(request) {
     const image = new ImageResponse(
       <div style={{
         display: 'flex', flexDirection: 'column', width: '100%', height: '100%',
-        background: palette.bg, color: '#f0f9ff', padding: 56,
+        background: palette.bg, color: '#f0f9ff', padding: 70,
         fontFamily: 'sans-serif',
       }}>
         <div style={{
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          marginBottom: 32,
+          marginBottom: 40,
         }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex',  fontSize: 19, color: palette.accent, letterSpacing: 3, fontWeight: 700 }}>
+            <div style={{ display: 'flex',  fontSize: 29, color: palette.accent, letterSpacing: 3, fontWeight: 700 }}>
               YEARLY TOP
             </div>
-            <div style={{ display: 'flex',  fontSize: 56, fontWeight: 800, marginTop: 6 }}>{year}</div>
-            <div style={{ display: 'flex',  fontSize: 22, color: palette.muted }}>
+            <div style={{ display: 'flex',  fontSize: 84, fontWeight: 800, marginTop: 6 }}>{year}</div>
+            <div style={{ display: 'flex',  fontSize: 30, color: palette.muted }}>
               {'@' + clipped(profile.username, 30)}
             </div>
           </div>
-          <div style={{ display: 'flex', fontSize: 25, fontWeight: 700, color: palette.accent }}>
+          <div style={{ display: 'flex', fontSize: 34, fontWeight: 700, color: palette.accent }}>
             Tornamesa
           </div>
         </div>
@@ -214,46 +216,46 @@ export async function GET(request) {
         <div style={{
           display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
           background: palette.surface, border: '1px solid #2a3645', borderRadius: 22,
-          padding: '28px 32px', marginBottom: 30,
+          padding: '36px 40px', marginBottom: 38,
         }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex',  color: palette.muted, fontSize: 20 }}>Your year in albums</div>
-            <div style={{ display: 'flex',  fontSize: 88, fontWeight: 800, lineHeight: 1.1 }}>
+            <div style={{ display: 'flex',  color: palette.muted, fontSize: 28 }}>Your year in albums</div>
+            <div style={{ display: 'flex',  fontSize: 136, fontWeight: 800, lineHeight: 1.1 }}>
               {fmt(summary.totalListens)}
             </div>
-            <div style={{ display: 'flex',  color: palette.muted, fontSize: 20 }}>album listens</div>
+            <div style={{ display: 'flex',  color: palette.muted, fontSize: 28 }}>album listens</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16,
             alignItems: 'flex-end', paddingBottom: 8 }}>
             {/* Every div declares a layout; Satori splits even mixed text/expression nodes. */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 24, fontWeight: 700 }}>
-              {fmt(summary.uniqueAlbums)} <span style={{ color: palette.muted, fontSize: 17, fontWeight: 400 }}>albums</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 39, fontWeight: 700 }}>
+              {fmt(summary.uniqueAlbums)} <span style={{ color: palette.muted, fontSize: 25, fontWeight: 400 }}>albums</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 24, fontWeight: 700 }}>
-              {fmt(summary.uniqueArtists)} <span style={{ color: palette.muted, fontSize: 17, fontWeight: 400 }}>artists</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 39, fontWeight: 700 }}>
+              {fmt(summary.uniqueArtists)} <span style={{ color: palette.muted, fontSize: 25, fontWeight: 400 }}>artists</span>
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <div style={{ display: 'flex',  color: palette.accent, fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+          <div style={{ display: 'flex',  color: palette.accent, fontSize: 27, fontWeight: 700, marginBottom: 12 }}>
             YOUR #1 ALBUM
           </div>
           {winner ? (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 24,
-              borderRadius: 20, padding: 22, background: palette.surface,
+              display: 'flex', alignItems: 'center', gap: 26,
+              borderRadius: 20, padding: 25, background: palette.surface,
               border: '1px solid #3a6078', marginBottom: 24,
             }}>
-              <AlbumCover item={winner} size={174} />
+              <AlbumCover item={winner} size={278} />
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 9 }}>
-                <div style={{ display: 'flex',  fontSize: 31, fontWeight: 700 }}>
+                <div style={{ display: 'flex',  fontSize: 47, fontWeight: 700 }}>
                   {clipped(winner.title, 32)}
                 </div>
-                <div style={{ display: 'flex',  fontSize: 20, color: palette.muted }}>
+                <div style={{ display: 'flex',  fontSize: 30, color: palette.muted }}>
                   {clipped(winner.artist, 37)}
                 </div>
-                <div style={{ display: 'flex',  fontSize: 22, fontWeight: 700, color: palette.accent }}>
+                <div style={{ display: 'flex',  fontSize: 34, fontWeight: 700, color: palette.accent }}>
                   {'×' + fmt(winner.count) + ' listens'}
                 </div>
               </div>
@@ -265,29 +267,31 @@ export async function GET(request) {
               fontSize: 22,
             }}>No albums logged this year</div>
           )}
-          <div style={{ display: 'flex',  color: palette.muted, fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
+          <div style={{ display: 'flex',  color: palette.muted, fontSize: 27, fontWeight: 700, marginBottom: 12 }}>
             TOP ALBUMS
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
             {others.map((item, i) => (
               <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 16, height: 79,
+                display: 'flex', alignItems: 'center', gap: 20, height: 143,
                 padding: '6px 14px', borderBottom: '1px solid #243449',
               }}>
-                <div style={{ display: 'flex',  width: 32, fontSize: 25, color: palette.accent, fontWeight: 700 }}>
+                <div style={{ display: 'flex',  width: 40, fontSize: 37, color: palette.accent, fontWeight: 700 }}>
                   {i + 2}
                 </div>
-                <AlbumCover item={item} size={62} />
+                <AlbumCover item={item} size={111} />
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 4 }}>
-                  <div style={{ display: 'flex',  fontSize: 20, fontWeight: 700 }}>
+                  <div style={{ display: 'flex',  fontSize: 32, fontWeight: 700 }}>
                     {clipped(item.title, 48)}
                   </div>
-                  <div style={{ display: 'flex',  fontSize: 16, color: palette.muted }}>
-                    {clipped(item.artist, 52)}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', fontSize: 25, color: palette.muted }}>
+                      {clipped(item.artist, 33)}
+                    </div>
+                    <div style={{ display: 'flex', fontSize: 28, color: palette.accent, fontWeight: 700 }}>
+                      {'×' + fmt(item.count)}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex',  fontSize: 19, color: palette.accent, fontWeight: 700 }}>
-                  {'×' + fmt(item.count)}
                 </div>
               </div>
             ))}
@@ -299,14 +303,14 @@ export async function GET(request) {
           borderTop: '1px solid #2a3645', paddingTop: 22, marginTop: 28,
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-            <div style={{ display: 'flex',  fontSize: 15, color: palette.muted }}>TOP ARTIST</div>
-            <div style={{ display: 'flex',  fontSize: 21, fontWeight: 700 }}>
+            <div style={{ display: 'flex',  fontSize: 23, color: palette.muted }}>TOP ARTIST</div>
+            <div style={{ display: 'flex',  fontSize: 32, fontWeight: 700 }}>
               {clipped(topArtist?.name || '—', 30)}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-            <div style={{ display: 'flex',  fontSize: 15, color: palette.muted }}>MOST ACTIVE MONTH</div>
-            <div style={{ display: 'flex',  fontSize: 21, fontWeight: 700 }}>
+            <div style={{ display: 'flex',  fontSize: 23, color: palette.muted }}>MOST ACTIVE MONTH</div>
+            <div style={{ display: 'flex',  fontSize: 32, fontWeight: 700 }}>
               {peak && Number(peak.listens) > 0
                 ? MONTHS[Number(peak.month) - 1] + ' · ' + fmt(peak.listens)
                 : '—'}
@@ -315,10 +319,10 @@ export async function GET(request) {
         </div>
         <div style={{
           display: 'flex', justifyContent: 'flex-end', marginTop: 26,
-          color: palette.muted, fontSize: 15,
+          color: palette.muted, fontSize: 23,
         }}>tornamesa.app</div>
       </div>,
-      { width: 1080, height: 1350, headers: NO_STORE }
+      { width: 1080, height: 1920, headers: NO_STORE }
     );
     const png = await image.arrayBuffer();
     return new Response(png, {
