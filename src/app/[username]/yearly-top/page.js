@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import YearlyWrappedGallery from "@/components/yearly/YearlyWrappedGallery";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -12,19 +13,6 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fmt = (value) => new Intl.NumberFormat("en").format(value || 0);
 const root = (username) => "/" + encodeURIComponent(username);
-const WRAPPED_CARDS = [
-  ["summary", "Year in review"], ["album", "Album of the year"],
-  ["albums", "Top five albums"], ["artists", "Top five artists"],
-  ["insights", "Year in numbers"],
-];
-const WRAPPED_COLORS = [
-  { id: "night", label: "Night", color: "#7cc7e8", background: "#0a0f16" },
-  { id: "ocean", label: "Ocean", color: "#78e1d4", background: "#0b1521" },
-  { id: "violet", label: "Violet", color: "#bba4ff", background: "#12101e" },
-  { id: "ember", label: "Ember", color: "#ffa48b", background: "#1b1013" },
-  { id: "forest", label: "Forest", color: "#b8e18e", background: "#101810" },
-];
-
 function AlbumRow({ album, featured = false, numbered = true }) {
   return (
     <Link href={"/album/" + encodeURIComponent(album.albumId)}
@@ -99,14 +87,8 @@ function YearlyContent() {
   const [error, setError] = useState(null);
   const [allAlbums, setAllAlbums] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
-  const [imageBusy, setImageBusy] = useState(false);
-  const [imageMessage, setImageMessage] = useState("");
-  const [wrappedCard, setWrappedCard] = useState("summary");
-  const [wrappedColor, setWrappedColor] = useState("night");
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const imageCache = useRef(null);
-  const previewButtonRef = useRef(null);
-  const previewCloseRef = useRef(null);
+  const [wrappedOpen, setWrappedOpen] = useState(false);
+  const { user: viewer } = useAuth();
 
   useEffect(() => {
     if (!username) return;
@@ -116,7 +98,7 @@ function YearlyContent() {
     setData(null);
     setAllAlbums(false);
     setShareMessage("");
-    setImageMessage("");
+    setWrappedOpen(false);
     api.getYearlyTop(username, { year: requestedYear ?? undefined })
       .then((result) => {
         if (cancelled) return;
@@ -129,31 +111,7 @@ function YearlyContent() {
     return () => { cancelled = true; };
   }, [username, requestedYear, router]);
 
-  // Blob URLs are local to this browser; do not cache private images persistently.
-  useEffect(() => {
-    if (imageCache.current?.url) URL.revokeObjectURL(imageCache.current.url);
-    imageCache.current = null;
-    setPreviewOpen(false);
-    setImageMessage("");
-  }, [wrappedCard, wrappedColor, requestedYear]);
-
-  useEffect(() => () => {
-    if (imageCache.current?.url) URL.revokeObjectURL(imageCache.current.url);
-    imageCache.current = null;
-  }, []);
-
-  useEffect(() => {
-    if (!previewOpen) return;
-    previewCloseRef.current?.focus();
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") setPreviewOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-      previewButtonRef.current?.focus();
-    };
-  }, [previewOpen]);
+  useEffect(() => { setWrappedOpen(false); }, [viewer?.id, viewer?.username]);
 
   const s = data?.summary;
   const albums = data?.albums || [];
@@ -186,75 +144,6 @@ function YearlyContent() {
     }
   }
 
-  async function loadWrappedImage() {
-    const key = [data.username, data.year, wrappedCard, wrappedColor].join(":");
-    if (imageCache.current?.key === key) return imageCache.current.blob;
-    const blob = await api.getYearlyTopImage(data.username, {
-      year: data.year, card: wrappedCard, theme: wrappedColor,
-    });
-    if (imageCache.current?.url) URL.revokeObjectURL(imageCache.current.url);
-    imageCache.current = { key, blob, url: URL.createObjectURL(blob) };
-    return blob;
-  }
-
-  async function previewImage() {
-    if (!data || imageBusy) return;
-    setImageBusy(true);
-    setImageMessage("");
-    try {
-      await loadWrappedImage();
-      setPreviewOpen(true);
-    } catch (err) {
-      setImageMessage(err?.message || "Could not preview the image");
-    } finally {
-      setImageBusy(false);
-    }
-  }
-
-  async function exportImage(preferShare = false) {
-    if (!data || imageBusy) return;
-    setImageBusy(true);
-    setImageMessage("");
-    try {
-      const image = await loadWrappedImage();
-      const safeUsername = String(data.username).replace(/[^a-z0-9_-]/gi, "_");
-      const name = "tornamesa-" + safeUsername + "-" + data.year +
-        "-" + wrappedCard + "-" + wrappedColor + ".png";
-
-      if (preferShare && typeof File !== "undefined" && typeof navigator.share === "function") {
-        const file = new File([image], name, { type: "image/png" });
-        if (navigator.canShare?.({ files: [file] })) {
-          try {
-            await navigator.share({ files: [file], title: "Tornamesa · " + data.year + " Yearly Top" });
-            setImageMessage("Image shared");
-            return;
-          } catch (shareError) {
-            // A cancelled share should stay cancelled; activation failures
-            // and unsupported share surfaces fall back to downloading the PNG.
-            if (shareError?.name === "AbortError") return;
-          }
-        }
-      }
-
-      // Native file sharing is not available in every desktop/mobile browser.
-      const objectUrl = URL.createObjectURL(image);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = name;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-      setImageMessage(preferShare ? "Image downloaded — file sharing is unavailable here" : "PNG downloaded");
-    } catch (err) {
-      if (err?.name !== "AbortError") {
-        setImageMessage(err?.message || "Could not generate the image");
-      }
-    } finally {
-      setImageBusy(false);
-    }
-  }
-
   if (loading) return <div className="flex flex-1 items-center justify-center py-20">
     <LoadingSpinner message="Loading yearly top..." />
   </div>;
@@ -274,7 +163,7 @@ function YearlyContent() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="year-top-year" className="sr-only">Choose year</label>
-          <select id="year-top-year" value={data.year} disabled={imageBusy} onChange={(event) => router.push(
+          <select id="year-top-year" value={data.year} onChange={(event) => router.push(
             root(data.username) + "/yearly-top?year=" + event.target.value)}
             className="rounded-lg border border-[#2a3645] bg-[#1f2b3a] px-3 py-2 text-xs font-semibold text-white outline-none focus:border-[#7cc7e8] focus-visible:ring-2 focus-visible:ring-[#7cc7e8]">
             {years.map((year) => <option value={year} key={year}>{year}</option>)}
@@ -307,66 +196,15 @@ function YearlyContent() {
           </div>)}
         </div>
       </section>
-      <section aria-label="Customize yearly image" className="mt-3 rounded-xl border border-[#2a3645] bg-[#131e2c]/60 p-3 sm:p-4">
-        <h2 className="mb-1 text-sm font-semibold text-white">Share your year</h2>
-        <p className="mb-3 text-xs text-stone-400">Choose a story and color, then preview your image.</p>
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[160px] flex-1 sm:flex-none">
-            <label htmlFor="wrapped-card" className="mb-1 block text-xs text-stone-400">Card</label>
-            <select id="wrapped-card" value={wrappedCard} disabled={imageBusy}
-              onChange={(event) => setWrappedCard(event.target.value)}
-              className="w-full rounded-lg border border-[#2a3645] bg-[#1f2b3a] px-3 py-2 text-xs text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8]">
-              {WRAPPED_CARDS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-            </select>
-          </div>
-          <fieldset className="flex-1">
-            <legend className="mb-1 text-xs text-stone-400">Color</legend>
-            <div className="flex flex-wrap gap-2">
-              {WRAPPED_COLORS.map((color) => <button key={color.id} type="button"
-                disabled={imageBusy} aria-label={"Use " + color.label + " color"}
-                title={color.label} aria-pressed={wrappedColor === color.id}
-                onClick={() => setWrappedColor(color.id)}
-                className={"flex h-8 w-8 items-center justify-center rounded-full border-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] " +
-                  (wrappedColor === color.id ? "border-white" : "border-[#3a4c60]")}
-                style={{ backgroundColor: color.background }}>
-                <span aria-hidden="true" className="h-4 w-4 rounded-full"
-                  style={{ backgroundColor: color.color }} />
-              </button>)}
-            </div>
-          </fieldset>
-        </div>
-        <div className="mt-3 flex flex-wrap justify-end gap-2" aria-label="Yearly image actions">
-          <button type="button" ref={previewButtonRef} disabled={imageBusy}
-            onClick={previewImage}
-            className="rounded-lg border border-[#2a3645] px-3 py-2.5 text-xs font-semibold text-stone-300 hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] disabled:opacity-60">
-            Preview image
-          </button>
-          <button type="button" disabled={imageBusy}
-            onClick={() => exportImage(true)}
-            className="rounded-lg border border-[#2a3645] bg-[#131e2c] px-3 py-2.5 text-xs font-semibold text-[#7cc7e8] hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] disabled:cursor-wait disabled:opacity-60">
-            {imageBusy ? "Preparing PNG..." : "Share image"}
-          </button>
-          <button type="button" disabled={imageBusy}
-            onClick={() => exportImage(false)}
-            className="rounded-lg border border-[#2a3645] bg-[#131e2c] px-3 py-2.5 text-xs font-semibold text-stone-300 hover:border-[#7cc7e8]/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8] disabled:cursor-wait disabled:opacity-60">
-            Download PNG
-          </button>
-        </div>
-        {imageMessage && <p role="status" aria-live="polite"
-          className="mt-2 text-right text-xs text-stone-400">{imageMessage}</p>}
-      </section>
-      {previewOpen && imageCache.current?.url && <div role="dialog" aria-modal="true"
-        aria-label="Yearly Wrapped image preview" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4">
-        <div className="flex max-h-[95vh] w-full max-w-sm flex-col gap-3 rounded-xl bg-[#131e2c] p-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-white">Yearly image preview</p>
-            <button type="button" ref={previewCloseRef} onClick={() => setPreviewOpen(false)}
-              className="rounded-lg border border-[#2a3645] px-3 py-1.5 text-xs text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7cc7e8]">Close</button>
-          </div>
-          <img src={imageCache.current.url} alt={WRAPPED_CARDS.find(([id]) => id === wrappedCard)?.[1] || "Yearly image"}
-            className="max-h-[75vh] w-full object-contain" />
-        </div>
-      </div>}
+      <div className="mt-3 flex justify-end">
+        <button type="button" aria-haspopup="dialog" onClick={() => setWrappedOpen(true)}
+          className="rounded-lg border border-[#2a3645] bg-[#131e2c] px-4 py-2.5 text-sm font-semibold text-[#7cc7e8] hover:border-[#7cc7e8]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7cc7e8]">
+          View Wrapped
+        </button>
+      </div>
+      {wrappedOpen && <YearlyWrappedGallery
+        key={[data.username, data.year, viewer?.id || viewer?.username || "guest"].join(":")}
+        username={data.username} year={data.year} onClose={() => setWrappedOpen(false)} />}
 
       {s?.totalListens > 0 ? <>
         <div className="mt-5"><Activity monthly={data.monthly || []} /></div>
