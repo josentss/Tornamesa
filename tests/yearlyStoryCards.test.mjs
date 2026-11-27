@@ -150,3 +150,21 @@ test('story preview stays vertical and prevents exporting stale colors', () => {
   assert.match(gallery, /disabled=\{!ready\}/);
   assert.doesNotMatch(gallery, /id: "ember"|id: "forest"/);
 });
+
+test('all four themes and each empty story render real 9:16 PNGs', async () => {
+  for (const [card, theme] of [
+    ['album', 'ocean'], ['albums', 'violet'], ['artists', 'moss'], ['insights', 'ocean'],
+    ['albums', 'night'], ['artists', 'night'], ['insights', 'night'],
+  ]) {
+    const filled = theme !== 'night';
+    const element = React.createElement(YearlyWrappedCard, {
+      card, theme, year: 2025, username: 'test-account',
+      summary: filled ? summary : { totalListens: 0, uniqueAlbums: 0, uniqueArtists: 0, discoveries: 0, repeatListens: 0 },
+      items: filled ? albums : [], topArtists: filled ? artists : [], monthly: filled ? monthly : [],
+    });
+    const png = Buffer.from(await new ImageResponse(element, { width: 1080, height: 1920 }).arrayBuffer());
+    assert.ok(png.subarray(0, 8).equals(PNG_SIGNATURE));
+    assert.equal(png.readUInt32BE(16), 1080);
+    assert.equal(png.readUInt32BE(20), 1920);
+  }
+});

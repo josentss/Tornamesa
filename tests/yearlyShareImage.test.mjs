@@ -120,3 +120,14 @@ test('avoid catalog and artwork work for non-album stories', () => {
   assert.match(route, /slice\(0, card === 'album' \? 1 : 5\)/);
   assert.match(route, /Promise\.all\(selectedAlbums\.map/);
 });
+
+test('warm artwork reuse is limited to immutable public Spotify CDN paths', () => {
+  const fn = route.slice(route.indexOf('function publicArtworkKey'), route.indexOf('// Album art is optional.'));
+  assert.match(fn, /parsed\.hostname === 'i\.scdn\.co'/);
+  assert.match(fn, /!parsed\.search/);
+  assert.doesNotMatch(fn, /cloudinary/);
+  assert.match(route, /const ARTWORK_LIMIT = 12/);
+  assert.match(route, /const ARTWORK_TTL = 5 \* 60_000/);
+  assert.match(route, /publicArtwork\.delete\(publicArtwork\.keys\(\)\.next\(\)\.value\)/);
+  assert.match(route, /if \(cached && cached\.expires > Date\.now\(\)\) return cached\.data/);
+});

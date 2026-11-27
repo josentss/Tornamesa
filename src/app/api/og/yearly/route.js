@@ -37,10 +37,26 @@ function allowedCover(url) {
   }
 }
 
+// Only immutable, public Spotify artwork is cached in this warm process.
+// Never store Cloudinary assets, user data, or rendered private PNGs here.
+const publicArtwork = new Map();
+const ARTWORK_LIMIT = 12;
+const ARTWORK_TTL = 5 * 60_000;
+
+function publicArtworkKey(url) {
+  const parsed = new URL(url);
+  return parsed.hostname === 'i.scdn.co' && !parsed.port && !parsed.search &&
+    !parsed.hash && /^\/image\/[a-f0-9]+$/i.test(parsed.pathname) ? parsed.href : null;
+}
+
 // Album art is optional. Do not follow redirects or fetch arbitrary catalog URLs.
 async function coverToDataUrl(url) {
   if (!url || !allowedCover(url)) return null;
   try {
+    const key = publicArtworkKey(url);
+    const cached = key && publicArtwork.get(key);
+    if (cached && cached.expires > Date.now()) return cached.data;
+    if (key && cached) publicArtwork.delete(key);
     const response = await fetch(url, {
       cache: 'no-store',
       redirect: 'error',
@@ -53,7 +69,14 @@ async function coverToDataUrl(url) {
     if (size > 2_000_000) return null;
     const bytes = await response.arrayBuffer();
     if (!bytes.byteLength || bytes.byteLength > 2_000_000) return null;
-    return 'data:' + mime + ';base64,' + Buffer.from(bytes).toString('base64');
+    const data = 'data:' + mime + ';base64,' + Buffer.from(bytes).toString('base64');
+    if (key) {
+      if (publicArtwork.size >= ARTWORK_LIMIT && !publicArtwork.has(key)) {
+        publicArtwork.delete(publicArtwork.keys().next().value);
+      }
+      publicArtwork.set(key, { data, expires: Date.now() + ARTWORK_TTL });
+    }
+    return data;
   } catch {
     return null;
   }
