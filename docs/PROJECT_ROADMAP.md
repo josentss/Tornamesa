@@ -1,6 +1,6 @@
 # Tornamesa — hoja de ruta viva
 
-**Actualizado:** 2026-11-20 (UTC) · **Estado del proyecto:** Fase 2B (Tops) · **Fuente de verdad de ejecución:** GitHub `main` + Supabase desplegado y verificado.
+**Actualizado:** 2026-11-27 (UTC) · **Estado del proyecto:** Fase 2B (Tops) · **Fuente de verdad de ejecución:** GitHub `main` + Supabase desplegado y verificado.
 
 Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza las listas de tareas informales. Los PDF «Tornamesa: prompt de desarrollo» y «Tornamesa: guía de mejoras y nuevas funcionalidades» (15-11-2026) conservan el contexto histórico; cuando una decisión posterior y validada difiere de los PDF, se documenta aquí. El código y las migraciones realmente aplicadas prevalecen sobre suposiciones.
 
@@ -38,7 +38,8 @@ Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza l
 | 1 | **Yearly Top — ajuste discreto de móvil, accesibilidad y ranking** ([PR #17](https://github.com/josentss/Tornamesa/pull/17)) | **Hecho** | PR fusionado (2026-11-20 UTC), Vercel success; el propietario comprobó en capturas desktop/móvil el diseño y las cifras 561/226 del año 2025. |
 | 2 | **QA de Yearly Top con datos corregidos** | **Verificar** | Cuenta principal 2025 = **561 / 226**; agosto 107, septiembre 68; 12 meses suman 561; perfiles privados y diario OFF no filtran datos; 2026 y años vacíos intactos. |
 | 3 | **Wrapped Anual básico** ([PR #18](https://github.com/josentss/Tornamesa/pull/18), [#20](https://github.com/josentss/Tornamesa/pull/20)) | **Hecho** | El usuario confirmó un PNG real y compartir exitoso de 2025 (561/226, top 5 y agosto 107). Render PNG cubierto por pruebas reales en PR #20. |
-| 3b | **Wrapped stories y cinco colores** ([PR #21](https://github.com/josentss/Tornamesa/pull/21)) | **En curso** | 5 tarjetas, 5 paletas, vista previa, descargar/compartir PNG; source de datos unchanged. Ver [alcance y QA](yearly-wrapped-story-pr21.md). |
+| 3b | **Wrapped stories y cinco colores** ([PR #21](https://github.com/josentss/Tornamesa/pull/21)) | **Hecho** | Fusionado en main; usuario confirma mejora de stories. 5 tarjetas, 5 paletas y PNG compartible. [Alcance y QA](yearly-wrapped-story-pr21.md). |
+| 3c | **Galería de Wrapped** ([PR #22](https://github.com/josentss/Tornamesa/pull/22)) | **En curso** | Una ventana emergente, carrusel horizontal de tarjetas verticales, puntos y flechas; colores y compartir/descargar dentro de la galería. QA real móvil y escritorio pendiente. [Plan](yearly-wrapped-carousel-pr22.md). |
 | 4 | **Top Personalizado v1** | **Pendiente** | API/UI con `top_albums`: meses no consecutivos hasta 24, atajos, mínimo y orden por escuchas/rating/reescuchas, filtros en URL; mismo resultado que el anual al seleccionar 12 meses equivalentes. |
 | 5 | **Guardar selección del Top como lista** | **Pendiente** | Definir UX y permisos, no asumir escritura silenciosa ni duplicar elementos. |
 
@@ -56,6 +57,10 @@ Esta guía se mantiene en el repositorio, se revisa en **cada PR** y reemplaza l
 ### PR #21 — historias visuales y personalización
 
 El PNG básico está validado con la cuenta principal y el usuario aportó referencias visuales 2024/2025. Se adoptan **principios editoriales**, no las composiciones ni las métricas de Spotify. Cinco tarjetas (resumen, álbum #1, top 5 álbumes, top 5 artistas y año en números), cinco paletas (Night, Ocean, Violet, Ember, Forest), vista previa bajo demanda y reutilización temporal del PNG. No se inventan minutos, canciones, porcentaje global ni fotos de artistas. [Plan y pruebas](yearly-wrapped-story-pr21.md).
+
+### PR #22 — galería de historias
+
+El usuario pide navegar por las historias mediante deslizamiento, no con un select, y elegir colores de la tarjeta activa en la misma ventana. Resumen primero; cinco slides, cinco paletas independientes del índice; una acción View Wrapped en Yearly Top. Carrusel horizontal nativo con snap, flechas, puntos y teclado, modal accesible, exportación del Blob activo. Carga bajo demanda tras detener el desplazamiento, cancelación de peticiones obsoletas y caché efímera solo mientras la ventana está abierta. Mantener límite de generación y mostrar reintento en 429. Sin autoplay, música, replay, nuevos datos, cambio de dimensiones PNG o modificaciones de servidor/SQL. [Plan y QA](yearly-wrapped-carousel-pr22.md).
 
 ## Integridad, Import logs y catálogo — backlog acotado
 

@@ -15,6 +15,8 @@ const route = readFileSync(new URL('../src/app/api/og/yearly/route.js', import.m
 const api = readFileSync(new URL('../src/lib/api.js', import.meta.url), 'utf8');
 const page = readFileSync(new URL('../src/app/[username]/yearly-top/page.js', import.meta.url), 'utf8');
 
+const gallery = readFileSync(new URL('../src/components/yearly/YearlyWrappedGallery.jsx', import.meta.url), 'utf8');
+
 function loadActualComponent() {
   const compiled = transformSync("const React = require('react');\n" + source, {
     filename: 'YearlyWrappedCards.jsx',
@@ -74,22 +76,44 @@ test('five named themes and exactly five story types are available', () => {
     /^#[a-f0-9]{6}$/i.test(theme.bg) && /^#[a-f0-9]{6}$/i.test(theme.accent)));
 });
 
-test('the yearly image chooser keeps share link and can reuse PNG for preview/download', () => {
+test('Wrapped opens one modal gallery and preserves the share link', () => {
   assert.match(page, /Share link/);
-  assert.match(page, /Preview image/);
-  assert.match(page, /Download PNG/);
-  assert.match(page, /Share image/);
-  assert.match(page, /aria-label="Customize yearly image"/);
-  assert.match(page, /aria-pressed=\{wrappedColor === color\.id\}/);
-  assert.match(page, /role="dialog" aria-modal="true"/);
-  assert.match(page, /event\.key === "Escape"/);
-  assert.match(page, /previewCloseRef\.current\?\.focus\(\)/);
-  assert.match(page, /previewButtonRef\.current\?\.focus\(\)/);
-  assert.match(page, /disabled=\{imageBusy\} onChange=\{\(event\) => router\.push/);
-  assert.match(page, /imageCache\.current\?\.key === key/);
-  assert.match(page, /URL\.revokeObjectURL\(imageCache\.current\.url\)/);
+  assert.match(page, /View Wrapped/);
+  assert.match(page, /aria-haspopup="dialog"/);
+  assert.match(page, /<YearlyWrappedGallery/);
+  assert.doesNotMatch(page, /id="wrapped-card"|Preview image/);
+  assert.match(gallery, /<dialog ref=\{dialog\}/);
+  assert.match(gallery, /node\.showModal\(\)/);
+  assert.match(gallery, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); onClose\(\); \}\}/);
+  assert.match(gallery, /opener\.focus\(\)/);
+  assert.match(gallery, /document\.body\.style\.overflow = originalOverflow/);
+  assert.match(gallery, /aria-roledescription="carousel"/);
+  assert.match(gallery, /snap-x snap-mandatory overflow-x-auto/);
+  assert.match(gallery, /onScroll=\{handleScroll\}/);
+  assert.match(gallery, /Math\.round\(node\.scrollLeft \/ node\.clientWidth\)/);
+  assert.match(gallery, /event\.key === "ArrowRight"/);
+  assert.match(gallery, /aria-current=\{i === index/);
+  assert.match(gallery, /aria-pressed=\{color === item\.id\}/);
+  assert.match(gallery, /useState\("night"\)/);
+  assert.match(gallery, /useState\(0\)/);
   assert.match(api, /params\.set\('card', card\)/);
   assert.match(api, /params\.set\('theme', theme\)/);
+});
+
+test('preview requests are scoped to the active card and color and never repeated by export', () => {
+  assert.match(gallery, /const key = cacheKey\(card, color\)/);
+  assert.match(gallery, /result\?\.key === key \? result : null/);
+  assert.match(gallery, /if \(scrolling\) return/);
+  assert.match(gallery, /const cached = cache\.current\.get\(key\)/);
+  assert.match(gallery, /controller\.abort\(\)/);
+  assert.match(gallery, /controller\.signal\.aborted \|\| !mounted\.current/);
+  assert.match(gallery, /cache\.current\.clear\(\)/);
+  assert.match(gallery, /for \(const entry of cache\.current\.values\(\)\) URL\.revokeObjectURL\(entry\.url\)/);
+  assert.match(gallery, /const image = current\.blob/);
+  const exporter = gallery.slice(gallery.indexOf('async function exportImage'), gallery.indexOf('  return (\n    <dialog'));
+  assert.doesNotMatch(exporter, /getYearlyTopImage|fetch\(/);
+  assert.match(api, /getYearlyTopImage: async \(username, \{ year, card = 'summary', theme = 'night', signal \}/);
+  assert.match(api, /Retry-After/);
 });
 
 test('the actual story templates render valid 1080×1350 PNGs with five albums', async () => {

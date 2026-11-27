@@ -322,18 +322,24 @@ export const api = {
     );
   },
 
-  getYearlyTopImage: async (username, { year, card = 'summary', theme = 'night' } = {}) => {
+  getYearlyTopImage: async (username, { year, card = 'summary', theme = 'night', signal } = {}) => {
     const params = new URLSearchParams({ username: String(username || '') });
     if (year != null) params.set('year', String(year));
     params.set('card', card);
     params.set('theme', theme);
     const response = await fetch('/api/og/yearly?' + params, {
       cache: 'no-store',
+      signal,
       headers: await authHeadersOptional(),
     });
     if (!response.ok) {
       if (response.status === 403) throw new Error('This yearly top is private');
-      if (response.status === 429) throw new Error('Too many images requested. Try again shortly.');
+      if (response.status === 429) {
+        const seconds = Number(response.headers.get('Retry-After'));
+        throw new Error(Number.isFinite(seconds) && seconds > 0
+          ? 'Image limit reached. Try again in ' + Math.ceil(seconds) + ' seconds.'
+          : 'Image limit reached. Try again shortly.');
+      }
       throw new Error('Could not generate the yearly image');
     }
     const blob = await response.blob();
