@@ -12,11 +12,6 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-const fmt = (value) => new Intl.NumberFormat('en').format(Number(value) || 0);
 const clipped = (value, max = 34) => {
   const text = String(value || '');
   return text.length > max ? text.slice(0, max - 1).trimEnd() + '…' : text;
@@ -80,17 +75,6 @@ async function coverToDataUrl(url) {
   } catch {
     return null;
   }
-}
-
-function AlbumCover({ item, size }) {
-  return item.cover ? (
-    <img src={item.cover} alt="" width={size} height={size}
-      style={{ width: size, height: size, borderRadius: 14, objectFit: 'cover' }} />
-  ) : (
-    <div style={{ width: size, height: size, display: 'flex', borderRadius: 14,
-      background: '#243449', border: '1px solid #324860', alignItems: 'center',
-      justifyContent: 'center', color: '#7b91a6', fontSize: 18 }}>T</div>
-  );
 }
 
 export async function GET(request) {
@@ -163,7 +147,7 @@ export async function GET(request) {
       throw top.error || stats.error || new Error('Invalid yearly stats');
     }
 
-    const selectedAlbums = (top.data || []).slice(0, card === 'album' ? 1 : 5);
+    const selectedAlbums = (top.data || []).slice(0, card === 'albums' ? 5 : 1);
     const ids = selectedAlbums.map((item) => item.album_id);
     const metadata = {};
     if (ids.length > 0) {
@@ -187,170 +171,16 @@ export async function GET(request) {
 
     const summary = stats.data;
     const monthly = Array.isArray(summary.monthly) ? summary.monthly : [];
-    const peak = monthly.reduce((best, item) => (
-      Number(item.listens) > Number(best?.listens || 0) ? item : best
-    ), null);
-    const topArtist = Array.isArray(summary.topArtists) ? summary.topArtists[0] : null;
-    const winner = items[0];
-    const others = items.slice(1);
-    const palette = YEARLY_THEMES[themeName];
-    if (card !== 'summary') {
-      const story = new ImageResponse(
-        <YearlyWrappedCard
-          card={card} theme={themeName} username={profile.username} year={year}
-          summary={summary} items={items} topArtists={summary.topArtists || []}
-          monthly={monthly}
-        />,
-        { width: 1080, height: 1920, headers: NO_STORE }
-      );
-      // Validate with Satori fully before sending bytes, exactly as in summary.
-      const storyPng = await story.arrayBuffer();
-      return new Response(storyPng, {
-        status: 200, headers: { ...NO_STORE, 'Content-Type': 'image/png' },
-      });
-    }
-
-    // Force PNG rendering inside this try/catch; a streamed ImageResponse
-    // otherwise raises Satori errors after the route has returned a 200.
+    // Materialize all five cards through the same protected renderer.
     const image = new ImageResponse(
-      <div style={{
-        display: 'flex', flexDirection: 'column', width: '100%', height: '100%',
-        background: palette.bg, color: '#f0f9ff', padding: 70,
-        fontFamily: 'sans-serif',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          marginBottom: 40,
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex',  fontSize: 29, color: palette.accent, letterSpacing: 3, fontWeight: 700 }}>
-              YEARLY TOP
-            </div>
-            <div style={{ display: 'flex',  fontSize: 84, fontWeight: 800, marginTop: 6 }}>{year}</div>
-            <div style={{ display: 'flex',  fontSize: 30, color: palette.muted }}>
-              {'@' + clipped(profile.username, 30)}
-            </div>
-          </div>
-          <div style={{ display: 'flex', fontSize: 34, fontWeight: 700, color: palette.accent }}>
-            Tornamesa
-          </div>
-        </div>
-
-        <div style={{
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-          background: palette.surface, border: '1px solid #2a3645', borderRadius: 22,
-          padding: '36px 40px', marginBottom: 38,
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex',  color: palette.muted, fontSize: 28 }}>Your year in albums</div>
-            <div style={{ display: 'flex',  fontSize: 136, fontWeight: 800, lineHeight: 1.1 }}>
-              {fmt(summary.totalListens)}
-            </div>
-            <div style={{ display: 'flex',  color: palette.muted, fontSize: 28 }}>album listens</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16,
-            alignItems: 'flex-end', paddingBottom: 8 }}>
-            {/* Every div declares a layout; Satori splits even mixed text/expression nodes. */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 39, fontWeight: 700 }}>
-              {fmt(summary.uniqueAlbums)} <span style={{ color: palette.muted, fontSize: 25, fontWeight: 400 }}>albums</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 39, fontWeight: 700 }}>
-              {fmt(summary.uniqueArtists)} <span style={{ color: palette.muted, fontSize: 25, fontWeight: 400 }}>artists</span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <div style={{ display: 'flex',  color: palette.accent, fontSize: 27, fontWeight: 700, marginBottom: 12 }}>
-            YOUR #1 ALBUM
-          </div>
-          {winner ? (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 26,
-              borderRadius: 20, padding: 25, background: palette.surface,
-              border: '1px solid #3a6078', marginBottom: 24,
-            }}>
-              <AlbumCover item={winner} size={278} />
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 9 }}>
-                <div style={{ display: 'flex',  fontSize: 47, fontWeight: 700 }}>
-                  {clipped(winner.title, 32)}
-                </div>
-                <div style={{ display: 'flex',  fontSize: 30, color: palette.muted }}>
-                  {clipped(winner.artist, 37)}
-                </div>
-                <div style={{ display: 'flex',  fontSize: 34, fontWeight: 700, color: palette.accent }}>
-                  {'×' + fmt(winner.count) + ' listens'}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              display: 'flex', padding: 42, background: palette.surface,
-              borderRadius: 20, color: palette.muted, marginBottom: 24,
-              fontSize: 22,
-            }}>No albums logged this year</div>
-          )}
-          <div style={{ display: 'flex',  color: palette.muted, fontSize: 27, fontWeight: 700, marginBottom: 12 }}>
-            TOP ALBUMS
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-            {others.map((item, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 20, height: 143,
-                padding: '6px 14px', borderBottom: '1px solid #243449',
-              }}>
-                <div style={{ display: 'flex',  width: 40, fontSize: 37, color: palette.accent, fontWeight: 700 }}>
-                  {i + 2}
-                </div>
-                <AlbumCover item={item} size={111} />
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 4 }}>
-                  <div style={{ display: 'flex',  fontSize: 32, fontWeight: 700 }}>
-                    {clipped(item.title, 48)}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', fontSize: 25, color: palette.muted }}>
-                      {clipped(item.artist, 33)}
-                    </div>
-                    <div style={{ display: 'flex', fontSize: 28, color: palette.accent, fontWeight: 700 }}>
-                      {'×' + fmt(item.count)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', gap: 28,
-          borderTop: '1px solid #2a3645', paddingTop: 22, marginTop: 28,
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-            <div style={{ display: 'flex',  fontSize: 23, color: palette.muted }}>TOP ARTIST</div>
-            <div style={{ display: 'flex',  fontSize: 32, fontWeight: 700 }}>
-              {clipped(topArtist?.name || '—', 30)}
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-            <div style={{ display: 'flex',  fontSize: 23, color: palette.muted }}>MOST ACTIVE MONTH</div>
-            <div style={{ display: 'flex',  fontSize: 32, fontWeight: 700 }}>
-              {peak && Number(peak.listens) > 0
-                ? MONTHS[Number(peak.month) - 1] + ' · ' + fmt(peak.listens)
-                : '—'}
-            </div>
-          </div>
-        </div>
-        <div style={{
-          display: 'flex', justifyContent: 'flex-end', marginTop: 26,
-          color: palette.muted, fontSize: 23,
-        }}>tornamesa.app</div>
-      </div>,
+      <YearlyWrappedCard card={card} theme={themeName} username={profile.username} year={year}
+        summary={summary} items={items}
+        topArtists={Array.isArray(summary.topArtists) ? summary.topArtists : []} monthly={monthly} />,
       { width: 1080, height: 1920, headers: NO_STORE }
     );
     const png = await image.arrayBuffer();
     return new Response(png, {
-      status: 200,
-      headers: { ...NO_STORE, 'Content-Type': 'image/png' },
+      status: 200, headers: { ...NO_STORE, 'Content-Type': 'image/png' },
     });
   } catch (error) {
     console.error('Yearly image render error:', error);

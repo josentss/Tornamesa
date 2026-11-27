@@ -35,7 +35,7 @@ function loadActualComponent() {
   return mod.exports;
 }
 
-const { YEARLY_THEMES, YEARLY_CARDS, YearlyWrappedCard } = loadActualComponent();
+const { YEARLY_THEMES, YEARLY_CARDS, STORY_LAYOUT, YearlyWrappedCard } = loadActualComponent();
 const COVER = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGMU6bnDwMDAxMDAwMDAAAARMgGAsGEFiQAAAABJRU5ErkJggg==';
 const albums = Array.from({ length: 5 }, (_, i) => ({
   title: i === 0 ? 'fabiola' : 'Very Long Album Title Number ' + (i + 1),
@@ -65,7 +65,7 @@ test('the image endpoint validates card and color before owner data and preserve
   assert.ok(route.indexOf("canViewWithFollows(supabase, viewer, profile, 'top')") < route.indexOf("supabase.rpc('top_albums'"));
   assert.match(route, /p_limit: 5/);
   assert.match(route, /supabase\.rpc\('yearly_top_stats'/);
-  assert.match(route, /await story\.arrayBuffer\(\)/);
+  assert.match(route, /await image\.arrayBuffer\(\)/);
   assert.match(route, /'Cache-Control': 'private, no-store'/);
 });
 
@@ -117,7 +117,7 @@ test('preview requests are scoped to the active card and color and never repeate
 });
 
 test('the actual story templates render valid 1080×1920 PNGs with five albums', async () => {
-  for (const card of ['album', 'albums', 'artists', 'insights']) {
+  for (const card of ['summary', 'album', 'albums', 'artists', 'insights']) {
     const element = React.createElement(YearlyWrappedCard, {
       card, theme: 'night', year: 2025, username: 'josents',
       summary, items: albums, topArtists: artists, monthly,
@@ -153,14 +153,35 @@ test('story preview stays vertical and prevents exporting stale colors', () => {
 
 test('all four themes and each empty story render real 9:16 PNGs', async () => {
   for (const [card, theme] of [
-    ['album', 'ocean'], ['albums', 'violet'], ['artists', 'moss'], ['insights', 'ocean'],
-    ['albums', 'night'], ['artists', 'night'], ['insights', 'night'],
+    ['summary', 'ocean'], ['album', 'ocean'], ['albums', 'violet'], ['artists', 'moss'], ['insights', 'ocean'],
+    ['summary', 'night'], ['albums', 'night'], ['artists', 'night'], ['insights', 'night'],
   ]) {
     const filled = theme !== 'night';
     const element = React.createElement(YearlyWrappedCard, {
       card, theme, year: 2025, username: 'test-account',
       summary: filled ? summary : { totalListens: 0, uniqueAlbums: 0, uniqueArtists: 0, discoveries: 0, repeatListens: 0 },
       items: filled ? albums : [], topArtists: filled ? artists : [], monthly: filled ? monthly : [],
+    });
+    const png = Buffer.from(await new ImageResponse(element, { width: 1080, height: 1920 }).arrayBuffer());
+    assert.ok(png.subarray(0, 8).equals(PNG_SIGNATURE));
+    assert.equal(png.readUInt32BE(16), 1080);
+    assert.equal(png.readUInt32BE(20), 1920);
+  }
+});
+
+test('fixed frame reserves explicit safe areas and story sections', () => {
+  const l = STORY_LAYOUT;
+  assert.equal(2*l.paddingY + l.header + l.headerGap + l.body + l.footerGap + l.footer, l.height);
+  assert.equal(l.width - 2*l.paddingX, 920);
+});
+test('long multilingual labels, large totals and a single album render real PNGs', async () => {
+  const long = [{ title: '非常に長いアルバムの名前 — In The Court Of The Crimson King (Expanded & Remastered Original Album Mix)',
+    artist: 'A very long collaboration name with several artists', count: 123456, cover: COVER }];
+  for (const card of ['summary', 'album', 'albums', 'artists', 'insights']) {
+    const element = React.createElement(YearlyWrappedCard, {
+      card, theme: 'moss', year: 2026, username: 'very-long-username-for-testing',
+      summary: { totalListens: 123456, uniqueAlbums: 12345, uniqueArtists: 9876, discoveries: 12345, repeatListens: 111111 },
+      items: long, topArtists: [{ name: long[0].artist, listens: 123456, albums: 1 }], monthly,
     });
     const png = Buffer.from(await new ImageResponse(element, { width: 1080, height: 1920 }).arrayBuffer());
     assert.ok(png.subarray(0, 8).equals(PNG_SIGNATURE));
