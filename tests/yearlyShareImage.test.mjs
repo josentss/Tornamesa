@@ -6,6 +6,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const route = read('../src/app/api/og/yearly/route.js');
 const yearlyApi = read('../src/app/api/profiles/username/[username]/yearly-top/route.js');
 const page = read('../src/app/[username]/yearly-top/page.js');
+const gallery = read('../src/components/yearly/YearlyWrappedGallery.jsx');
 const client = read('../src/lib/api.js');
 const monthlyWrapped = read('../src/app/api/og/wrapped/route.js');
 
@@ -64,20 +65,23 @@ test('cover downloads are optional, whitelisted, and strictly bounded', () => {
   assert.doesNotMatch(route, /fetch\(album\?\.cover_url\)/);
 });
 
-test('annual image actions coexist with the existing share link', () => {
+test('annual image gallery coexists with the existing share link', () => {
   assert.match(page, /Share link/);
-  assert.match(page, /Share image/);
-  assert.match(page, /Download PNG/);
-  assert.match(page, /aria-label="Yearly image actions"/);
-  assert.match(page, /disabled=\{imageBusy\}/);
-  assert.match(page, /aria-live="polite"/);
-  assert.match(page, /api\.getYearlyTopImage\(data\.username, \{/);
-  assert.match(page, /year: data\.year, card: wrappedCard, theme: wrappedColor/);
-  assert.match(page, /navigator\.canShare\?\.\(\{ files: \[file\] \}\)/);
-  assert.match(page, /anchor\.download = name/);
-  assert.match(page, /shareError\?\.name === "AbortError"/);
-  assert.match(page, /Native file sharing is not available/);
-  assert.match(page, /URL\.revokeObjectURL\(objectUrl\)/);
+  assert.match(page, /View Wrapped/);
+  assert.match(page, /<YearlyWrappedGallery/);
+  assert.match(gallery, /Share image/);
+  assert.match(gallery, /Download PNG/);
+  assert.match(gallery, /aria-label="Yearly image actions"/);
+  assert.match(gallery, /disabled=\{!ready\}/);
+  assert.match(gallery, /aria-live="polite"/);
+  assert.match(gallery, /api\.getYearlyTopImage\(username, \{/);
+  assert.match(gallery, /year, card, theme: color, signal: controller\.signal/);
+  assert.match(gallery, /navigator\.canShare\?\.\(\{ files: \[file\] \}\)/);
+  assert.match(gallery, /anchor\.download = name/);
+  assert.match(gallery, /shareError\?\.name === "AbortError"/);
+  assert.match(gallery, /Native file sharing is not available/);
+  assert.match(gallery, /URL\.revokeObjectURL\(objectUrl\)/);
+  assert.match(gallery, /const image = current\.blob/);
 });
 
 test('image client forwards verified optional bearer and validates content-type', () => {
