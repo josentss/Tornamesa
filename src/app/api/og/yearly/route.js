@@ -5,6 +5,7 @@ import { canViewWithFollows } from '@/lib/visibilityAccess';
 import { localDateKey, normalizeTimeZone } from '@/lib/timezone';
 import { buildYearTopRanges, toTopRpcRanges } from '@/lib/topRanges';
 import { clientKey, rateLimit, rateLimitResponse } from '@/lib/rateLimit';
+import { loadWrappedFonts } from '@/lib/wrappedFonts';
 import { YEARLY_CARDS, YEARLY_THEMES, YearlyWrappedCard } from '@/components/yearly/YearlyWrappedCards';
 
 export const runtime = 'nodejs';
@@ -176,7 +177,7 @@ export async function GET(request) {
       <YearlyWrappedCard card={card} theme={themeName} username={profile.username} year={year}
         summary={summary} items={items}
         topArtists={Array.isArray(summary.topArtists) ? summary.topArtists : []} monthly={monthly} />,
-      { width: 1080, height: 1920, headers: NO_STORE }
+      { width: 1080, height: 1920, headers: NO_STORE, fonts: await loadWrappedFonts() }
     );
     const png = await image.arrayBuffer();
     return new Response(png, {
