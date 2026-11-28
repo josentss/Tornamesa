@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const route = read('../src/app/api/og/yearly/route.js');
+const cards = read('../src/components/yearly/YearlyWrappedCards.jsx');
 const yearlyApi = read('../src/app/api/profiles/username/[username]/yearly-top/route.js');
 const page = read('../src/app/[username]/yearly-top/page.js');
 const gallery = read('../src/components/yearly/YearlyWrappedGallery.jsx');
@@ -40,17 +41,17 @@ test('annual image ranks using exactly the same stable SQL engine as Yearly Top'
   }
   assert.match(route, /p_limit: 5/);
   assert.match(yearlyApi, /p_limit: 50/);
-  assert.match(route, /MONTHS\[Number\(peak\.month\) - 1\]/);
+  assert.match(cards, /months\[Number\(peak\.month\)-1\]/);
 });
 
 test('image uses a fixed 1080 x 1920 PNG without inventing history', () => {
   assert.match(route, /new ImageResponse\(/);
   assert.match(route, /width: 1080, height: 1920, headers: NO_STORE/);
-  assert.match(route, /fmt\(summary\.totalListens\)/);
-  assert.match(route, /fmt\(summary\.uniqueAlbums\)/);
-  assert.match(route, /fmt\(summary\.uniqueArtists\)/);
-  assert.match(route, /summary\.topArtists\[0\]/);
-  assert.match(route, /No albums logged this year/);
+  assert.match(cards, /fmt\(summary\.totalListens\)/);
+  assert.match(cards, /summary\.uniqueAlbums/);
+  assert.match(cards, /summary\.uniqueArtists/);
+  assert.match(cards, /const topArtist = artists\[0\]/);
+  assert.match(cards, /No albums logged this year/);
   assert.doesNotMatch(route, /minutes played|listening streak|estimated minutes/i);
 });
 
@@ -96,28 +97,21 @@ test('image client forwards verified optional bearer and validates content-type'
 test('monthly Wrapped is retained unchanged as a separate route', () => {
   assert.match(monthlyWrapped, /Monthly Wrapped/);
   assert.match(monthlyWrapped, /rebuild|ensureMonthlyTop/);
-  assert.match(route, /YEARLY TOP/);
+  assert.match(cards, /YEARLY TOP/);
 });
 
-test('OG yearly metrics use explicit flex layout for text and span children', () => {
-  // Satori rejects a div with multiple children unless display is flex or none.
-  // Numeric totals and their labels are separate JSX children.
-  for (const metric of ['uniqueAlbums', 'uniqueArtists']) {
-    const matcher = new RegExp(
-      '<div style=\\{\\{([^}]+)\\}\\}>\\s*\\{fmt\\(summary\\.' +
-      metric + '\\)\\}\\s*<span'
-    );
-    const match = route.match(matcher);
-    assert.ok(match, metric + ' must render with an adjacent label span');
-    assert.match(match[1], /display: 'flex'/, metric + ' requires explicit flex');
-    assert.match(match[1], /alignItems: 'baseline'/);
-  }
+test('summary metrics use a separate labeled column and never squeeze a full ranking into the hero', () => {
+  const summary = cards.slice(cards.indexOf('function Summary'), cards.indexOf('function AlbumSpotlight'));
+  assert.match(summary, /summary\.uniqueAlbums/);
+  assert.match(summary, /summary\.uniqueArtists/);
+  assert.match(summary, /const first = items\[0\]/);
+  assert.doesNotMatch(summary, /items\.slice|items\.map/);
 });
 
 test('avoid catalog and artwork work for non-album stories', () => {
   assert.match(route, /const needsAlbums = card === 'summary' \|\| card === 'album' \|\| card === 'albums'/);
   assert.match(route, /needsAlbums \? supabase\.rpc\('top_albums'/);
-  assert.match(route, /slice\(0, card === 'album' \? 1 : 5\)/);
+  assert.match(route, /slice\(0, card === 'albums' \? 5 : 1\)/);
   assert.match(route, /Promise\.all\(selectedAlbums\.map/);
 });
 
